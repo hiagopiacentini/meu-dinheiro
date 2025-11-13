@@ -26,7 +26,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
   const amountColor = isIncome ? 'text-green-500' : 'text-red-500';
 
   return (
-    <div className={`flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200 transition-shadow hover:shadow-sm`}>
+    <div className={`flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200 transition-shadow hover:shadow-md`}>
       <div className="flex items-center space-x-4">
         <div className={`p-2 rounded-full ${isIncome ? 'bg-green-100' : 'bg-red-100'}`}>
           {isIncome ? <IncomeIcon className="w-5 h-5 text-green-500" /> : <ExpenseIcon className="w-5 h-5 text-red-500" />}
@@ -42,7 +42,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, onDelete
         <span className={`font-semibold ${amountColor}`}>{formatCurrency(transaction.amount)}</span>
         <button
           onClick={() => onDelete(transaction.id)}
-          className="text-slate-400 hover:text-red-600 transition-colors"
+          className="text-slate-400 hover:text-red-500 transition-colors"
           aria-label="Deletar transação"
         >
           <TrashIcon className="w-5 h-5" />

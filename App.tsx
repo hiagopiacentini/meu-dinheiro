@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import DashboardPage from './pages/DashboardPage';
@@ -8,6 +9,7 @@ import LoansPage from './pages/LoansPage';
 import BalancesPage from './pages/BalancesPage';
 import GoalsPage from './pages/GoalsPage';
 import ReportsPage from './pages/ReportsPage';
+import LoginPage from './pages/LoginPage';
 
 import DashboardIcon from './components/icons/DashboardIcon';
 import AccountsIcon from './components/icons/AccountsIcon';
@@ -18,22 +20,45 @@ import BalancesIcon from './components/icons/BalancesIcon';
 import GoalsIcon from './components/icons/GoalsIcon';
 import ReportsIcon from './components/icons/ReportsIcon';
 import MenuIcon from './components/icons/MenuIcon';
+import UserIcon from './components/icons/UserIcon';
+import PlusIcon from './components/icons/PlusIcon';
 
 
 const App: React.FC = () => {
   const [activePage, setActivePage] = useState('Dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [addTransactionTrigger, setAddTransactionTrigger] = useState(0);
+  const [addAccountTrigger, setAddAccountTrigger] = useState(0);
+  const [addCategoryTrigger, setAddCategoryTrigger] = useState(0);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+
+  const handleAddTransactionClick = () => {
+    setAddTransactionTrigger(Date.now());
+  };
+
+  const handleAddAccountClick = () => {
+    setAddAccountTrigger(Date.now());
+  };
+
+  const handleAddCategoryClick = () => {
+    setAddCategoryTrigger(Date.now());
+  };
+  
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+  };
 
   const renderPage = () => {
     switch (activePage) {
       case 'Dashboard':
         return <DashboardPage />;
       case 'Contas':
-        return <AccountsPage />;
+        return <AccountsPage addAccountTrigger={addAccountTrigger} />;
       case 'Categorias':
-        return <CategoriesPage />;
+        return <CategoriesPage addCategoryTrigger={addCategoryTrigger}/>;
       case 'Lançamentos':
-        return <TransactionsPage />;
+        return <TransactionsPage addTransactionTrigger={addTransactionTrigger} />;
       case 'Empréstimos':
         return <LoansPage />;
       case 'Saldos':
@@ -58,73 +83,146 @@ const App: React.FC = () => {
     { name: 'Metas', icon: GoalsIcon },
   ];
 
+  const pageSubtitles: { [key: string]: string } = {
+      'Dashboard': 'Sua visão geral financeira personalizada.',
+      'Contas': 'Visualize todas as suas contas bancárias e carteiras digitais.',
+      'Categorias': 'Organize suas receitas e despesas com categorias e subcategorias.',
+      'Lançamentos': 'Adicione, edite e visualize todas as suas transações.',
+      // Add other subtitles here if needed
+  }
+
   return (
     <>
     <style>{`
-      .input-style { 
-        padding: 0.625rem 0.75rem; 
-        background-color: white; 
-        border: 1px solid #e2e8f0; 
-        border-radius: 0.5rem; 
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); 
-        outline: none; 
+      .input-style {
+        background-color: #ffffff; /* white */
+        border: 1px solid #cbd5e1; /* slate-300 */
+        color: #1e293b; /* slate-800 */
+        border-radius: 0.5rem;
+        padding: 0.625rem 0.75rem;
         transition: border-color 0.2s, box-shadow 0.2s;
         width: 100%;
-      } 
-      .input-style:focus { 
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3); 
-        border-color: #3b82f6; 
+        font-size: 0.875rem;
       }
-      .btn-primary { 
-        padding: 0.625rem 1rem; 
-        background-color: #2563eb; 
-        color: white; 
-        border-radius: 0.5rem; 
-        font-weight: 500; 
+      .input-style:focus {
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+        border-color: #3b82f6; /* blue-500 */
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+      }
+      select.input-style {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3e%3cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd' /%3e%3c/svg%3e");
+        background-position: right 0.75rem center;
+        background-repeat: no-repeat;
+        background-size: 1.25em 1.25em;
+        padding-right: 2.5rem;
+      }
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.625rem 1rem;
+        background-color: #2563eb; /* blue-600 */
+        color: white;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        font-size: 0.875rem;
         transition: background-color 0.2s;
         border: none;
         cursor: pointer;
-      } 
-      .btn-primary:hover { 
-        background-color: #1d4ed8; 
       }
-      .btn-secondary { 
-        padding: 0.625rem 1rem; 
-        background-color: #f1f5f9; 
-        color: #0f172a; 
-        border-radius: 0.5rem; 
-        font-weight: 500; 
-        transition: background-color 0.2s;
-        border: 1px solid #e2e8f0;
+      .btn-primary:hover {
+        background-color: #1d4ed8; /* blue-700 */
+      }
+      .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.625rem 1rem;
+        background-color: #ffffff; /* white */
+        color: #334155; /* slate-700 */
+        border-radius: 0.5rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+        transition: background-color 0.2s, border-color 0.2s;
+        border: 1px solid #cbd5e1; /* slate-300 */
         cursor: pointer;
-      } 
+      }
       .btn-secondary:hover {
-        background-color: #e2e8f0;
+        background-color: #f8fafc; /* gray-50 */
       }
     `}</style>
-      <div className="min-h-screen bg-slate-100 text-slate-800 font-sans">
-        <Sidebar
-          menuItems={menuItems}
-          activeItem={activePage}
-          setActiveItem={setActivePage}
-          isOpen={isSidebarOpen}
-          setIsOpen={setIsSidebarOpen}
-        />
-        <div className="md:ml-64 flex flex-col min-h-screen">
-          <header className="flex items-center p-4 md:p-6 bg-slate-100/80 backdrop-blur-sm sticky top-0 z-10 border-b border-slate-200 md:border-none">
-            <button
-              className="md:hidden mr-4 p-1 text-slate-600 hover:bg-slate-200 rounded-md"
-              onClick={() => setIsSidebarOpen(true)}
-              aria-label="Open menu"
-            >
-              <MenuIcon className="w-6 h-6" />
-            </button>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">{activePage}</h1>
-          </header>
-          <main className="flex-1 p-4 md:p-6">
-            {renderPage()}
-          </main>
-        </div>
+      <div className="min-h-screen bg-gray-50 text-slate-700 font-sans">
+        {!isAuthenticated ? (
+          <LoginPage onLogin={handleLogin} />
+        ) : (
+          <>
+            <Sidebar
+              menuItems={menuItems}
+              activeItem={activePage}
+              setActiveItem={setActivePage}
+              isOpen={isSidebarOpen}
+              setIsOpen={setIsSidebarOpen}
+            />
+            <div className="md:ml-64 flex flex-col h-screen">
+              <header className="sticky top-0 z-20 flex items-center justify-between p-4 md:p-6 bg-white border-b border-slate-200">
+                <div className="flex items-center">
+                  <button
+                    className="md:hidden mr-4 p-1 text-slate-500 hover:bg-gray-100 rounded-md"
+                    onClick={() => setIsSidebarOpen(true)}
+                    aria-label="Open menu"
+                  >
+                    <MenuIcon className="w-6 h-6" />
+                  </button>
+                  <div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
+                      {activePage === 'Contas' ? 'Minhas Contas' : activePage === 'Categorias' ? 'Gerenciar Categorias' : activePage}
+                    </h1>
+                    {pageSubtitles[activePage] && <p className="text-sm text-slate-500 mt-1">{pageSubtitles[activePage]}</p>}
+                  </div>
+                </div>
+                <div className="flex items-center space-x-4">
+                  {activePage === 'Lançamentos' && (
+                      <button
+                          onClick={handleAddTransactionClick}
+                          className="btn-primary hidden sm:flex items-center space-x-2"
+                      >
+                          <PlusIcon className="w-5 h-5" />
+                          <span>Adicionar Transação</span>
+                      </button>
+                  )}
+                  {activePage === 'Contas' && (
+                      <button
+                          onClick={handleAddAccountClick}
+                          className="btn-primary hidden sm:flex items-center space-x-2"
+                      >
+                          <PlusIcon className="w-5 h-5" />
+                          <span>Adicionar Nova Conta</span>
+                      </button>
+                  )}
+                  {activePage === 'Categorias' && (
+                      <button
+                          onClick={handleAddCategoryClick}
+                          className="btn-primary hidden sm:flex items-center space-x-2"
+                      >
+                          <PlusIcon className="w-5 h-5" />
+                          <span>Nova Categoria</span>
+                      </button>
+                  )}
+                  <button className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                    <UserIcon className="w-6 h-6 text-slate-500" />
+                  </button>
+                </div>
+              </header>
+              <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+                {renderPage()}
+              </main>
+            </div>
+          </>
+        )}
       </div>
     </>
   );

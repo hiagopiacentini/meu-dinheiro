@@ -112,7 +112,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 id="category"
                 value={category}
                 onChange={e => setCategory(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="mt-1 input-style"
               >
                 {EXPENSE_CATEGORIES.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>

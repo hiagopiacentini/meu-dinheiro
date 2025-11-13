@@ -1,11 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Account, Transaction, Loan } from '../types';
-import PlusIcon from '../components/icons/PlusIcon';
+import { Account, Transaction, Loan, TransactionType, Category } from '../types';
 import TrashIcon from '../components/icons/TrashIcon';
 import PencilIcon from '../components/icons/PencilIcon';
+import SearchIcon from '../components/icons/SearchIcon';
+import MoneyIcon from '../components/icons/MoneyIcon';
+import UploadIcon from '../components/icons/UploadIcon';
+
+// Sample Data
+const sampleAccounts: Account[] = [
+    { id: 'nubank-1', name: 'Nubank - NuConta', initialBalance: 3480.20, bank: 'Nubank', isActive: true },
+    { id: 'itau-1', name: 'Itaú - Conta Corrente', initialBalance: 1250.75, bank: 'Itaú', isActive: true },
+    { id: 'paypal-1', name: 'PayPal', initialBalance: 815.00, bank: 'PayPal', isActive: true },
+    { id: 'bradesco-1', name: 'Bradesco - Poupança', initialBalance: 10000, bank: 'Bradesco', isActive: false },
+];
+
+const sampleTransactions: Transaction[] = [
+    { id: 't1', description: 'Uber', amount: 22.50, date: '2024-07-25T12:00:00Z', type: TransactionType.EXPENSE, accountId: 'nubank-1', itemId: 'transporte-uber' },
+    { id: 't2', description: 'Salário', amount: 4500.00, date: '2024-07-24T12:00:00Z', type: TransactionType.INCOME, accountId: 'itau-1', itemId: 'receita-salario' },
+    { id: 't3', description: 'Spotify', amount: 21.90, date: '2024-07-23T12:00:00Z', type: TransactionType.EXPENSE, accountId: 'nubank-1', itemId: 'lazer-assinaturas' },
+    { id: 't4', description: 'Supermercado Pão de Açúcar', amount: 345.80, date: '2024-07-22T12:00:00Z', type: TransactionType.EXPENSE, accountId: 'itau-1', itemId: 'alimentacao-supermercado' },
+    { id: 't5', description: 'Venda Online', amount: 150.00, date: '2024-07-21T12:00:00Z', type: TransactionType.INCOME, accountId: 'paypal-1', itemId: 'receita-extra' },
+];
+
+const sampleCategories: Category[] = [
+  { id: 'cat-receita', name: 'Receita', type: TransactionType.INCOME, subcategories: [
+    {id: 'sub-receita', name: 'Receita', items: [{id: 'receita-salario', name: 'Salário', subcategoryId: 'sub-receita', categoryId: 'cat-receita'}, {id: 'receita-extra', name: 'Renda Extra', subcategoryId: 'sub-receita', categoryId: 'cat-receita'}], categoryId: 'cat-receita'}
+  ]},
+  { id: 'cat-transporte', name: 'Transporte', type: TransactionType.EXPENSE, subcategories: [
+    {id: 'sub-transporte', name: 'Transporte', items: [{id: 'transporte-uber', name: 'Uber', subcategoryId: 'sub-transporte', categoryId: 'cat-transporte'}], categoryId: 'cat-transporte'}
+  ]},
+  { id: 'cat-lazer', name: 'Lazer', type: TransactionType.EXPENSE, subcategories: [
+    {id: 'sub-lazer', name: 'Lazer', items: [{id: 'lazer-assinaturas', name: 'Assinaturas', subcategoryId: 'sub-lazer', categoryId: 'cat-lazer'}], categoryId: 'cat-lazer'}
+  ]},
+  { id: 'cat-alimentacao', name: 'Alimentação', type: TransactionType.EXPENSE, subcategories: [
+    {id: 'sub-alimentacao', name: 'Alimentação', items: [{id: 'alimentacao-supermercado', name: 'Supermercado', subcategoryId: 'sub-alimentacao', categoryId: 'cat-alimentacao'}], categoryId: 'cat-alimentacao'}
+  ]},
+];
+
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 
 const AccountModal: React.FC<{
     isOpen: boolean;
@@ -78,7 +113,7 @@ const AccountModal: React.FC<{
             </div>
              <div>
                 <label htmlFor="acc-bank" className="block text-sm font-medium text-slate-700">Banco</label>
-                <input type="text" id="acc-bank" value={bank} onChange={e => setBank(e.target.value)} className="mt-1 block w-full input-style" />
+                <input type="text" id="acc-bank" value={bank} onChange={e => setBank(e.target.value)} className="mt-1 block w-full input-style" placeholder="Ex: Nubank"/>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <div>
@@ -92,7 +127,7 @@ const AccountModal: React.FC<{
             </div>
              <div className="flex items-center">
                 <input type="checkbox" id="acc-active" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
-                <label htmlFor="acc-active" className="ml-2 block text-sm text-slate-900">Conta Ativa</label>
+                <label htmlFor="acc-active" className="ml-2 block text-sm text-slate-800">Conta Ativa</label>
             </div>
             <div className="flex justify-end space-x-3 pt-4">
               <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
@@ -104,13 +139,99 @@ const AccountModal: React.FC<{
     );
 };
 
+const BankLogo: React.FC<{ account: Account, size?: 'sm' | 'lg'}> = ({ account, size = 'sm' }) => {
+    const { bank: bankName = '', imageUrl } = account;
+    const name = bankName.toLowerCase();
+    const sizeClasses = size === 'sm' ? 'w-10 h-10 rounded-lg' : 'w-14 h-14 rounded-xl';
+    
+    if (imageUrl) {
+        return <img src={imageUrl} alt={account.name} className={`${sizeClasses} object-cover`} />;
+    }
+    if (name.includes('nubank')) {
+        return <img src="https://i.imgur.com/8311S3D.png" alt="Nubank" className={sizeClasses} />;
+    }
+    if (name.includes('itaú')) {
+        return <img src="https://i.imgur.com/uR29mKw.png" alt="Itau" className={sizeClasses} />;
+    }
+    if (name.includes('paypal')) {
+        return <img src="https://i.imgur.com/T5QkH90.png" alt="PayPal" className={sizeClasses} />;
+    }
+    
+    return (
+        <div className={`${sizeClasses} bg-slate-200 flex items-center justify-center`}>
+            <MoneyIcon className="w-6 h-6 text-slate-500" />
+        </div>
+    );
+};
 
-const AccountsPage: React.FC = () => {
-    const [accounts, setAccounts] = useLocalStorage<Account[]>('accounts', []);
-    const [transactions] = useLocalStorage<Transaction[]>('transactions', []);
+const categoryColors: { [key: string]: string } = {
+    'Transporte': 'bg-gray-200 text-gray-800',
+    'Receita': 'bg-green-100 text-green-800',
+    'Assinaturas': 'bg-gray-200 text-gray-800',
+    'Alimentação': 'bg-gray-200 text-gray-800',
+};
+const defaultCategoryColor = 'bg-slate-100 text-slate-800';
+
+const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigger }) => {
+    const [accounts, setAccounts] = useLocalStorage<Account[]>('accounts', sampleAccounts);
+    const [transactions] = useLocalStorage<Transaction[]>('transactions', sampleTransactions);
     const [loans] = useLocalStorage<Loan[]>('loans', []);
+    useLocalStorage<Category[]>('categories', sampleCategories); // just to set sample data
+    const [categories] = useLocalStorage<Category[]>('categories', []);
+
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+    const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const addAccountTriggerRef = useRef(addAccountTrigger);
+    
+    const categoryMap = useMemo(() => {
+        const map = new Map<string, string>();
+        categories.forEach(cat => cat.subcategories.forEach(sub => sub.items.forEach(item => map.set(item.id, item.name))));
+        return map;
+    }, [categories]);
+
+    useEffect(() => {
+        // Only trigger modal on explicit button click, not on page load/navigation
+        if (addAccountTrigger > addAccountTriggerRef.current) {
+            handleOpenModal();
+        }
+        addAccountTriggerRef.current = addAccountTrigger;
+    }, [addAccountTrigger]);
+    
+    useEffect(() => {
+        if (!selectedAccountId && accounts.length > 0) {
+            setSelectedAccountId(accounts[0].id);
+        }
+    }, [accounts, selectedAccountId]);
+
+    const accountBalances = useMemo(() => {
+        const balances = new Map<string, number>();
+        accounts.forEach(acc => balances.set(acc.id, acc.initialBalance));
+        transactions.forEach(t => {
+            const updateBalance = (id: string, amount: number) => { if(balances.has(id)) balances.set(id, balances.get(id)! + amount); };
+            if (t.type === TransactionType.INCOME) updateBalance(t.accountId, t.amount);
+            else if (t.type === TransactionType.EXPENSE) updateBalance(t.accountId, -t.amount);
+            else if (t.type === TransactionType.TRANSFER) {
+                updateBalance(t.accountId, -t.amount);
+                if(t.destinationAccountId) updateBalance(t.destinationAccountId, t.amount);
+            }
+        });
+        return balances;
+    }, [accounts, transactions]);
+
+    const selectedAccount = useMemo(() => {
+        return accounts.find(acc => acc.id === selectedAccountId) || null;
+    }, [accounts, selectedAccountId]);
+
+    const filteredTransactions = useMemo(() => {
+        if (!selectedAccountId) return [];
+        return transactions
+            .filter(t => t.accountId === selectedAccountId || t.destinationAccountId === selectedAccountId)
+            .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()))
+            .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [transactions, selectedAccountId, searchTerm]);
 
     const handleOpenModal = (account: Account | null = null) => {
         setEditingAccount(account);
@@ -123,135 +244,156 @@ const AccountsPage: React.FC = () => {
     };
 
     const handleSaveAccount = (accountData: Omit<Account, 'id'> | Account) => {
-        if ('id' in accountData) { // Editing
+        if ('id' in accountData) {
             setAccounts(accounts.map(acc => acc.id === accountData.id ? accountData : acc));
-        } else { // Creating
-            setAccounts([...accounts, { ...accountData, id: crypto.randomUUID() }]);
+        } else {
+            const newAccount = { ...accountData, id: crypto.randomUUID() };
+            setAccounts([...accounts, newAccount]);
+            setSelectedAccountId(newAccount.id);
         }
         handleCloseModal();
     };
 
-    const handleDeleteAccount = (id: string) => {
-      // Check if account has associated transactions or loans
-      const hasTransactions = transactions.some(t => t.accountId === id || t.destinationAccountId === id);
-      const hasLoans = loans.some(l => l.lenderAccountId === id || l.borrowerAccountId === id);
+    const handleImageUpload = (file: File) => {
+      if (!selectedAccountId) return;
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setAccounts(accounts.map(acc => 
+          acc.id === selectedAccountId ? { ...acc, imageUrl: base64String } : acc
+        ));
+      };
+      reader.readAsDataURL(file);
+    };
 
-      if (hasTransactions || hasLoans) {
-        alert('Não é possível excluir esta conta, pois ela está associada a lançamentos ou empréstimos. Remova ou altere os registros associados primeiro.');
-        return;
-      }
-      
-      if(window.confirm('Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita.')) {
-        setAccounts(accounts.filter(acc => acc.id !== id));
-      }
-    }
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            handleImageUpload(e.target.files[0]);
+        }
+    };
+    
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleImageUpload(e.dataTransfer.files[0]);
+        }
+    };
 
-    const toggleAccountStatus = (id: string) => {
-        setAccounts(accounts.map(acc => acc.id === id ? { ...acc, isActive: !acc.isActive } : acc));
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
     };
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center p-4 sm:p-6 border-b border-slate-200 gap-4">
-                <h2 className="text-xl font-bold">Gerenciar Contas</h2>
-                <button onClick={() => handleOpenModal()} className="btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto">
-                    <PlusIcon className="w-5 h-5" />
-                    <span>Nova Conta</span>
-                </button>
-            </div>
-            
-            {/* Desktop View */}
-            <div className="overflow-x-auto hidden md:block">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
-                        <tr>
-                            <th className="p-4 font-semibold">Nome</th>
-                            <th className="p-4 font-semibold">Banco</th>
-                            <th className="p-4 font-semibold">Saldo Inicial</th>
-                            <th className="p-4 font-semibold">Status</th>
-                            <th className="p-4 font-semibold text-right">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                        {accounts.length === 0 ? (
-                            <tr><td colSpan={5} className="text-center p-8 text-slate-500">Nenhuma conta cadastrada.</td></tr>
-                        ) : (
-                            accounts.map(acc => (
-                                <tr key={acc.id} className="hover:bg-slate-50">
-                                    <td className="p-4 font-medium text-slate-800">{acc.name}</td>
-                                    <td className="p-4 text-slate-600">{acc.bank || '-'}</td>
-                                    <td className="p-4 text-slate-800">{formatCurrency(acc.initialBalance)}</td>
-                                    <td className="p-4">
-                                        <span onClick={() => toggleAccountStatus(acc.id)} className={`cursor-pointer px-2 py-1 text-xs font-semibold rounded-full ${acc.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                            {acc.isActive ? 'Ativa' : 'Inativa'}
-                                        </span>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="flex items-center justify-end space-x-1">
-                                            <button 
-                                                onClick={() => handleOpenModal(acc)} 
-                                                className="p-2 rounded-full hover:bg-slate-100 transition-colors" 
-                                                aria-label="Editar Conta"
-                                            >
-                                                <PencilIcon className="w-5 h-5 text-blue-600" />
-                                            </button>
-                                            <button 
-                                                onClick={() => handleDeleteAccount(acc.id)} 
-                                                className="p-2 rounded-full hover:bg-slate-100 transition-colors" 
-                                                aria-label="Excluir Conta"
-                                            >
-                                                <TrashIcon className="w-5 h-5 text-red-500" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Mobile View */}
-            <div className="md:hidden p-4 space-y-4">
-                 {accounts.length === 0 ? (
-                    <p className="text-center p-8 text-slate-500">Nenhuma conta cadastrada.</p>
-                ) : (
-                    accounts.map(acc => (
-                        <div key={acc.id} className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="font-bold text-slate-800">{acc.name}</p>
-                                    <p className="text-sm text-slate-600">{acc.bank || 'Sem banco'}</p>
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+            <div className="xl:col-span-4 space-y-3">
+                {accounts.map(acc => {
+                    const isSelected = acc.id === selectedAccountId;
+                    return (
+                        <div key={acc.id} onClick={() => setSelectedAccountId(acc.id)} className={`w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-pointer ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'}`}>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-4">
+                                    <BankLogo account={acc} />
+                                    <div>
+                                        <p className="font-bold text-slate-800">{acc.name}</p>
+                                        <p className="text-sm text-slate-500">Saldo Atual</p>
+                                    </div>
                                 </div>
-                                 <span onClick={() => toggleAccountStatus(acc.id)} className={`cursor-pointer px-2 py-1 text-xs font-semibold rounded-full ${acc.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                    {acc.isActive ? 'Ativa' : 'Inativa'}
-                                </span>
-                            </div>
-                             <div className="border-t border-slate-200 pt-3 flex justify-between items-center">
-                                <p className="text-slate-600">
-                                    <span className="text-sm">Saldo Inicial: </span>
-                                    <span className="font-medium text-slate-800">{formatCurrency(acc.initialBalance)}</span>
-                                </p>
                                 <div className="flex items-center space-x-1">
+                                    <p className="font-bold text-lg text-slate-800">{formatCurrency(accountBalances.get(acc.id) || 0)}</p>
                                     <button 
-                                        onClick={() => handleOpenModal(acc)} 
-                                        className="p-2 rounded-full hover:bg-slate-200 transition-colors" 
-                                        aria-label="Editar Conta"
-                                    >
-                                        <PencilIcon className="w-5 h-5 text-blue-600" />
-                                    </button>
-                                    <button 
-                                        onClick={() => handleDeleteAccount(acc.id)} 
-                                        className="p-2 rounded-full hover:bg-slate-200 transition-colors" 
-                                        aria-label="Excluir Conta"
-                                    >
-                                        <TrashIcon className="w-5 h-5 text-red-500" />
-                                    </button>
+                                        onClick={(e) => { e.stopPropagation(); handleOpenModal(acc); }} 
+                                        className="p-2 rounded-full text-slate-400 hover:text-blue-500 hover:bg-slate-100 transition-colors"
+                                        aria-label="Editar conta"
+                                      >
+                                          <PencilIcon className="w-4 h-4" />
+                                      </button>
                                 </div>
                             </div>
                         </div>
-                    ))
+                    )
+                })}
+            </div>
+
+            <div className="xl:col-span-8 space-y-6">
+                {selectedAccount && (
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="flex items-center space-x-4">
+                           <div
+                                onDrop={handleDrop}
+                                onDragOver={handleDragOver}
+                                className="relative group cursor-pointer"
+                            >
+                                <BankLogo account={selectedAccount} size="lg"/>
+                                <div className="absolute inset-0 bg-black/60 rounded-xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                    <UploadIcon className="w-6 h-6 text-white mb-1"/>
+                                    <span className="text-white text-xs font-semibold">Alterar</span>
+                                </div>
+                                <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileSelect} />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-bold text-slate-800">{selectedAccount.name}</h2>
+                                <p className="text-slate-500">Detalhes da conta selecionada</p>
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                            <p className="text-sm text-slate-500">Saldo Atual</p>
+                            <p className="text-4xl font-bold text-slate-900">{formatCurrency(accountBalances.get(selectedAccount.id) || 0)}</p>
+                        </div>
+                    </div>
                 )}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+                    <div className="p-6 border-b border-slate-200">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-lg font-bold text-slate-800">Últimas Transações</h3>
+                            <div className="relative w-full max-w-xs">
+                                <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2"/>
+                                <input 
+                                    type="text" 
+                                    value={searchTerm} 
+                                    onChange={e => setSearchTerm(e.target.value)} 
+                                    className="input-style pl-10 h-10"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                         <table className="w-full text-sm">
+                            <thead className="bg-gray-50 text-slate-500 uppercase text-xs">
+                                <tr>
+                                    <th className="px-4 py-3 font-semibold text-left">Data</th>
+                                    <th className="px-4 py-3 font-semibold text-left">Descrição</th>
+                                    <th className="px-4 py-3 font-semibold text-left">Categoria</th>
+                                    <th className="px-4 py-3 font-semibold text-right">Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200">
+                                {filteredTransactions.length === 0 ? (
+                                    <tr><td colSpan={4} className="text-center p-8 text-slate-500">Nenhuma transação encontrada para esta conta.</td></tr>
+                                ) : (
+                                    filteredTransactions.map(t => {
+                                        const isExpense = t.type === TransactionType.EXPENSE;
+                                        const categoryName = t.itemId ? categoryMap.get(t.itemId) : 'N/A';
+                                        return (
+                                            <tr key={t.id} className="hover:bg-gray-50">
+                                                <td className="px-4 py-4 text-slate-600 whitespace-nowrap">{formatDate(t.date)}</td>
+                                                <td className="px-4 py-4 text-slate-800 font-medium">{t.description}</td>
+                                                <td className="px-4 py-4">
+                                                    <span className={`px-2.5 py-1 text-xs font-semibold rounded-md ${categoryColors[categoryName || ''] || defaultCategoryColor}`}>
+                                                        {categoryName}
+                                                    </span>
+                                                </td>
+                                                <td className={`px-4 py-4 text-right font-bold ${isExpense ? 'text-red-500' : 'text-green-500'}`}>
+                                                    {isExpense ? '- ' : '+ '}{formatCurrency(t.amount)}
+                                                </td>
+                                            </tr>
+                                        )
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <AccountModal 

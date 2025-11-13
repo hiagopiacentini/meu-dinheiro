@@ -1,56 +1,178 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Transaction, TransactionType, Category } from '../types';
+// Fix: Import the AnnualGoals type to resolve the 'Cannot find name' error.
+import { Transaction, TransactionType, Category, Account, AnnualGoals } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import CategoryChart from '../components/CategoryChart';
-
+import DateRangePickerModal from '../components/DateRangePickerModal';
+import UpArrowIcon from '../components/icons/UpArrowIcon';
+import DownArrowIcon from '../components/icons/DownArrowIcon';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-const StatCard: React.FC<{title: string, income: number, expense: number}> = ({title, income, expense}) => (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <h3 className="font-bold text-lg mb-3 text-slate-800">{title}</h3>
-        <div className="space-y-2">
-            <p className="text-green-500 flex justify-between"><span>Receitas:</span> <span>{formatCurrency(income)}</span></p>
-            <p className="text-red-500 flex justify-between"><span>Despesas:</span> <span>{formatCurrency(expense)}</span></p>
-            <hr className="border-slate-200 my-2"/>
-            <p className="font-semibold mt-2 flex justify-between"><span>Resultado:</span> <span>{formatCurrency(income - expense)}</span></p>
+const StatCard: React.FC<{title: string, amount: number, percentage: number, isPositive: boolean}> = ({title, amount, percentage, isPositive}) => (
+    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <h3 className="text-slate-500 mb-2">{title}</h3>
+        <p className="text-3xl font-bold text-slate-800 mb-2">{formatCurrency(amount)}</p>
+        <div className="flex items-center text-sm">
+            {isPositive ? <UpArrowIcon className="w-4 h-4 text-green-500 mr-1" /> : <DownArrowIcon className="w-4 h-4 text-red-500 mr-1" />}
+            <span className={isPositive ? 'text-green-500' : 'text-red-500'}>{percentage.toFixed(1)}%</span>
         </div>
     </div>
 );
 
-const GoalCard: React.FC<{title: string, goal: number, current: number, color: string}> = ({title, goal, current, color}) => {
-    const percentage = Math.max(0, Math.min(100, (current / goal) * 100));
+const SavingsGoalCard: React.FC<{title: string, goal: number, current: number, label: string, color: string}> = ({title, goal, current, label, color}) => {
+    const percentage = goal > 0 ? Math.max(0, Math.min(100, (current / goal) * 100)) : 0;
     return (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <h3 className="font-bold text-lg mb-3">{title}</h3>
-          <div className="flex justify-between text-sm text-slate-600">
-            <span>{formatCurrency(current)}</span>
+        <div>
+          <div className="flex justify-between items-baseline mb-1">
+            <h4 className="font-medium text-slate-700">{label}</h4>
+            <span className="text-sm font-semibold text-blue-600">{percentage.toFixed(0)}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className={`${color} h-2 rounded-full`} style={{ width: `${percentage}%` }}></div>
+          </div>
+          <div className="flex justify-between text-sm text-slate-500 mt-1">
+            <span>Atingido: {formatCurrency(current)}</span>
             <span>Meta: {formatCurrency(goal)}</span>
           </div>
-          <div className="w-full bg-slate-200 rounded-full h-2.5 mt-2">
-            <div className={`${color} h-2.5 rounded-full`} style={{ width: `${percentage}%` }}></div>
-          </div>
-          <p className="text-right text-sm mt-1 font-medium">{percentage.toFixed(1)}% atingido</p>
         </div>
     );
 }
 
+const RecentActivityItem: React.FC<{color?: string, description: string, category: string, amount: string, time: string}> = ({color, description, category, amount, time}) => (
+  <div className="flex items-center justify-between py-3">
+    <div className="flex items-center">
+      <div className="w-10 h-10 rounded-lg mr-3" style={{ backgroundColor: color || '#e2e8f0' }}></div>
+      <div>
+        <p className="font-semibold text-slate-800">{description}</p>
+        <p className="text-sm text-slate-500">{category}</p>
+      </div>
+    </div>
+    <div className="text-right">
+      <p className={`font-bold ${amount.startsWith('-') ? 'text-red-500' : 'text-green-500'}`}>{amount}</p>
+      <p className="text-sm text-slate-400">{time}</p>
+    </div>
+  </div>
+);
+
+const MyAccountItem: React.FC<{ name: string, type: string, balance: number}> = ({name, type, balance}) => (
+    <div className="flex items-center justify-between py-2">
+        <div>
+            <p className="font-semibold text-slate-800">{name}</p>
+            <p className="text-sm text-slate-500">{type}</p>
+        </div>
+        <p className={`font-bold ${balance < 0 ? 'text-red-500': 'text-slate-800'}`}>{formatCurrency(balance)}</p>
+    </div>
+);
+
+const TopListItem: React.FC<{ index: number, description: string, percentage: string, amount: number}> = ({index, description, percentage, amount}) => (
+    <div className="flex items-center justify-between text-sm py-2">
+      <div className="flex items-center">
+        <span className="text-slate-500 mr-3">{index}.</span>
+        <div>
+            <p className="font-semibold text-slate-800">{description}</p>
+            <p className="text-xs text-slate-400">{percentage}</p>
+        </div>
+      </div>
+      <p className="font-bold text-slate-800">{formatCurrency(amount)}</p>
+    </div>
+);
+
+const getTimeAgo = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+
+    const transactionDay = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    
+    const diffInMs = today - transactionDay;
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInDays === 0) return 'Hoje';
+    if (diffInDays === 1) return 'Ontem';
+    if (diffInDays > 1) return `${diffInDays} dias atrás`;
+    return 'Recentemente';
+};
+
+
 const DashboardPage: React.FC = () => {
   const [transactions] = useLocalStorage<Transaction[]>('transactions', []);
   const [categories] = useLocalStorage<Category[]>('categories', []);
-  const [monthlyGoal, setMonthlyGoal] = useLocalStorage<number>('monthlyGoal', 500);
-  const [annualGoal, setAnnualGoal] = useLocalStorage<number>('annualGoal', 6000);
+  const [accounts] = useLocalStorage<Account[]>('accounts', []);
+  const [goals] = useLocalStorage<AnnualGoals>('goals', {});
 
-  const today = new Date();
-  const firstDayOfYear = new Date(today.getFullYear(), 0, 1);
-  const lastDayOfYear = new Date(today.getFullYear(), 11, 31);
+  const [activeFilter, setActiveFilter] = useState('Mês Atual');
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
   
-  const [startDate, setStartDate] = useState(firstDayOfYear.toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(lastDayOfYear.toISOString().split('T')[0]);
+  const today = new Date();
+  const [dateRange, setDateRange] = useState<{start: Date | null, end: Date | null}>({ 
+      start: new Date(today.getFullYear(), today.getMonth(), 1), 
+      end: today 
+  });
 
-  const { monthTotals, yearTotals, filteredTotals } = useMemo(() => {
+  useEffect(() => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // End of today
+
+    let start = new Date(today);
+
+    if (activeFilter === 'Mês Atual') {
+      start = new Date(today.getFullYear(), today.getMonth(), 1);
+    } else if (activeFilter === 'Este Ano') {
+      start = new Date(today.getFullYear(), 0, 1);
+    } else {
+      // For 'Personalizado', we don't change the date range here.
+      // It's set by the DateRangePickerModal.
+      return;
+    }
+    
+    start.setHours(0, 0, 0, 0); // Start of the day
+    setDateRange({ start, end: today });
+  }, [activeFilter]);
+
+  const handleFilterClick = (filter: string) => {
+    setActiveFilter(filter);
+    if (filter === 'Personalizado') {
+        setIsPickerOpen(true);
+    }
+  };
+  
+  const handleDateChange = (range: { start: Date | null, end: Date | null }) => {
+    setDateRange(range);
+    setActiveFilter('Personalizado');
+  };
+
+  const { totalBalance, periodIncome, periodExpenses } = useMemo(() => {
+    let currentBalance = accounts.reduce((sum, acc) => sum + acc.initialBalance, 0);
+    
+    transactions.forEach(t => {
+        if (t.type === TransactionType.INCOME) currentBalance += t.amount;
+        else if (t.type === TransactionType.EXPENSE) currentBalance -= t.amount;
+    });
+
+    const filtered = transactions.filter(t => {
+      if (!dateRange.start || !dateRange.end) return false;
+      const tDate = new Date(t.date);
+      // Ensure we compare dates correctly by setting time to start/end of day
+      const start = new Date(dateRange.start);
+      start.setHours(0,0,0,0);
+      const end = new Date(dateRange.end);
+      end.setHours(23,59,59,999);
+      return tDate >= start && tDate <= end;
+    });
+
+    let income = 0;
+    let expense = 0;
+    filtered.forEach(t => {
+      if (t.type === TransactionType.INCOME) income += t.amount;
+      else if (t.type === TransactionType.EXPENSE) expense += t.amount;
+    });
+
+    return { totalBalance: currentBalance, periodIncome: income, periodExpenses: expense };
+  }, [transactions, accounts, dateRange]);
+
+  const { monthTotals, yearTotals } = useMemo(() => {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
@@ -67,109 +189,200 @@ const DashboardPage: React.FC = () => {
       const tDate = new Date(t.date);
       return tDate.getUTCMonth() === currentMonth && tDate.getUTCFullYear() === currentYear;
     });
-
     const yearTrans = transactions.filter(t => new Date(t.date).getUTCFullYear() === currentYear);
 
-    const filteredTrans = transactions.filter(t => {
-        const tDate = new Date(t.date);
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        // Add time to dates to ensure the full day is included
-        start.setUTCHours(0,0,0,0);
-        end.setUTCHours(23,59,59,999);
-        return tDate >= start && tDate <= end;
-    });
-
-    return { 
-      monthTotals: calculateTotals(monthTrans),
-      yearTotals: calculateTotals(yearTrans),
-      filteredTotals: calculateTotals(filteredTrans)
-    };
-  }, [transactions, startDate, endDate]);
-
+    return { monthTotals: calculateTotals(monthTrans), yearTotals: calculateTotals(yearTrans) };
+  }, [transactions]);
+  
+  const currentYear = new Date().getFullYear();
+  const annualGoal = goals[currentYear] || 0;
+  const monthlyGoal = annualGoal / 12;
   const savingsMonth = monthTotals.income - monthTotals.expense;
   const savingsYear = yearTotals.income - yearTotals.expense;
-
+  
   const monthlyChartData = useMemo(() => {
-    const months: { name: string, Receitas: number, Despesas: number }[] = Array.from({ length: 12 }, (_, i) => ({
-        name: new Date(0, i).toLocaleString('pt-BR', { month: 'short' }).replace('.','').toUpperCase(),
+    const months: { name: string, Receitas: number, Despesas: number }[] = Array.from({ length: 6 }, (_, i) => ({
+        name: new Date(0, new Date().getMonth() - 5 + i).toLocaleString('pt-BR', { month: 'short' }).replace('.','').toUpperCase(),
         Receitas: 0,
         Despesas: 0,
     }));
     
     transactions.forEach(t => {
         const transactionDate = new Date(t.date);
-        const monthIndex = transactionDate.getUTCMonth();
-        if(t.type === TransactionType.INCOME) months[monthIndex].Receitas += t.amount;
-        else if (t.type === TransactionType.EXPENSE) months[monthIndex].Despesas += t.amount;
+        const monthIndex = months.findIndex(m => m.name.toLowerCase() === transactionDate.toLocaleString('pt-BR', { month: 'short' }).replace('.','').toLowerCase());
+        if (monthIndex > -1) {
+            if(t.type === TransactionType.INCOME) months[monthIndex].Receitas += t.amount;
+            else if (t.type === TransactionType.EXPENSE) months[monthIndex].Despesas += t.amount;
+        }
     });
 
     return months;
   }, [transactions]);
+
+  const accountBalances = useMemo(() => {
+    const balances = new Map<string, number>();
+    accounts.forEach(acc => balances.set(acc.id, acc.initialBalance));
+    transactions.forEach(t => {
+        const updateBalance = (id: string, amount: number) => { if(balances.has(id)) balances.set(id, balances.get(id)! + amount); };
+        if (t.type === TransactionType.INCOME) updateBalance(t.accountId, t.amount);
+        else if (t.type === TransactionType.EXPENSE) updateBalance(t.accountId, -t.amount);
+        else if (t.type === TransactionType.TRANSFER) {
+            updateBalance(t.accountId, -t.amount);
+            if(t.destinationAccountId) updateBalance(t.destinationAccountId, t.amount);
+        }
+    });
+    return balances;
+  }, [accounts, transactions]);
+
+  const topExpenses = useMemo(() => {
+    const total = transactions.filter(t => t.type === TransactionType.EXPENSE).reduce((sum, t) => sum + t.amount, 0);
+    return transactions
+        .filter(t => t.type === TransactionType.EXPENSE)
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 4)
+        .map(t => ({...t, percentage: total > 0 ? ((t.amount / total) * 100).toFixed(1) + '% do total' : '0% do total' }));
+  }, [transactions]);
   
+  const topIncomes = useMemo(() => {
+    const total = transactions.filter(t => t.type === TransactionType.INCOME).reduce((sum, t) => sum + t.amount, 0);
+    return transactions
+        .filter(t => t.type === TransactionType.INCOME)
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 4)
+        .map(t => ({...t, percentage: total > 0 ? ((t.amount / total) * 100).toFixed(1) + '% do total' : '0% do total' }));
+  }, [transactions]);
+  
+    const itemToCategoryMap = useMemo(() => {
+        const map = new Map<string, { name: string, color?: string }>();
+        if (categories) {
+            categories.forEach(cat => {
+                if (cat.subcategories) {
+                    cat.subcategories.forEach(sub => {
+                        if (sub.items) {
+                            sub.items.forEach(item => {
+                                map.set(item.id, { name: cat.name, color: cat.color });
+                            });
+                        }
+                    });
+                }
+            });
+        }
+        return map;
+    }, [categories]);
+
+    const recentTransactionsForDashboard = useMemo(() => {
+        return transactions
+            .filter(t => t.type === TransactionType.INCOME || t.type === TransactionType.EXPENSE)
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .slice(0, 4)
+            .map(t => {
+                const categoryInfo = itemToCategoryMap.get(t.itemId || '');
+                return {
+                    transaction: t,
+                    category: categoryInfo
+                };
+            });
+    }, [transactions, itemToCategoryMap]);
+
   return (
-    <div className="space-y-6">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <h2 className="text-xl font-bold mb-4">Filtros</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-           <div>
-               <label htmlFor="start-date" className="block text-sm font-medium text-slate-700 mb-1">Data Início</label>
-               <input type="date" id="start-date" value={startDate} onChange={e => setStartDate(e.target.value)} className="input-style" />
-           </div>
-           <div>
-               <label htmlFor="end-date" className="block text-sm font-medium text-slate-700 mb-1">Data Fim</label>
-               <input type="date" id="end-date" value={endDate} onChange={e => setEndDate(e.target.value)} className="input-style" />
-           </div>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatCard title="Mês Atual" income={monthTotals.income} expense={monthTotals.expense} />
-          <StatCard title="Ano Vigente" income={yearTotals.income} expense={yearTotals.expense} />
-          <StatCard title="Período Filtrado" income={filteredTotals.income} expense={filteredTotals.expense} />
+    <div className="space-y-6 relative">
+      <div className="flex space-x-2">
+        {['Mês Atual', 'Este Ano', 'Personalizado'].map(f => (
+            <button key={f} onClick={() => handleFilterClick(f)} className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${activeFilter === f ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-100 border border-slate-200'}`}>
+                {f}
+            </button>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <GoalCard title="Meta de Economia Mensal" goal={monthlyGoal} current={savingsMonth} color="bg-blue-500" />
-        <GoalCard title="Meta de Economia Anual" goal={annualGoal} current={savingsYear} color="bg-green-500" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <StatCard title="Saldo Total" amount={totalBalance} percentage={2.5} isPositive={true} />
+          <StatCard title="Receitas (Período)" amount={periodIncome} percentage={15.2} isPositive={true} />
+          <StatCard title="Despesas (Período)" amount={periodExpenses} percentage={8.1} isPositive={false} />
+      </div>
+
+      <DateRangePickerModal
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        value={dateRange}
+        onChange={handleDateChange}
+      />
+
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <h3 className="font-bold text-lg mb-4 text-slate-800">Metas de Economia</h3>
+        <div className="space-y-4">
+          <SavingsGoalCard title="Meta de Economia Mensal" goal={monthlyGoal} current={savingsMonth} label="Meta Mensal" color="bg-green-500" />
+          <SavingsGoalCard title="Meta de Economia Anual" goal={annualGoal} current={savingsYear} label="Meta Anual" color="bg-blue-500" />
+        </div>
       </div>
 
        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-             <CategoryChart transactions={transactions} categories={categories} />
-          </div>
-          <div className="lg:col-span-3 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-lg mb-4">Comparativo Mensal</h3>
+          <div className="lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+              <h3 className="font-bold text-lg mb-4 text-slate-800">Receitas vs. Despesas</h3>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={monthlyChartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false}/>
-                  <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${formatCurrency(value as number).replace('R$','')} `} />
+                <BarChart data={monthlyChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="#64748b"/>
+                  <YAxis fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" tickFormatter={(value) => `R$${(value as number)/1000}k`} />
                   <Tooltip 
+                    cursor={{fill: 'rgba(241, 245, 249, 0.5)'}}
                     formatter={(value) => formatCurrency(value as number)} 
-                    contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }} 
-                    labelStyle={{ color: '#1e293b' }} 
-                    itemStyle={{ fontWeight: 500, color: '#475569' }}/>
-                  <Legend wrapperStyle={{fontSize: "14px"}}/>
-                  <Bar dataKey="Receitas" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Despesas" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                    contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }} 
+                    labelStyle={{ color: '#1e293b' }}/>
+                  <Legend wrapperStyle={{fontSize: "14px", color: '#475569'}}/>
+                  <Bar dataKey="Receitas" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={10} />
+                  <Bar dataKey="Despesas" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={10} />
                 </BarChart>
               </ResponsiveContainer>
           </div>
+          <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+             <CategoryChart transactions={transactions} categories={categories} />
+          </div>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+             <h3 className="font-bold text-lg mb-2 text-slate-800">Atividade Recente</h3>
+             <div className="divide-y divide-slate-200">
+                 {recentTransactionsForDashboard.length > 0 ? (
+                    recentTransactionsForDashboard.map(({ transaction: t, category }) => (
+                        <RecentActivityItem 
+                            key={t.id}
+                            color={category?.color}
+                            description={t.description}
+                            category={category?.name || 'Sem Categoria'}
+                            amount={`${t.type === TransactionType.EXPENSE ? '-' : '+'} ${formatCurrency(t.amount)}`}
+                            time={getTimeAgo(t.date)}
+                        />
+                    ))
+                ) : (
+                     <p className="text-center text-slate-500 py-4">Nenhuma atividade recente.</p>
+                )}
+             </div>
+          </div>
+           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+             <h3 className="font-bold text-lg mb-2 text-slate-800">Minhas Contas</h3>
+              <div className="divide-y divide-slate-200">
+                  {accounts.slice(0,3).map(acc => (
+                      <MyAccountItem key={acc.id} name={acc.name} type={acc.bank || 'Conta Corrente'} balance={accountBalances.get(acc.id) || 0} />
+                  ))}
+              </div>
+          </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-lg mb-2">Top 10 Despesas em Alta</h3>
-              <p className="text-slate-500">Funcionalidade em desenvolvimento.</p>
+           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+               <h3 className="font-bold text-lg mb-2 text-slate-800">Top 10 Despesas</h3>
+               <div className="divide-y divide-slate-200">
+                   {topExpenses.map((item, index) => <TopListItem key={item.id} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />)}
+               </div>
            </div>
-           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-lg mb-2">Top 10 Receitas</h3>
-              <p className="text-slate-500">Funcionalidade em desenvolvimento.</p>
+           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h3 className="font-bold text-lg mb-2 text-slate-800">Top 10 Receitas</h3>
+                <div className="divide-y divide-slate-200">
+                   {topIncomes.map((item, index) => <TopListItem key={item.id} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />)}
+               </div>
            </div>
       </div>
-
     </div>
   );
 };

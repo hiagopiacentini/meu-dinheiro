@@ -12,6 +12,7 @@ export interface Account {
   agency?: string;
   accountNumber?: string;
   isActive: boolean;
+  imageUrl?: string;
 }
 
 // For the 3-level categories
@@ -34,6 +35,7 @@ export interface Category {
   name: string;
   type: TransactionType;
   subcategories: Subcategory[];
+  color?: string;
 }
 
 export interface Transaction {
@@ -52,7 +54,7 @@ export interface Transaction {
 }
 
 export interface Loan {
-  id: string;
+  id:string;
   description: string;
   amount: number;
   date: string;
@@ -61,4 +63,9 @@ export interface Loan {
   status: 'active' | 'paid';
   initialTransactionId: string; // ID da transferência inicial
   settlementTransactionId?: string; // ID da transferência de quitação
+}
+
+// Add AnnualGoals type to be shared across components.
+export interface AnnualGoals {
+  [year: string]: number;
 }
