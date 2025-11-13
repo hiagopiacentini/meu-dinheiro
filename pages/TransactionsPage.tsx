@@ -5,6 +5,7 @@ import { Transaction, Account, Category, TransactionType } from '../types';
 import PencilIcon from '../components/icons/PencilIcon';
 import TrashIcon from '../components/icons/TrashIcon';
 import SearchIcon from '../components/icons/SearchIcon';
+import DateRangePickerModal from '../components/DateRangePickerModal';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
@@ -32,11 +33,16 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [accountId, setAccountId] = useState('');
     const [itemId, setItemId] = useState('');
+    const [isInstallment, setIsInstallment] = useState(false);
+    const [installmentsCount, setInstallmentsCount] = useState('2');
+
 
     // Filter State
     const [searchTerm, setSearchTerm] = useState('');
     const [dateFilter, setDateFilter] = useState('Este Mês');
     const [typeFilter, setTypeFilter] = useState('Todos');
+    const [isPickerOpen, setIsPickerOpen] = useState(false);
+    const [customDateRange, setCustomDateRange] = useState<{start: Date | null, end: Date | null}>({ start: null, end: null });
 
     const activeAccounts = useMemo(() => accounts.filter(a => a.isActive), [accounts]);
 
@@ -48,6 +54,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setDate(new Date().toISOString().split('T')[0]);
         setAccountId(activeAccounts.length > 0 ? activeAccounts[0].id : '');
         setItemId('');
+        setIsInstallment(false);
+        setInstallmentsCount('2');
     }, [activeAccounts]);
 
     useEffect(() => {
@@ -81,14 +89,19 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
         // Date Filter
         const now = new Date();
-        if (dateFilter !== 'Sempre') {
+        if (dateFilter === 'Este Mês') {
             items = items.filter(t => {
                 const tDate = new Date(t.date);
-                if (dateFilter === 'Este Mês') {
-                    return tDate.getUTCMonth() === now.getUTCMonth() && tDate.getUTCFullYear() === now.getUTCFullYear();
-                }
-                // Add other date filters here if needed
-                return true;
+                return tDate.getUTCMonth() === now.getUTCMonth() && tDate.getUTCFullYear() === now.getUTCFullYear();
+            });
+        } else if (dateFilter === 'Personalizado' && customDateRange.start && customDateRange.end) {
+            items = items.filter(t => {
+                const tDate = new Date(t.date);
+                const start = new Date(customDateRange.start as Date);
+                start.setHours(0,0,0,0);
+                const end = new Date(customDateRange.end as Date);
+                end.setHours(23,59,59,999);
+                return tDate >= start && tDate <= end;
             });
         }
         
@@ -103,7 +116,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         }
 
         return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [transactions, searchTerm, dateFilter, typeFilter]);
+    }, [transactions, searchTerm, dateFilter, typeFilter, customDateRange]);
 
     const { periodIncome, periodExpenses, periodBalance } = useMemo(() => {
         return filteredTransactions.reduce((acc, t) => {
@@ -125,20 +138,51 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             return;
         }
 
-        const transactionData = {
-            description,
-            amount: parseFloat(amount),
-            date,
-            type,
-            accountId,
-            itemId
-        };
-        
-        if (editingTransaction) {
-            setTransactions(transactions.map(t => t.id === editingTransaction.id ? { ...editingTransaction, ...transactionData } : t));
+        if(isInstallment && type === TransactionType.EXPENSE) {
+            const totalInstallments = parseInt(installmentsCount, 10);
+            if(isNaN(totalInstallments) || totalInstallments < 2) {
+                alert('O número de parcelas deve ser 2 ou maior.');
+                return;
+            }
+
+            const newTransactions: Transaction[] = [];
+            const installmentGroupId = crypto.randomUUID();
+            const originalDate = new Date(date);
+
+            for(let i = 0; i < totalInstallments; i++) {
+                const installmentDate = new Date(originalDate.getUTCFullYear(), originalDate.getUTCMonth() + i, originalDate.getUTCDate());
+                newTransactions.push({
+                    id: crypto.randomUUID(),
+                    description: `${description} (${i + 1}/${totalInstallments})`,
+                    amount: parseFloat(amount),
+                    date: installmentDate.toISOString().split('T')[0],
+                    type: TransactionType.EXPENSE,
+                    accountId,
+                    itemId,
+                    installmentGroupId,
+                    currentInstallment: i + 1,
+                    totalInstallments
+                });
+            }
+            setTransactions(prev => [...prev, ...newTransactions]);
+
         } else {
-            setTransactions([...transactions, { ...transactionData, id: crypto.randomUUID() }]);
+            const transactionData = {
+                description,
+                amount: parseFloat(amount),
+                date,
+                type,
+                accountId,
+                itemId
+            };
+            
+            if (editingTransaction) {
+                setTransactions(transactions.map(t => t.id === editingTransaction.id ? { ...editingTransaction, ...transactionData } : t));
+            } else {
+                setTransactions([...transactions, { ...transactionData, id: crypto.randomUUID() }]);
+            }
         }
+
         handleClearForm();
     };
 
@@ -171,6 +215,19 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                 )
             );
     }, [categories, type]);
+    
+    const handleDateFilterChange = (value: string) => {
+        setDateFilter(value);
+        if (value === 'Personalizado') {
+            setIsPickerOpen(true);
+        }
+    };
+    
+    const handleCustomDateChange = (range: { start: Date | null, end: Date | null }) => {
+        setCustomDateRange(range);
+    };
+
+    const maxDate = isInstallment ? undefined : new Date().toISOString().split('T')[0];
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -179,7 +236,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     <h2 className="text-xl font-bold text-slate-800 mb-4">{editingTransaction ? 'Editar Transação' : 'Nova Transação'}</h2>
                     
                     <div className="p-1 bg-slate-100 rounded-lg flex space-x-1 mb-4">
-                        <button type="button" onClick={() => setType(TransactionType.EXPENSE)} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.EXPENSE ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Despesa</button>
+                        <button type="button" onClick={() => { setType(TransactionType.EXPENSE); setIsInstallment(false); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.EXPENSE ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Despesa</button>
                         <button type="button" onClick={() => setType(TransactionType.INCOME)} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.INCOME ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Receita</button>
                     </div>
 
@@ -190,14 +247,26 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="text-sm font-medium text-slate-600 mb-1 block">Valor</label>
+                                <label className="text-sm font-medium text-slate-600 mb-1 block">Valor {isInstallment ? 'da Parcela' : ''}</label>
                                 <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required step="0.01" min="0" className="input-style" placeholder="R$ 0,00" />
                             </div>
                              <div>
-                                <label className="text-sm font-medium text-slate-600 mb-1 block">Data</label>
-                                <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="input-style" />
+                                <label className="text-sm font-medium text-slate-600 mb-1 block">Data {isInstallment ? 'da 1ª Parcela' : ''}</label>
+                                <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="input-style" max={maxDate} />
                             </div>
                         </div>
+                        {type === TransactionType.EXPENSE && !editingTransaction && (
+                             <div className="flex items-center">
+                                <input type="checkbox" id="installment-check" checked={isInstallment} onChange={e => setIsInstallment(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+                                <label htmlFor="installment-check" className="ml-2 block text-sm text-slate-800">Lançar despesa parcelada</label>
+                            </div>
+                        )}
+                        {isInstallment && type === TransactionType.EXPENSE && (
+                             <div>
+                                <label className="text-sm font-medium text-slate-600 mb-1 block">Número de Parcelas</label>
+                                <input type="number" value={installmentsCount} onChange={e => setInstallmentsCount(e.target.value)} required min="2" className="input-style" />
+                            </div>
+                        )}
                          <div>
                             <label className="text-sm font-medium text-slate-600 mb-1 block">Item</label>
                             <select value={itemId} onChange={e => setItemId(e.target.value)} required className="input-style">
@@ -215,7 +284,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     </div>
                      <div className="flex items-center space-x-3 mt-6">
                         <button type="button" onClick={handleClearForm} className="btn-secondary w-full">Cancelar</button>
-                        <button type="submit" className="btn-primary w-full">Salvar</button>
+                        <button type="submit" className="btn-primary w-full">{editingTransaction ? 'Salvar' : (isInstallment ? 'Lançar Parcelas' : 'Salvar')}</button>
                     </div>
                 </form>
             </div>
@@ -226,9 +295,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2"/>
                         <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="input-style pl-10"/>
                     </div>
-                    <select value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="input-style">
+                    <select value={dateFilter} onChange={e => handleDateFilterChange(e.target.value)} className="input-style">
                         <option>Este Mês</option>
                         <option>Sempre</option>
+                        <option>Personalizado</option>
                     </select>
                     <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="input-style">
                         <option>Todos</option>
@@ -237,6 +307,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     </select>
                 </div>
                 
+                <DateRangePickerModal
+                    isOpen={isPickerOpen}
+                    onClose={() => setIsPickerOpen(false)}
+                    value={customDateRange}
+                    onChange={handleCustomDateChange}
+                />
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="bg-white p-4 rounded-xl border border-slate-200">
                         <p className="text-sm text-slate-500 font-medium">Receitas no Período</p>

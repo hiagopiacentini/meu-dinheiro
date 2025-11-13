@@ -191,15 +191,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
-                  {activePage === 'Lançamentos' && (
-                      <button
-                          onClick={handleAddTransactionClick}
-                          className="btn-primary hidden sm:flex items-center space-x-2"
-                      >
-                          <PlusIcon className="w-5 h-5" />
-                          <span>Adicionar Transação</span>
-                      </button>
-                  )}
+                  
                   {activePage === 'Contas' && (
                       <button
                           onClick={handleAddAccountClick}

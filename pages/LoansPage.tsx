@@ -54,11 +54,12 @@ const sampleLoans: Loan[] = [
 const PartialSettlementModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onSave: (amount: number) => void;
+    onSave: (amount: number, date: string) => void;
     loan: Loan;
     remainingAmount: number;
 }> = ({ isOpen, onClose, onSave, loan, remainingAmount }) => {
     const [amount, setAmount] = useState('');
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
     if (!isOpen) return null;
 
@@ -69,8 +70,9 @@ const PartialSettlementModal: React.FC<{
             alert(`Por favor, insira um valor válido, maior que zero e menor ou igual a ${formatCurrency(remainingAmount)}.`);
             return;
         }
-        onSave(settleAmount);
+        onSave(settleAmount, date);
         setAmount('');
+        setDate(new Date().toISOString().split('T')[0]);
     };
 
     return (
@@ -79,26 +81,83 @@ const PartialSettlementModal: React.FC<{
                 <h2 className="text-2xl font-bold mb-4 text-slate-800">Quitar Parcialmente</h2>
                 <p className="text-slate-600 mb-1">Empréstimo: <span className="font-semibold">{loan.description}</span></p>
                 <p className="text-slate-600 mb-6">Valor restante: <span className="font-semibold">{formatCurrency(remainingAmount)}</span></p>
-                <form onSubmit={handleSubmit}>
-                    <div>
-                        <label htmlFor="partial-amount" className="block text-sm font-medium text-slate-700 mb-1">Valor a quitar</label>
-                        <input
-                            type="number"
-                            id="partial-amount"
-                            value={amount}
-                            onChange={e => setAmount(e.target.value)}
-                            className="input-style"
-                            placeholder="0,00"
-                            step="0.01"
-                            min="0.01"
-                            max={remainingAmount}
-                            required
-                            autoFocus
-                        />
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="partial-amount" className="block text-sm font-medium text-slate-700 mb-1">Valor a quitar</label>
+                            <input
+                                type="number"
+                                id="partial-amount"
+                                value={amount}
+                                onChange={e => setAmount(e.target.value)}
+                                className="input-style"
+                                placeholder="0,00"
+                                step="0.01"
+                                min="0.01"
+                                max={remainingAmount}
+                                required
+                                autoFocus
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="partial-date" className="block text-sm font-medium text-slate-700 mb-1">Data</label>
+                            <input
+                                type="date"
+                                id="partial-date"
+                                value={date}
+                                onChange={e => setDate(e.target.value)}
+                                className="input-style"
+                                required
+                            />
+                        </div>
                     </div>
                     <div className="flex justify-end space-x-3 pt-6">
                         <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
                         <button type="submit" className="btn-primary">Salvar Pagamento</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+const SettleLoanModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onSettle: (date: string) => void;
+    loan: Loan;
+    remainingAmount: number;
+}> = ({ isOpen, onClose, onSettle, loan, remainingAmount }) => {
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSettle(date);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
+                <h2 className="text-2xl font-bold mb-4 text-slate-800">Quitar Empréstimo</h2>
+                <p className="text-slate-600 mb-1">Empréstimo: <span className="font-semibold">{loan.description}</span></p>
+                <p className="text-slate-600 mb-6">Será quitado o valor restante de <span className="font-semibold">{formatCurrency(remainingAmount)}</span>.</p>
+                <form onSubmit={handleSubmit}>
+                    <div>
+                        <label htmlFor="settle-date" className="block text-sm font-medium text-slate-700 mb-1">Data da Quitação</label>
+                        <input
+                            type="date"
+                            id="settle-date"
+                            value={date}
+                            onChange={e => setDate(e.target.value)}
+                            className="input-style"
+                            required
+                        />
+                    </div>
+                    <div className="flex justify-end space-x-3 pt-6">
+                        <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
+                        <button type="submit" className="btn-primary">Confirmar Quitação</button>
                     </div>
                 </form>
             </div>
@@ -155,10 +214,12 @@ const LoansPage: React.FC = () => {
 
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [lenderAccountId, setLenderAccountId] = useState('');
     const [borrowerAccountId, setBorrowerAccountId] = useState('');
 
     const [isPartialModalOpen, setIsPartialModalOpen] = useState(false);
+    const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
 
@@ -167,7 +228,7 @@ const LoansPage: React.FC = () => {
 
     const handleRegisterLoan = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!description || !amount || !lenderAccountId || !borrowerAccountId) {
+        if (!description || !amount || !lenderAccountId || !borrowerAccountId || !date) {
             alert('Por favor, preencha todos os campos.');
             return;
         }
@@ -181,7 +242,7 @@ const LoansPage: React.FC = () => {
             id: crypto.randomUUID(),
             description: `Empréstimo: ${description}`,
             amount: loanAmount,
-            date: new Date().toISOString().split('T')[0],
+            date: date,
             type: TransactionType.TRANSFER,
             accountId: lenderAccountId,
             destinationAccountId: borrowerAccountId,
@@ -190,7 +251,7 @@ const LoansPage: React.FC = () => {
             id: crypto.randomUUID(),
             description,
             amount: loanAmount,
-            date: new Date().toISOString().split('T')[0],
+            date: date,
             lenderAccountId,
             borrowerAccountId,
             status: 'active',
@@ -201,6 +262,7 @@ const LoansPage: React.FC = () => {
         setLoans(prev => [...prev, newLoan]);
         setDescription('');
         setAmount('');
+        setDate(new Date().toISOString().split('T')[0]);
         setLenderAccountId('');
         setBorrowerAccountId('');
     };
@@ -219,30 +281,33 @@ const LoansPage: React.FC = () => {
       }
     }
     
-    const handleSettleLoan = (loan: Loan) => {
-        const remaining = calculateRemainingAmount(loan);
-        if(window.confirm(`Deseja quitar o valor restante de ${formatCurrency(remaining)}?`)) {
-            const settlementTransaction: Transaction = {
-                id: crypto.randomUUID(),
-                description: `Quitação Empréstimo: ${loan.description}`,
-                amount: remaining,
-                date: new Date().toISOString().split('T')[0],
-                type: TransactionType.TRANSFER,
-                accountId: loan.borrowerAccountId,
-                destinationAccountId: loan.lenderAccountId,
-            };
-            setTransactions(prev => [...prev, settlementTransaction]);
-            setLoans(prev => prev.map(l => l.id === loan.id ? { ...l, status: 'paid', settlementTransactionId: settlementTransaction.id } : l));
-        }
+    const handleSettleLoan = (settleDate: string) => {
+        if (!selectedLoan) return;
+        const remaining = calculateRemainingAmount(selectedLoan);
+        
+        const settlementTransaction: Transaction = {
+            id: crypto.randomUUID(),
+            description: `Quitação Empréstimo: ${selectedLoan.description}`,
+            amount: remaining,
+            date: settleDate,
+            type: TransactionType.TRANSFER,
+            accountId: selectedLoan.borrowerAccountId,
+            destinationAccountId: selectedLoan.lenderAccountId,
+        };
+        setTransactions(prev => [...prev, settlementTransaction]);
+        setLoans(prev => prev.map(l => l.id === selectedLoan.id ? { ...l, status: 'paid', settlementTransactionId: settlementTransaction.id } : l));
+        
+        setIsSettleModalOpen(false);
+        setSelectedLoan(null);
     };
     
-    const handlePartialSettle = (settleAmount: number) => {
+    const handlePartialSettle = (settleAmount: number, settleDate: string) => {
         if (!selectedLoan) return;
         const partialTransaction: Transaction = {
             id: crypto.randomUUID(),
             description: `Pgto. Parcial Empréstimo: ${selectedLoan.description}`,
             amount: settleAmount,
-            date: new Date().toISOString().split('T')[0],
+            date: settleDate,
             type: TransactionType.TRANSFER,
             accountId: selectedLoan.borrowerAccountId,
             destinationAccountId: selectedLoan.lenderAccountId,
@@ -284,10 +349,14 @@ const LoansPage: React.FC = () => {
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                 <h2 className="text-lg font-bold text-slate-800 mb-4">Registrar Novo Empréstimo Interno</h2>
                  <form onSubmit={handleRegisterLoan} className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div>
                             <label htmlFor="loan-value" className="block text-sm font-medium text-slate-700 mb-1">Valor</label>
                             <input type="number" id="loan-value" value={amount} onChange={e => setAmount(e.target.value)} required step="0.01" min="0" className="input-style" placeholder="R$ 0,00" />
+                        </div>
+                        <div>
+                            <label htmlFor="loan-date" className="block text-sm font-medium text-slate-700 mb-1">Data</label>
+                            <input type="date" id="loan-date" value={date} onChange={e => setDate(e.target.value)} required className="input-style" />
                         </div>
                         <div>
                             <label htmlFor="lender-account" className="block text-sm font-medium text-slate-700 mb-1">Conta de Origem</label>
@@ -303,7 +372,7 @@ const LoansPage: React.FC = () => {
                                 {activeAccounts.filter(a => a.id !== lenderAccountId).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
                             </select>
                         </div>
-                         <div className="sm:col-span-2 lg:col-span-3">
+                         <div className="sm:col-span-2 lg:col-span-4">
                             <label htmlFor="loan-desc" className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
                             <input type="text" id="loan-desc" value={description} onChange={e => setDescription(e.target.value)} required className="input-style" placeholder="Ex: Reserva de emergência" />
                         </div>
@@ -351,7 +420,7 @@ const LoansPage: React.FC = () => {
                                         {!isPaid ? (
                                         <>
                                             <button onClick={() => { setSelectedLoan(loan); setIsPartialModalOpen(true); }} className="btn-secondary w-full">Parcial</button>
-                                            <button onClick={() => handleSettleLoan(loan)} className="btn-primary w-full">Quitar</button>
+                                            <button onClick={() => { setSelectedLoan(loan); setIsSettleModalOpen(true); }} className="btn-primary w-full">Quitar</button>
                                         </>
                                         ) : (
                                         <button onClick={() => handleDeleteLoan(loan.id)} className="btn-secondary w-full flex items-center justify-center gap-2 hover:bg-red-50 hover:border-red-300 hover:text-red-700">
@@ -366,19 +435,30 @@ const LoansPage: React.FC = () => {
                 )}
             </div>
 
-            <PartialSettlementModal 
-                isOpen={isPartialModalOpen}
-                onClose={() => setIsPartialModalOpen(false)}
-                onSave={handlePartialSettle}
-                loan={selectedLoan!}
-                remainingAmount={selectedLoan ? calculateRemainingAmount(selectedLoan) : 0}
-            />
-            <LoanHistoryModal
-                isOpen={isHistoryModalOpen}
-                onClose={() => setIsHistoryModalOpen(false)}
-                loan={selectedLoan}
-                transactions={transactions}
-            />
+            {selectedLoan && (
+              <>
+                <PartialSettlementModal 
+                    isOpen={isPartialModalOpen}
+                    onClose={() => { setIsPartialModalOpen(false); setSelectedLoan(null); }}
+                    onSave={handlePartialSettle}
+                    loan={selectedLoan}
+                    remainingAmount={calculateRemainingAmount(selectedLoan)}
+                />
+                <SettleLoanModal
+                    isOpen={isSettleModalOpen}
+                    onClose={() => { setIsSettleModalOpen(false); setSelectedLoan(null); }}
+                    onSettle={handleSettleLoan}
+                    loan={selectedLoan}
+                    remainingAmount={calculateRemainingAmount(selectedLoan)}
+                />
+                <LoanHistoryModal
+                    isOpen={isHistoryModalOpen}
+                    onClose={() => { setIsHistoryModalOpen(false); setSelectedLoan(null); }}
+                    loan={selectedLoan}
+                    transactions={transactions}
+                />
+              </>
+            )}
         </div>
     );
 };

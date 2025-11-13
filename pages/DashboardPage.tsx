@@ -186,25 +186,33 @@ const DashboardPage: React.FC = () => {
 
 
   const periodSavings = periodIncome - periodExpenses;
-  const currentYear = new Date().getFullYear();
-  const annualGoal = goals[currentYear] || 0;
   
   const { periodGoal, periodLabel } = useMemo(() => {
-      if(!dateRange.start || !dateRange.end || !annualGoal) return { periodGoal: 0, periodLabel: 'Meta do Período' };
-      
-      const diffTime = Math.abs(dateRange.end.getTime() - dateRange.start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      
-      const isFullYear = diffDays >= 365;
-      const isFullMonth = diffDays >= 28 && diffDays <= 31 && dateRange.start.getDate() === 1;
+    if (!dateRange.start || !dateRange.end) return { periodGoal: 0, periodLabel: 'Meta do Período' };
+    
+    const startYear = dateRange.start.getFullYear();
+    const endYear = dateRange.end.getFullYear();
 
-      if(isFullYear) return { periodGoal: annualGoal, periodLabel: 'Meta Anual' };
-      if(isFullMonth) return { periodGoal: annualGoal / 12, periodLabel: 'Meta Mensal' };
-      
-      const dailyGoal = annualGoal / 365;
-      return { periodGoal: dailyGoal * diffDays, periodLabel: `Meta p/ ${diffDays} dias` };
+    if (startYear === endYear) {
+        const annualGoal = goals[startYear] || 0;
+        return { periodGoal: annualGoal, periodLabel: `Meta Anual ${startYear}` };
+    }
 
-  }, [dateRange, annualGoal]);
+    // Calculation for periods spanning multiple years
+    let totalGoal = 0;
+    const isLeap = (year: number) => new Date(year, 1, 29).getDate() === 29;
+
+    for (let d = new Date(dateRange.start); d <= dateRange.end; d.setDate(d.getDate() + 1)) {
+        const year = d.getFullYear();
+        const annualGoalForYear = goals[year] || 0;
+        const daysInYear = isLeap(year) ? 366 : 365;
+        const dailyGoal = annualGoalForYear / daysInYear;
+        totalGoal += dailyGoal;
+    }
+    
+    return { periodGoal: totalGoal, periodLabel: 'Meta do Período' };
+
+  }, [dateRange, goals]);
   
   
   const monthlyChartData = useMemo(() => {
