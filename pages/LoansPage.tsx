@@ -397,7 +397,14 @@ const LoansPage: React.FC = () => {
                                     <div className="flex-grow">
                                         <div className="flex justify-between items-start">
                                             <h3 className="text-xl font-bold text-slate-800 pr-2">{loan.description}</h3>
-                                            {isPaid ? <span className="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">Quitado</span> : <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2.5 py-1 rounded-full">Ativo</span>}
+                                            <div className="flex items-center space-x-2 flex-shrink-0">
+                                              {isPaid ? <span className="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">Quitado</span> : <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2.5 py-1 rounded-full">Ativo</span>}
+                                              {!isPaid && (
+                                                <button onClick={() => handleDeleteLoan(loan.id)} className="p-1.5 rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600" aria-label="Excluir empréstimo">
+                                                    <TrashIcon className="w-4 h-4"/>
+                                                </button>
+                                              )}
+                                            </div>
                                         </div>
                                         <p className="text-sm text-slate-500 mt-1">
                                             {accountMap.get(loan.lenderAccountId) || 'N/A'} → {accountMap.get(loan.borrowerAccountId) || 'N/A'}

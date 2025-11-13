@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Transaction, Account, Category, TransactionType } from '../types';
+import { Transaction, Account, Category, TransactionType, Loan } from '../types';
 import PencilIcon from '../components/icons/PencilIcon';
 import TrashIcon from '../components/icons/TrashIcon';
 import SearchIcon from '../components/icons/SearchIcon';
@@ -24,6 +24,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [transactions, setTransactions] = useLocalStorage<Transaction[]>('transactions', []);
     const [accounts] = useLocalStorage<Account[]>('accounts', []);
     const [categories] = useLocalStorage<Category[]>('categories', []);
+    const [loans, setLoans] = useLocalStorage<Loan[]>('loans', []);
+
 
     // Form State
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -197,8 +199,44 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     };
 
     const handleDelete = (id: string) => {
-        if (window.confirm('Tem certeza que deseja excluir este lançamento?')) {
-            setTransactions(transactions.filter(t => t.id !== id));
+        if (window.confirm('Tem certeza que deseja excluir este lançamento? Se ele estiver ligado a um empréstimo, o mesmo será atualizado.')) {
+            const transactionToDelete = transactions.find(t => t.id === id);
+            if (!transactionToDelete) return;
+    
+            const relatedLoan = loans.find(l =>
+                l.initialTransactionId === id ||
+                l.settlementTransactionId === id ||
+                l.partialSettlements?.some(p => p.transactionId === id)
+            );
+    
+            if (relatedLoan) {
+                let updatedLoans = [...loans];
+    
+                if (relatedLoan.initialTransactionId === id) {
+                    // Deleting the initial transaction invalidates the entire loan.
+                    updatedLoans = updatedLoans.filter(l => l.id !== relatedLoan.id);
+                } else {
+                    updatedLoans = updatedLoans.map(l => {
+                        if (l.id === relatedLoan.id) {
+                            let updatedLoan = { ...l };
+                            if (updatedLoan.settlementTransactionId === id) {
+                                // Revert from paid to active
+                                updatedLoan.status = 'active';
+                                delete updatedLoan.settlementTransactionId;
+                            } else if (updatedLoan.partialSettlements) {
+                                // Remove partial payment
+                                updatedLoan.partialSettlements = updatedLoan.partialSettlements.filter(p => p.transactionId !== id);
+                            }
+                            return updatedLoan;
+                        }
+                        return l;
+                    });
+                }
+                setLoans(updatedLoans);
+            }
+    
+            // Finally, delete the transaction itself
+            setTransactions(prev => prev.filter(t => t.id !== id));
         }
     };
     

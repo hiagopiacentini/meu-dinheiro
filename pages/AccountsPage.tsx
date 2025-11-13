@@ -301,6 +301,25 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
         e.preventDefault();
         e.stopPropagation();
     };
+    
+    const getTransactionDisplayProps = (transaction: Transaction, currentAccountId: string | null) => {
+        if (transaction.type === TransactionType.INCOME) {
+            return { sign: '+ ', color: 'text-green-500' };
+        }
+        if (transaction.type === TransactionType.EXPENSE) {
+            return { sign: '- ', color: 'text-red-500' };
+        }
+        if (transaction.type === TransactionType.TRANSFER) {
+            if (transaction.accountId === currentAccountId) {
+                return { sign: '- ', color: 'text-red-500' }; // Outgoing
+            }
+            if (transaction.destinationAccountId === currentAccountId) {
+                return { sign: '+ ', color: 'text-green-500' }; // Incoming
+            }
+        }
+        // Default/fallback
+        return { sign: '', color: 'text-slate-800' };
+    };
 
     return (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -392,8 +411,8 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                     <tr><td colSpan={4} className="text-center p-8 text-slate-500">Nenhuma transação encontrada para esta conta.</td></tr>
                                 ) : (
                                     filteredTransactions.map(t => {
-                                        const isExpense = t.type === TransactionType.EXPENSE;
                                         const categoryName = t.itemId ? categoryMap.get(t.itemId) : 'N/A';
+                                        const displayProps = getTransactionDisplayProps(t, selectedAccountId);
                                         return (
                                             <tr key={t.id} className="hover:bg-gray-50">
                                                 <td className="px-4 py-4 text-slate-600 whitespace-nowrap">{formatDate(t.date)}</td>
@@ -403,8 +422,8 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                                         {categoryName}
                                                     </span>
                                                 </td>
-                                                <td className={`px-4 py-4 text-right font-bold ${isExpense ? 'text-red-500' : 'text-green-500'}`}>
-                                                    {isExpense ? '- ' : '+ '}{formatCurrency(t.amount)}
+                                                <td className={`px-4 py-4 text-right font-bold ${displayProps.color}`}>
+                                                    {displayProps.sign}{formatCurrency(t.amount)}
                                                 </td>
                                             </tr>
                                         )
