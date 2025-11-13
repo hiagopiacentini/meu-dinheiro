@@ -3,11 +3,11 @@ import React, { useState, useMemo } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Loan, Account, Transaction, TransactionType } from '../types';
 import TrashIcon from '../components/icons/TrashIcon';
+import XIcon from '../components/icons/XIcon';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const formatDate = (dateString: string) => {
     if (!dateString) return '';
-    // Add timezone offset to prevent date from changing
     const date = new Date(dateString);
     const userTimezoneOffset = date.getTimezoneOffset() * 60000;
     return new Date(date.getTime() + userTimezoneOffset).toLocaleDateString('pt-BR');
@@ -23,7 +23,8 @@ const sampleLoans: Loan[] = [
         lenderAccountId: 'itau-1',
         borrowerAccountId: 'bradesco-1',
         status: 'active',
-        initialTransactionId: 't-loan-1'
+        initialTransactionId: 't-loan-1',
+        partialSettlements: [],
     },
     {
         id: 'loan-2',
@@ -33,7 +34,8 @@ const sampleLoans: Loan[] = [
         lenderAccountId: 'bradesco-1',
         borrowerAccountId: 'itau-1',
         status: 'active',
-        initialTransactionId: 't-loan-2'
+        initialTransactionId: 't-loan-2',
+        partialSettlements: [{ transactionId: 't-partial-2', amount: 250, date: '2024-06-20' }],
     },
     {
         id: 'loan-3',
@@ -44,9 +46,107 @@ const sampleLoans: Loan[] = [
         borrowerAccountId: 'itau-1',
         status: 'paid',
         initialTransactionId: 't-loan-3',
-        settlementTransactionId: 't-settle-3'
+        settlementTransactionId: 't-settle-3',
+        partialSettlements: [],
     }
 ];
+
+const PartialSettlementModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (amount: number) => void;
+    loan: Loan;
+    remainingAmount: number;
+}> = ({ isOpen, onClose, onSave, loan, remainingAmount }) => {
+    const [amount, setAmount] = useState('');
+
+    if (!isOpen) return null;
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const settleAmount = parseFloat(amount);
+        if(isNaN(settleAmount) || settleAmount <= 0 || settleAmount > remainingAmount) {
+            alert(`Por favor, insira um valor válido, maior que zero e menor ou igual a ${formatCurrency(remainingAmount)}.`);
+            return;
+        }
+        onSave(settleAmount);
+        setAmount('');
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
+                <h2 className="text-2xl font-bold mb-4 text-slate-800">Quitar Parcialmente</h2>
+                <p className="text-slate-600 mb-1">Empréstimo: <span className="font-semibold">{loan.description}</span></p>
+                <p className="text-slate-600 mb-6">Valor restante: <span className="font-semibold">{formatCurrency(remainingAmount)}</span></p>
+                <form onSubmit={handleSubmit}>
+                    <div>
+                        <label htmlFor="partial-amount" className="block text-sm font-medium text-slate-700 mb-1">Valor a quitar</label>
+                        <input
+                            type="number"
+                            id="partial-amount"
+                            value={amount}
+                            onChange={e => setAmount(e.target.value)}
+                            className="input-style"
+                            placeholder="0,00"
+                            step="0.01"
+                            min="0.01"
+                            max={remainingAmount}
+                            required
+                            autoFocus
+                        />
+                    </div>
+                    <div className="flex justify-end space-x-3 pt-6">
+                        <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
+                        <button type="submit" className="btn-primary">Salvar Pagamento</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+const LoanHistoryModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    loan: Loan | null;
+    transactions: Transaction[];
+}> = ({ isOpen, onClose, loan, transactions }) => {
+    if (!isOpen || !loan) return null;
+
+    const historyTransactions = transactions.filter(t => 
+        t.id === loan.initialTransactionId || 
+        t.id === loan.settlementTransactionId ||
+        loan.partialSettlements?.some(p => p.transactionId === t.id)
+    ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg m-4" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-bold text-slate-800">Histórico do Empréstimo</h2>
+                    <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100"><XIcon className="w-5 h-5 text-slate-500"/></button>
+                </div>
+                <p className="text-slate-600 mb-6 font-semibold">{loan.description}</p>
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                    {historyTransactions.map(t => (
+                        <div key={t.id} className="p-3 border border-slate-200 rounded-lg">
+                            <p className="font-semibold text-slate-800">{t.description}</p>
+                            <div className="flex justify-between items-center text-sm mt-1">
+                                <span className="text-slate-500">{formatDate(t.date)}</span>
+                                <span className="font-bold text-slate-700">{formatCurrency(t.amount)}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                 <div className="flex justify-end pt-6">
+                    <button type="button" onClick={onClose} className="btn-secondary">Fechar</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const LoansPage: React.FC = () => {
     const [loans, setLoans] = useLocalStorage<Loan[]>('loans', sampleLoans);
@@ -57,6 +157,10 @@ const LoansPage: React.FC = () => {
     const [amount, setAmount] = useState('');
     const [lenderAccountId, setLenderAccountId] = useState('');
     const [borrowerAccountId, setBorrowerAccountId] = useState('');
+
+    const [isPartialModalOpen, setIsPartialModalOpen] = useState(false);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
 
     const accountMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.name])), [accounts]);
     const activeAccounts = useMemo(() => accounts.filter(a => a.isActive), [accounts]);
@@ -91,11 +195,10 @@ const LoansPage: React.FC = () => {
             borrowerAccountId,
             status: 'active',
             initialTransactionId: newTransaction.id,
+            partialSettlements: [],
         };
         setTransactions(prev => [...prev, newTransaction]);
         setLoans(prev => [...prev, newLoan]);
-
-        // Reset form
         setDescription('');
         setAmount('');
         setLenderAccountId('');
@@ -103,14 +206,13 @@ const LoansPage: React.FC = () => {
     };
 
     const handleDeleteLoan = (id: string) => {
-      if(window.confirm('Tem certeza que deseja excluir este empréstimo? A transação associada também será removida.')) {
+      if(window.confirm('Tem certeza que deseja excluir este empréstimo? Todas as transações associadas serão removidas.')) {
         const loanToDelete = loans.find(l => l.id === id);
         if (!loanToDelete) return;
 
         const txIdsToDelete = [loanToDelete.initialTransactionId];
-        if(loanToDelete.settlementTransactionId) {
-            txIdsToDelete.push(loanToDelete.settlementTransactionId);
-        }
+        if(loanToDelete.settlementTransactionId) txIdsToDelete.push(loanToDelete.settlementTransactionId);
+        loanToDelete.partialSettlements?.forEach(p => txIdsToDelete.push(p.transactionId));
 
         setTransactions(prev => prev.filter(t => !txIdsToDelete.includes(t.id)));
         setLoans(prev => prev.filter(l => l.id !== id));
@@ -118,26 +220,55 @@ const LoansPage: React.FC = () => {
     }
     
     const handleSettleLoan = (loan: Loan) => {
-        if(window.confirm('Deseja quitar este empréstimo? Uma transação de devolução será criada.')) {
+        const remaining = calculateRemainingAmount(loan);
+        if(window.confirm(`Deseja quitar o valor restante de ${formatCurrency(remaining)}?`)) {
             const settlementTransaction: Transaction = {
                 id: crypto.randomUUID(),
                 description: `Quitação Empréstimo: ${loan.description}`,
-                amount: loan.amount,
+                amount: remaining,
                 date: new Date().toISOString().split('T')[0],
                 type: TransactionType.TRANSFER,
-                accountId: loan.borrowerAccountId, // Payer is the original borrower
-                destinationAccountId: loan.lenderAccountId, // Payee is the original lender
+                accountId: loan.borrowerAccountId,
+                destinationAccountId: loan.lenderAccountId,
             };
-
             setTransactions(prev => [...prev, settlementTransaction]);
             setLoans(prev => prev.map(l => l.id === loan.id ? { ...l, status: 'paid', settlementTransactionId: settlementTransaction.id } : l));
         }
     };
+    
+    const handlePartialSettle = (settleAmount: number) => {
+        if (!selectedLoan) return;
+        const partialTransaction: Transaction = {
+            id: crypto.randomUUID(),
+            description: `Pgto. Parcial Empréstimo: ${selectedLoan.description}`,
+            amount: settleAmount,
+            date: new Date().toISOString().split('T')[0],
+            type: TransactionType.TRANSFER,
+            accountId: selectedLoan.borrowerAccountId,
+            destinationAccountId: selectedLoan.lenderAccountId,
+        };
+        setTransactions(prev => [...prev, partialTransaction]);
 
-    const getSettlementDate = (loan: Loan) => {
-        if (!loan.settlementTransactionId) return '';
-        const transaction = transactions.find(t => t.id === loan.settlementTransactionId);
-        return transaction ? formatDate(transaction.date) : '';
+        const updatedLoans = loans.map(l => {
+            if (l.id === selectedLoan.id) {
+                const newPartial = {
+                    transactionId: partialTransaction.id,
+                    amount: settleAmount,
+                    date: partialTransaction.date
+                };
+                const partials = l.partialSettlements ? [...l.partialSettlements, newPartial] : [newPartial];
+                return { ...l, partialSettlements: partials };
+            }
+            return l;
+        });
+        setLoans(updatedLoans);
+        setIsPartialModalOpen(false);
+        setSelectedLoan(null);
+    };
+
+    const calculateRemainingAmount = (loan: Loan) => {
+        const paidAmount = loan.partialSettlements?.reduce((sum, p) => sum + p.amount, 0) || 0;
+        return loan.amount - paidAmount;
     };
 
     const sortedLoans = useMemo(() => {
@@ -191,42 +322,41 @@ const LoansPage: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                         {sortedLoans.map(loan => {
                             const isPaid = loan.status === 'paid';
+                            const remainingAmount = calculateRemainingAmount(loan);
                             return (
                                 <div key={loan.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full">
                                     <div className="flex-grow">
                                         <div className="flex justify-between items-start">
                                             <h3 className="text-xl font-bold text-slate-800 pr-2">{loan.description}</h3>
-                                            {isPaid && <span className="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">Quitado</span>}
+                                            {isPaid ? <span className="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">Quitado</span> : <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2.5 py-1 rounded-full">Ativo</span>}
                                         </div>
                                         <p className="text-sm text-slate-500 mt-1">
                                             {accountMap.get(loan.lenderAccountId) || 'N/A'} → {accountMap.get(loan.borrowerAccountId) || 'N/A'}
                                         </p>
 
-                                        <div className={`mt-6 grid ${isPaid ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
+                                        <div className="mt-6 grid grid-cols-2 gap-4">
                                             <div>
-                                                <p className="text-sm text-slate-500">Valor</p>
+                                                <p className="text-sm text-slate-500">Valor Total</p>
                                                 <p className="font-bold text-slate-800 text-lg">{formatCurrency(loan.amount)}</p>
                                             </div>
-                                            {isPaid && (
-                                                <div>
-                                                    <p className="text-sm text-slate-500">Quitado em</p>
-                                                    <p className="font-bold text-slate-800 text-lg">{getSettlementDate(loan)}</p>
-                                                </div>
-                                            )}
+                                             <div>
+                                                <p className="text-sm text-slate-500">Valor Restante</p>
+                                                <p className={`font-bold text-lg ${remainingAmount > 0 && !isPaid ? 'text-red-600' : 'text-slate-800'}`}>{formatCurrency(isPaid ? 0 : remainingAmount)}</p>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div className="mt-6 pt-4 border-t border-slate-200">
-                                        {isPaid ? (
-                                        <button className="btn-secondary w-full" disabled>Ver Histórico</button>
-                                        ) : (
-                                        <div className="flex items-center space-x-2">
+                                    <div className="mt-6 pt-4 border-t border-slate-200 flex items-center space-x-2">
+                                        <button onClick={() => { setSelectedLoan(loan); setIsHistoryModalOpen(true); }} className="btn-secondary w-full">Ver Histórico</button>
+                                        {!isPaid ? (
+                                        <>
+                                            <button onClick={() => { setSelectedLoan(loan); setIsPartialModalOpen(true); }} className="btn-secondary w-full">Parcial</button>
                                             <button onClick={() => handleSettleLoan(loan)} className="btn-primary w-full">Quitar</button>
-                                            <button onClick={() => handleDeleteLoan(loan.id)} className="btn-secondary w-full flex items-center justify-center gap-2 hover:bg-red-50 hover:border-red-300 hover:text-red-700">
-                                                <TrashIcon className="w-4 h-4" />
-                                                Excluir
-                                            </button>
-                                        </div>
+                                        </>
+                                        ) : (
+                                        <button onClick={() => handleDeleteLoan(loan.id)} className="btn-secondary w-full flex items-center justify-center gap-2 hover:bg-red-50 hover:border-red-300 hover:text-red-700">
+                                            <TrashIcon className="w-4 h-4" /> Excluir
+                                        </button>
                                         )}
                                     </div>
                                 </div>
@@ -235,6 +365,20 @@ const LoansPage: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            <PartialSettlementModal 
+                isOpen={isPartialModalOpen}
+                onClose={() => setIsPartialModalOpen(false)}
+                onSave={handlePartialSettle}
+                loan={selectedLoan!}
+                remainingAmount={selectedLoan ? calculateRemainingAmount(selectedLoan) : 0}
+            />
+            <LoanHistoryModal
+                isOpen={isHistoryModalOpen}
+                onClose={() => setIsHistoryModalOpen(false)}
+                loan={selectedLoan}
+                transactions={transactions}
+            />
         </div>
     );
 };

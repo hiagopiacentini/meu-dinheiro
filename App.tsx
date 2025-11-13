@@ -20,7 +20,6 @@ import BalancesIcon from './components/icons/BalancesIcon';
 import GoalsIcon from './components/icons/GoalsIcon';
 import ReportsIcon from './components/icons/ReportsIcon';
 import MenuIcon from './components/icons/MenuIcon';
-import UserIcon from './components/icons/UserIcon';
 import PlusIcon from './components/icons/PlusIcon';
 
 
@@ -47,6 +46,13 @@ const App: React.FC = () => {
   
   const handleLogin = () => {
     setIsAuthenticated(true);
+    setActivePage('Dashboard');
+  };
+
+  const handleLogout = () => {
+    if (window.confirm('Tem certeza que deseja sair?')) {
+      setIsAuthenticated(false);
+    }
   };
 
   const renderPage = () => {
@@ -212,8 +218,8 @@ const App: React.FC = () => {
                           <span>Nova Categoria</span>
                       </button>
                   )}
-                  <button className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                    <UserIcon className="w-6 h-6 text-slate-500" />
+                  <button onClick={handleLogout} className="btn-secondary">
+                    Sair
                   </button>
                 </div>
               </header>

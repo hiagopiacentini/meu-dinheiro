@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Account, Transaction, Loan, TransactionType, Category } from '../types';
@@ -46,8 +47,9 @@ const AccountModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
     onSave: (account: Omit<Account, 'id'> | Account) => void;
+    onDelete: (id: string) => void;
     account: Account | null;
-}> = ({ isOpen, onClose, onSave, account }) => {
+}> = ({ isOpen, onClose, onSave, onDelete, account }) => {
     const [name, setName] = useState('');
     const [initialBalance, setInitialBalance] = useState('');
     const [bank, setBank] = useState('');
@@ -129,9 +131,14 @@ const AccountModal: React.FC<{
                 <input type="checkbox" id="acc-active" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
                 <label htmlFor="acc-active" className="ml-2 block text-sm text-slate-800">Conta Ativa</label>
             </div>
-            <div className="flex justify-end space-x-3 pt-4">
-              <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
-              <button type="submit" className="btn-primary">Salvar</button>
+            <div className="flex justify-between items-center pt-4">
+                <div>
+                    {account && <button type="button" onClick={() => onDelete(account.id)} className="text-sm font-semibold text-red-600 hover:text-red-800 transition-colors">Excluir Conta</button>}
+                </div>
+                <div className="flex space-x-3">
+                    <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
+                    <button type="submit" className="btn-primary">Salvar</button>
+                </div>
             </div>
           </form>
         </div>
@@ -193,7 +200,6 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     }, [categories]);
 
     useEffect(() => {
-        // Only trigger modal on explicit button click, not on page load/navigation
         if (addAccountTrigger > addAccountTriggerRef.current) {
             handleOpenModal();
         }
@@ -254,6 +260,17 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
         handleCloseModal();
     };
 
+    const handleDeleteAccount = (id: string) => {
+        if (window.confirm('Tem certeza que deseja excluir esta conta? As transações associadas não serão excluídas.')) {
+            setAccounts(prev => prev.filter(acc => acc.id !== id));
+            if (selectedAccountId === id) {
+                const remainingAccounts = accounts.filter(acc => acc.id !== id);
+                setSelectedAccountId(remainingAccounts.length > 0 ? remainingAccounts[0].id : null);
+            }
+            handleCloseModal();
+        }
+    };
+
     const handleImageUpload = (file: File) => {
       if (!selectedAccountId) return;
       const reader = new FileReader();
@@ -291,12 +308,15 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                 {accounts.map(acc => {
                     const isSelected = acc.id === selectedAccountId;
                     return (
-                        <div key={acc.id} onClick={() => setSelectedAccountId(acc.id)} className={`w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-pointer ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'}`}>
+                        <div key={acc.id} onClick={() => setSelectedAccountId(acc.id)} className={`w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-pointer ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}>
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-4">
                                     <BankLogo account={acc} />
                                     <div>
-                                        <p className="font-bold text-slate-800">{acc.name}</p>
+                                        <div className="flex items-center space-x-2">
+                                            <p className="font-bold text-slate-800">{acc.name}</p>
+                                            {!acc.isActive && <span className="text-xs bg-gray-200 text-gray-600 font-semibold px-2 py-0.5 rounded-full">Inativa</span>}
+                                        </div>
                                         <p className="text-sm text-slate-500">Saldo Atual</p>
                                     </div>
                                 </div>
@@ -400,6 +420,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                 isOpen={isModalOpen} 
                 onClose={handleCloseModal}
                 onSave={handleSaveAccount}
+                onDelete={handleDeleteAccount}
                 account={editingAccount}
             />
         </div>

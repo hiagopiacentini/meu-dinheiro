@@ -63,6 +63,7 @@ export interface Loan {
   status: 'active' | 'paid';
   initialTransactionId: string; // ID da transferência inicial
   settlementTransactionId?: string; // ID da transferência de quitação
+  partialSettlements?: { transactionId: string; amount: number; date: string }[];
 }
 
 // Add AnnualGoals type to be shared across components.

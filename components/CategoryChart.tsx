@@ -31,6 +31,19 @@ const CustomLegend = (props: any) => {
     );
 };
 
+const CustomTooltipContent = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0];
+      return (
+        <div className="bg-white p-3 rounded-lg shadow-lg border border-slate-200">
+          <p className="text-sm text-slate-700 font-semibold">{data.name}</p>
+          <p className="text-lg font-bold text-slate-900">{formatCurrency(data.value)}</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
 
 const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, categories }) => {
   const { chartData, totalExpenses } = useMemo(() => {
@@ -48,7 +61,7 @@ const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, categories 
     transactions
       .filter(t => t.type === TransactionType.EXPENSE && t.itemId)
       .forEach(t => {
-        const categoryName = itemToCategoryMap.get(t.itemId) || 'Outros';
+        const categoryName = itemToCategoryMap.get(t.itemId!) || 'Outros';
         const currentAmount = expenseData.get(categoryName) || 0;
         expenseData.set(categoryName, currentAmount + t.amount);
         total += t.amount;
@@ -87,14 +100,8 @@ const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, categories 
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => formatCurrency(value)}
-                      contentStyle={{
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '0.5rem',
-                      }}
-                      labelStyle={{ color: '#1e293b' }}
-                      itemStyle={{ color: '#475569' }}
+                        content={<CustomTooltipContent />}
+                        cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 // Fix: Import the AnnualGoals type to resolve the 'Cannot find name' error.
@@ -10,14 +11,16 @@ import DownArrowIcon from '../components/icons/DownArrowIcon';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-const StatCard: React.FC<{title: string, amount: number, percentage: number, isPositive: boolean}> = ({title, amount, percentage, isPositive}) => (
+const StatCard: React.FC<{title: string, amount: number, percentage?: number, isPositive?: boolean}> = ({title, amount, percentage, isPositive}) => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-slate-500 mb-2">{title}</h3>
         <p className="text-3xl font-bold text-slate-800 mb-2">{formatCurrency(amount)}</p>
-        <div className="flex items-center text-sm">
-            {isPositive ? <UpArrowIcon className="w-4 h-4 text-green-500 mr-1" /> : <DownArrowIcon className="w-4 h-4 text-red-500 mr-1" />}
-            <span className={isPositive ? 'text-green-500' : 'text-red-500'}>{percentage.toFixed(1)}%</span>
-        </div>
+        {percentage !== undefined && isPositive !== undefined && (
+            <div className="flex items-center text-sm">
+                {isPositive ? <UpArrowIcon className="w-4 h-4 text-green-500 mr-1" /> : <DownArrowIcon className="w-4 h-4 text-red-500 mr-1" />}
+                <span className={isPositive ? 'text-green-500' : 'text-red-500'}>{percentage.toFixed(1)}%</span>
+            </div>
+        )}
     </div>
 );
 
@@ -122,8 +125,6 @@ const DashboardPage: React.FC = () => {
     } else if (activeFilter === 'Este Ano') {
       start = new Date(today.getFullYear(), 0, 1);
     } else {
-      // For 'Personalizado', we don't change the date range here.
-      // It's set by the DateRangePickerModal.
       return;
     }
     
@@ -143,81 +144,81 @@ const DashboardPage: React.FC = () => {
     setActiveFilter('Personalizado');
   };
 
-  const { totalBalance, periodIncome, periodExpenses } = useMemo(() => {
-    let currentBalance = accounts.reduce((sum, acc) => sum + acc.initialBalance, 0);
-    
-    transactions.forEach(t => {
-        if (t.type === TransactionType.INCOME) currentBalance += t.amount;
-        else if (t.type === TransactionType.EXPENSE) currentBalance -= t.amount;
-    });
-
-    const filtered = transactions.filter(t => {
-      if (!dateRange.start || !dateRange.end) return false;
-      const tDate = new Date(t.date);
-      // Ensure we compare dates correctly by setting time to start/end of day
-      const start = new Date(dateRange.start);
-      start.setHours(0,0,0,0);
-      const end = new Date(dateRange.end);
-      end.setHours(23,59,59,999);
-      return tDate >= start && tDate <= end;
-    });
-
-    let income = 0;
-    let expense = 0;
-    filtered.forEach(t => {
-      if (t.type === TransactionType.INCOME) income += t.amount;
-      else if (t.type === TransactionType.EXPENSE) expense += t.amount;
-    });
-
-    return { totalBalance: currentBalance, periodIncome: income, periodExpenses: expense };
+  const { filteredTransactions, balanceAtPeriodEnd, periodIncome, periodExpenses } = useMemo(() => {
+      const filtered = transactions.filter(t => {
+        if (!dateRange.start || !dateRange.end) return false;
+        const tDate = new Date(t.date);
+        const start = new Date(dateRange.start);
+        start.setHours(0,0,0,0);
+        const end = new Date(dateRange.end);
+        end.setHours(23,59,59,999);
+        return tDate >= start && tDate <= end;
+      });
+  
+      let income = 0;
+      let expense = 0;
+      filtered.forEach(t => {
+        if (t.type === TransactionType.INCOME) income += t.amount;
+        else if (t.type === TransactionType.EXPENSE) expense += t.amount;
+      });
+  
+      const transactionsUntilPeriodEnd = transactions.filter(t => {
+          if (!dateRange.end) return false;
+          const tDate = new Date(t.date);
+          const end = new Date(dateRange.end);
+          end.setHours(23,59,59,999);
+          return tDate <= end;
+      });
+      let balance = accounts.reduce((sum, acc) => sum + acc.initialBalance, 0);
+      transactionsUntilPeriodEnd.forEach(t => {
+          if (t.type === TransactionType.INCOME) balance += t.amount;
+          else if (t.type === TransactionType.EXPENSE) balance -= t.amount;
+      });
+      
+      return {
+          filteredTransactions: filtered,
+          balanceAtPeriodEnd: balance,
+          periodIncome: income,
+          periodExpenses: expense
+      };
+  
   }, [transactions, accounts, dateRange]);
 
-  const { monthTotals, yearTotals } = useMemo(() => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
 
-    const calculateTotals = (trans: Transaction[]) => {
-      return trans.reduce((acc, t) => {
-        if (t.type === TransactionType.INCOME) acc.income += t.amount;
-        else if (t.type === TransactionType.EXPENSE) acc.expense += t.amount;
-        return acc;
-      }, { income: 0, expense: 0 });
-    };
-    
-    const monthTrans = transactions.filter(t => {
-      const tDate = new Date(t.date);
-      return tDate.getUTCMonth() === currentMonth && tDate.getUTCFullYear() === currentYear;
-    });
-    const yearTrans = transactions.filter(t => new Date(t.date).getUTCFullYear() === currentYear);
-
-    return { monthTotals: calculateTotals(monthTrans), yearTotals: calculateTotals(yearTrans) };
-  }, [transactions]);
-  
+  const periodSavings = periodIncome - periodExpenses;
   const currentYear = new Date().getFullYear();
   const annualGoal = goals[currentYear] || 0;
-  const monthlyGoal = annualGoal / 12;
-  const savingsMonth = monthTotals.income - monthTotals.expense;
-  const savingsYear = yearTotals.income - yearTotals.expense;
+  
+  const { periodGoal, periodLabel } = useMemo(() => {
+      if(!dateRange.start || !dateRange.end || !annualGoal) return { periodGoal: 0, periodLabel: 'Meta do Período' };
+      
+      const diffTime = Math.abs(dateRange.end.getTime() - dateRange.start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      
+      const isFullYear = diffDays >= 365;
+      const isFullMonth = diffDays >= 28 && diffDays <= 31 && dateRange.start.getDate() === 1;
+
+      if(isFullYear) return { periodGoal: annualGoal, periodLabel: 'Meta Anual' };
+      if(isFullMonth) return { periodGoal: annualGoal / 12, periodLabel: 'Meta Mensal' };
+      
+      const dailyGoal = annualGoal / 365;
+      return { periodGoal: dailyGoal * diffDays, periodLabel: `Meta p/ ${diffDays} dias` };
+
+  }, [dateRange, annualGoal]);
+  
   
   const monthlyChartData = useMemo(() => {
-    const months: { name: string, Receitas: number, Despesas: number }[] = Array.from({ length: 6 }, (_, i) => ({
-        name: new Date(0, new Date().getMonth() - 5 + i).toLocaleString('pt-BR', { month: 'short' }).replace('.','').toUpperCase(),
-        Receitas: 0,
-        Despesas: 0,
-    }));
-    
-    transactions.forEach(t => {
-        const transactionDate = new Date(t.date);
-        const monthIndex = months.findIndex(m => m.name.toLowerCase() === transactionDate.toLocaleString('pt-BR', { month: 'short' }).replace('.','').toLowerCase());
-        if (monthIndex > -1) {
-            if(t.type === TransactionType.INCOME) months[monthIndex].Receitas += t.amount;
-            else if (t.type === TransactionType.EXPENSE) months[monthIndex].Despesas += t.amount;
-        }
+    const dataMap = new Map<string, { Receitas: number, Despesas: number }>();
+    filteredTransactions.forEach(t => {
+        const key = new Date(t.date).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+        if (!dataMap.has(key)) dataMap.set(key, { Receitas: 0, Despesas: 0 });
+        const entry = dataMap.get(key)!;
+        if(t.type === TransactionType.INCOME) entry.Receitas += t.amount;
+        else if (t.type === TransactionType.EXPENSE) entry.Despesas += t.amount;
     });
 
-    return months;
-  }, [transactions]);
+    return Array.from(dataMap.entries()).map(([name, values]) => ({ name, ...values }));
+  }, [filteredTransactions]);
 
   const accountBalances = useMemo(() => {
     const balances = new Map<string, number>();
@@ -235,22 +236,22 @@ const DashboardPage: React.FC = () => {
   }, [accounts, transactions]);
 
   const topExpenses = useMemo(() => {
-    const total = transactions.filter(t => t.type === TransactionType.EXPENSE).reduce((sum, t) => sum + t.amount, 0);
-    return transactions
+    const total = filteredTransactions.filter(t => t.type === TransactionType.EXPENSE).reduce((sum, t) => sum + t.amount, 0);
+    return filteredTransactions
         .filter(t => t.type === TransactionType.EXPENSE)
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 4)
         .map(t => ({...t, percentage: total > 0 ? ((t.amount / total) * 100).toFixed(1) + '% do total' : '0% do total' }));
-  }, [transactions]);
+  }, [filteredTransactions]);
   
   const topIncomes = useMemo(() => {
-    const total = transactions.filter(t => t.type === TransactionType.INCOME).reduce((sum, t) => sum + t.amount, 0);
-    return transactions
+    const total = filteredTransactions.filter(t => t.type === TransactionType.INCOME).reduce((sum, t) => sum + t.amount, 0);
+    return filteredTransactions
         .filter(t => t.type === TransactionType.INCOME)
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 4)
         .map(t => ({...t, percentage: total > 0 ? ((t.amount / total) * 100).toFixed(1) + '% do total' : '0% do total' }));
-  }, [transactions]);
+  }, [filteredTransactions]);
   
     const itemToCategoryMap = useMemo(() => {
         const map = new Map<string, { name: string, color?: string }>();
@@ -271,7 +272,7 @@ const DashboardPage: React.FC = () => {
     }, [categories]);
 
     const recentTransactionsForDashboard = useMemo(() => {
-        return transactions
+        return filteredTransactions
             .filter(t => t.type === TransactionType.INCOME || t.type === TransactionType.EXPENSE)
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             .slice(0, 4)
@@ -282,7 +283,7 @@ const DashboardPage: React.FC = () => {
                     category: categoryInfo
                 };
             });
-    }, [transactions, itemToCategoryMap]);
+    }, [filteredTransactions, itemToCategoryMap]);
 
   return (
     <div className="space-y-6 relative">
@@ -295,9 +296,9 @@ const DashboardPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatCard title="Saldo Total" amount={totalBalance} percentage={2.5} isPositive={true} />
-          <StatCard title="Receitas (Período)" amount={periodIncome} percentage={15.2} isPositive={true} />
-          <StatCard title="Despesas (Período)" amount={periodExpenses} percentage={8.1} isPositive={false} />
+          <StatCard title="Saldo no final do período" amount={balanceAtPeriodEnd} />
+          <StatCard title="Receitas (Período)" amount={periodIncome} />
+          <StatCard title="Despesas (Período)" amount={periodExpenses} />
       </div>
 
       <DateRangePickerModal
@@ -310,8 +311,7 @@ const DashboardPage: React.FC = () => {
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="font-bold text-lg mb-4 text-slate-800">Metas de Economia</h3>
         <div className="space-y-4">
-          <SavingsGoalCard title="Meta de Economia Mensal" goal={monthlyGoal} current={savingsMonth} label="Meta Mensal" color="bg-green-500" />
-          <SavingsGoalCard title="Meta de Economia Anual" goal={annualGoal} current={savingsYear} label="Meta Anual" color="bg-blue-500" />
+          <SavingsGoalCard title="Meta de Economia do Período" goal={periodGoal} current={periodSavings} label={periodLabel} color="bg-green-500" />
         </div>
       </div>
 
@@ -335,7 +335,7 @@ const DashboardPage: React.FC = () => {
               </ResponsiveContainer>
           </div>
           <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-             <CategoryChart transactions={transactions} categories={categories} />
+             <CategoryChart transactions={filteredTransactions} categories={categories} />
           </div>
       </div>
 
@@ -371,15 +371,15 @@ const DashboardPage: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-               <h3 className="font-bold text-lg mb-2 text-slate-800">Top 10 Despesas</h3>
+               <h3 className="font-bold text-lg mb-2 text-slate-800">Top Despesas</h3>
                <div className="divide-y divide-slate-200">
-                   {topExpenses.map((item, index) => <TopListItem key={item.id} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />)}
+                   {topExpenses.length > 0 ? topExpenses.map((item, index) => <TopListItem key={item.id} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4">Nenhuma despesa no período.</p>}
                </div>
            </div>
            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="font-bold text-lg mb-2 text-slate-800">Top 10 Receitas</h3>
+                <h3 className="font-bold text-lg mb-2 text-slate-800">Top Receitas</h3>
                 <div className="divide-y divide-slate-200">
-                   {topIncomes.map((item, index) => <TopListItem key={item.id} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />)}
+                   {topIncomes.length > 0 ? topIncomes.map((item, index) => <TopListItem key={item.id} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4">Nenhuma receita no período.</p>}
                </div>
            </div>
       </div>

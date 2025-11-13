@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Transaction, Account, Category, TransactionType } from '../types';
@@ -160,8 +161,15 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const categoryOptions = useMemo(() => {
         return categories
             .filter(cat => cat.type === type)
-            .flatMap(cat => cat.subcategories.flatMap(sub => sub.items.map(item => ({...item, subName: sub.name}))))
-            .map(item => <option key={item.id} value={item.id}>{item.subName} &gt; {item.name}</option>);
+            .flatMap(cat => 
+                cat.subcategories.flatMap(sub => 
+                    sub.items.map(item => (
+                        <option key={item.id} value={item.id}>
+                            {cat.name} &gt; {sub.name} &gt; {item.name}
+                        </option>
+                    ))
+                )
+            );
     }, [categories, type]);
 
     return (
