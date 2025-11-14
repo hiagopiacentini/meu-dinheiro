@@ -183,23 +183,66 @@ const DashboardPage: React.FC = () => {
 
     const start = dateRange.start;
     const end = dateRange.end;
-    const annualGoal = goals[start.getUTCFullYear()] || 0;
-    const monthlyGoal = annualGoal / 12;
+    const startYear = start.getUTCFullYear();
+    const annualGoal = goals[startYear] || 0;
 
-    if (start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth()) {
+    // Check for full months
+    const isStartOfMonth = start.getUTCDate() === 1;
+    const endPlusOne = new Date(end.getTime());
+    endPlusOne.setUTCDate(end.getUTCDate() + 1);
+    const isEndOfMonth = endPlusOne.getUTCDate() === 1;
+
+    if (isStartOfMonth && isEndOfMonth && start.getUTCFullYear() === end.getUTCFullYear()) {
+        const months = (end.getUTCMonth() - start.getUTCMonth()) + 1;
         const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
+        
         return {
-            periodSpecificGoal: monthlyGoal,
-            periodSpecificLabel: `Meta Mensal (${monthName})`,
+            periodSpecificGoal: (annualGoal / 12) * months,
+            periodSpecificLabel: months === 1 ? `Meta Mensal (${monthName})` : 'Meta do Período'
         };
     } else {
-         return {
-            periodSpecificGoal: periodSavings, // This logic isn't perfect, but reflects what user asked for a wider range.
-            periodSpecificLabel: 'Meta do Período',
+        const daysInYear = (startYear % 4 === 0 && startYear % 100 !== 0) || startYear % 400 === 0 ? 366 : 365;
+        const diffTime = end.getTime() - start.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        
+        const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
+        
+        if (start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth()) {
+            return {
+                periodSpecificGoal: (annualGoal / daysInYear) * diffDays,
+                periodSpecificLabel: `Meta Mensal (${monthName})`
+            }
+        }
+
+        return {
+            periodSpecificGoal: (annualGoal / daysInYear) * diffDays,
+            periodSpecificLabel: 'Meta do Período'
         };
     }
+  }, [dateRange, goals]);
 
-}, [dateRange, goals, periodSavings]);
+  const { annualSavingsToDate } = useMemo(() => {
+    if (!dateRange.start) return { annualSavingsToDate: 0 };
+
+    const year = dateRange.start.getUTCFullYear();
+    const startOfYear = new Date(Date.UTC(year, 0, 1));
+    const now = new Date();
+    
+    const endOfPeriod = year === now.getUTCFullYear() 
+        ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
+        : new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+
+    const savings = transactions.filter(t => {
+        const tDate = getUTCDate(t.date);
+        return tDate >= startOfYear && tDate <= endOfPeriod;
+    }).reduce((acc, t) => {
+        if (t.type === TransactionType.INCOME) return acc + t.amount;
+        if (t.type === TransactionType.EXPENSE) return acc - t.amount;
+        return acc;
+    }, 0);
+    
+    return { annualSavingsToDate: savings };
+  }, [transactions, dateRange.start]);
   
   const { annualPeriodGoal, annualPeriodLabel } = useMemo(() => {
     if (!dateRange.start || !dateRange.end) return { annualPeriodGoal: 0, annualPeriodLabel: 'Meta do Período' };
@@ -380,7 +423,7 @@ const DashboardPage: React.FC = () => {
         <h3 className="font-bold text-lg mb-4 text-slate-800">Metas de Economia</h3>
         <div className="space-y-4">
           <SavingsGoalCard title="Meta do Período" goal={periodSpecificGoal} current={periodSavings} label={periodSpecificLabel} color="bg-blue-500" />
-          <SavingsGoalCard title="Meta Anual" goal={annualPeriodGoal} current={periodSavings} label={annualPeriodLabel} color="bg-green-500" />
+          <SavingsGoalCard title="Meta Anual" goal={annualPeriodGoal} current={annualSavingsToDate} label={annualPeriodLabel} color="bg-green-500" />
         </div>
       </div>
 

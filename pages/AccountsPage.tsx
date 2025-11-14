@@ -45,6 +45,11 @@ const sampleCategories: Category[] = [
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+const getUTCDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+};
+
 
 const AccountModal: React.FC<{
     isOpen: boolean;
@@ -252,7 +257,11 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     const filteredTransactions = useMemo(() => {
         if (!selectedAccountId) return [];
         
+        const now = new Date();
+        const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+
         let relatedTransactions = transactions
+            .filter(t => getUTCDate(t.date) <= todayUTC) // Filter out future transactions
             .filter(t => t.accountId === selectedAccountId || t.destinationAccountId === selectedAccountId)
             .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -385,7 +394,6 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
             <div className="xl:col-span-4 space-y-3">
                 {accounts.map((acc, index) => {
                     const isSelected = acc.id === selectedAccountId;
-                    const isBeingDragged = draggedItemIndex === index;
                     const isDragOver = dragOverItemIndex === index;
                     return (
                         <div 
@@ -396,7 +404,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                             onDragEnd={handleDragEnd}
                             onDragOver={(e) => e.preventDefault()}
                             onClick={() => setSelectedAccountId(acc.id)} 
-                            className={`w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-grab ${isBeingDragged ? 'opacity-50' : ''} ${isDragOver ? 'border-blue-500' : ''} ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}
+                            className={`w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-grab ${isDragOver ? 'border-blue-500' : ''} ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}
                          >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-4">

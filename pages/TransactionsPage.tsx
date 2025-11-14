@@ -89,9 +89,8 @@ const FilterDropdown: React.FC<{
 
     return (
         <div className={`relative ${className}`} ref={ref}>
-            <button onClick={() => setIsOpen(prev => !prev)} className="btn-secondary w-full flex justify-between items-center px-3 py-2">
+            <button onClick={() => setIsOpen(prev => !prev)} className="btn-secondary w-full flex justify-center items-center px-3 py-2">
                 <span>{value}</span>
-                <ChevronDownIcon className="w-4 h-4 text-slate-500" />
             </button>
             {isOpen && (
                 <div className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-10">
@@ -532,7 +531,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                     <div className="relative sm:col-span-2 lg:col-span-4 xl:col-span-2">
                         {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
-                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10" placeholder="Pesquisar..."/>
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10"/>
                     </div>
                     <FilterDropdown 
                         options={['Este Mês', 'Mês Passado', 'Personalizado']}
