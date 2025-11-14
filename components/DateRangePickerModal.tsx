@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
 import XIcon from './icons/XIcon';
-// Fix: Removed conflicting imports for ChevronLeftIcon and ChevronRightIcon as they are defined locally within this file.
+import ChevronLeftIcon from './icons/ChevronLeftIcon';
+import ChevronRightIcon from './icons/ChevronRightIcon';
 
 interface DateRangePickerModalProps {
     isOpen: boolean;
@@ -113,19 +114,5 @@ const DateRangePickerModal: React.FC<DateRangePickerModalProps> = ({ isOpen, onC
         </div>
     );
 };
-
-// These icons are used by the new component
-const ChevronLeftIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-  </svg>
-);
-
-const ChevronRightIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-  </svg>
-);
-
 
 export default DateRangePickerModal;

@@ -1,7 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-// Fix: Import the AnnualGoals type to resolve the 'Cannot find name' error.
 import { Transaction, TransactionType, Category, Account, AnnualGoals } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import CategoryChart from '../components/CategoryChart';
@@ -10,6 +9,12 @@ import UpArrowIcon from '../components/icons/UpArrowIcon';
 import DownArrowIcon from '../components/icons/DownArrowIcon';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+// Helper function to create a UTC date from a local date string to avoid timezone issues.
+const getUTCDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+};
 
 const StatCard: React.FC<{title: string, amount: number, percentage?: number, isPositive?: boolean}> = ({title, amount, percentage, isPositive}) => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -83,13 +88,11 @@ const TopListItem: React.FC<{ index: number, description: string, percentage: st
 );
 
 const getTimeAgo = (dateString: string): string => {
-    const date = new Date(dateString);
+    const date = getUTCDate(dateString);
     const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-    const transactionDay = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-    
-    const diffInMs = today - transactionDay;
+    const diffInMs = today.getTime() - date.getTime();
     const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
 
     if (diffInDays === 0) return 'Hoje';
@@ -110,26 +113,24 @@ const DashboardPage: React.FC = () => {
   
   const today = new Date();
   const [dateRange, setDateRange] = useState<{start: Date | null, end: Date | null}>({ 
-      start: new Date(today.getFullYear(), today.getMonth(), 1), 
+      start: new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1)), 
       end: today 
   });
 
   useEffect(() => {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999); // End of today
-
-    let start = new Date(today);
+    const now = new Date();
+    const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+    let startUTC: Date;
 
     if (activeFilter === 'Mês Atual') {
-      start = new Date(today.getFullYear(), today.getMonth(), 1);
+      startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     } else if (activeFilter === 'Este Ano') {
-      start = new Date(today.getFullYear(), 0, 1);
+      startUTC = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
     } else {
       return;
     }
     
-    start.setHours(0, 0, 0, 0); // Start of the day
-    setDateRange({ start, end: today });
+    setDateRange({ start: startUTC, end: todayUTC });
   }, [activeFilter]);
 
   const handleFilterClick = (filter: string) => {
@@ -144,14 +145,18 @@ const DashboardPage: React.FC = () => {
     setActiveFilter('Personalizado');
   };
 
-  const { filteredTransactions, balanceAtPeriodEnd, periodIncome, periodExpenses } = useMemo(() => {
+  const { filteredTransactions, periodIncome, periodExpenses } = useMemo(() => {
+      if (!dateRange.start || !dateRange.end) {
+          return { filteredTransactions: [], periodIncome: 0, periodExpenses: 0 };
+      }
+
+      const start = dateRange.start;
+      start.setUTCHours(0,0,0,0);
+      const end = dateRange.end;
+      end.setUTCHours(23,59,59,999);
+      
       const filtered = transactions.filter(t => {
-        if (!dateRange.start || !dateRange.end) return false;
-        const tDate = new Date(t.date);
-        const start = new Date(dateRange.start);
-        start.setHours(0,0,0,0);
-        const end = new Date(dateRange.end);
-        end.setHours(23,59,59,999);
+        const tDate = getUTCDate(t.date);
         return tDate >= start && tDate <= end;
       });
   
@@ -161,72 +166,73 @@ const DashboardPage: React.FC = () => {
         if (t.type === TransactionType.INCOME) income += t.amount;
         else if (t.type === TransactionType.EXPENSE) expense += t.amount;
       });
-  
-      const transactionsUntilPeriodEnd = transactions.filter(t => {
-          if (!dateRange.end) return false;
-          const tDate = new Date(t.date);
-          const end = new Date(dateRange.end);
-          end.setHours(23,59,59,999);
-          return tDate <= end;
-      });
-      let balance = accounts.reduce((sum, acc) => sum + acc.initialBalance, 0);
-      transactionsUntilPeriodEnd.forEach(t => {
-          if (t.type === TransactionType.INCOME) balance += t.amount;
-          else if (t.type === TransactionType.EXPENSE) balance -= t.amount;
-      });
       
       return {
           filteredTransactions: filtered,
-          balanceAtPeriodEnd: balance,
           periodIncome: income,
           periodExpenses: expense
       };
   
-  }, [transactions, accounts, dateRange]);
-
+  }, [transactions, dateRange]);
 
   const periodSavings = periodIncome - periodExpenses;
   
   const { periodGoal, periodLabel } = useMemo(() => {
     if (!dateRange.start || !dateRange.end) return { periodGoal: 0, periodLabel: 'Meta do Período' };
     
-    const startYear = dateRange.start.getFullYear();
-    const endYear = dateRange.end.getFullYear();
+    const startYear = dateRange.start.getUTCFullYear();
+    const endYear = dateRange.end.getUTCFullYear();
 
-    if (startYear === endYear) {
-        const annualGoal = goals[startYear] || 0;
-        return { periodGoal: annualGoal, periodLabel: `Meta Anual ${startYear}` };
-    }
-
-    // Calculation for periods spanning multiple years
     let totalGoal = 0;
-    const isLeap = (year: number) => new Date(year, 1, 29).getDate() === 29;
+    const isLeap = (year: number) => new Date(Date.UTC(year, 1, 29)).getUTCDate() === 29;
 
-    for (let d = new Date(dateRange.start); d <= dateRange.end; d.setDate(d.getDate() + 1)) {
-        const year = d.getFullYear();
+    let currentDate = new Date(dateRange.start);
+    while (currentDate <= dateRange.end) {
+        const year = currentDate.getUTCFullYear();
         const annualGoalForYear = goals[year] || 0;
         const daysInYear = isLeap(year) ? 366 : 365;
         const dailyGoal = annualGoalForYear / daysInYear;
         totalGoal += dailyGoal;
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
     }
     
-    return { periodGoal: totalGoal, periodLabel: 'Meta do Período' };
+    const label = startYear === endYear ? `Meta Anual ${startYear}` : 'Meta do Período';
+    return { periodGoal: totalGoal, periodLabel: label };
 
   }, [dateRange, goals]);
   
-  
   const monthlyChartData = useMemo(() => {
-    const dataMap = new Map<string, { Receitas: number, Despesas: number }>();
-    filteredTransactions.forEach(t => {
-        const key = new Date(t.date).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
-        if (!dataMap.has(key)) dataMap.set(key, { Receitas: 0, Despesas: 0 });
-        const entry = dataMap.get(key)!;
-        if(t.type === TransactionType.INCOME) entry.Receitas += t.amount;
-        else if (t.type === TransactionType.EXPENSE) entry.Despesas += t.amount;
-    });
+      const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+      
+      const dataMap = new Map<string, { Receitas: number, Despesas: number, monthIndex: number }>();
 
-    return Array.from(dataMap.entries()).map(([name, values]) => ({ name, ...values }));
+      // Initialize all months of the current year to ensure they appear in order
+      const currentYear = new Date().getFullYear();
+      monthNames.forEach((name, index) => {
+          dataMap.set(`${name}/${currentYear}`, { Receitas: 0, Despesas: 0, monthIndex: index });
+      });
+
+      filteredTransactions.forEach(t => {
+          const tDate = getUTCDate(t.date);
+          const monthIndex = tDate.getUTCMonth();
+          const year = tDate.getUTCFullYear();
+          const key = `${monthNames[monthIndex]}/${year}`;
+          
+          if (!dataMap.has(key)) {
+              dataMap.set(key, { Receitas: 0, Despesas: 0, monthIndex });
+          }
+          const entry = dataMap.get(key)!;
+          if (t.type === TransactionType.INCOME) entry.Receitas += t.amount;
+          else if (t.type === TransactionType.EXPENSE) entry.Despesas += t.amount;
+      });
+
+      return Array.from(dataMap.entries())
+          .map(([name, values]) => ({ name, ...values }))
+          .sort((a, b) => a.monthIndex - b.monthIndex) // Sort by month index
+          .filter(d => d.Receitas > 0 || d.Despesas > 0); // Only show months with data
+
   }, [filteredTransactions]);
+
 
   const accountBalances = useMemo(() => {
     const balances = new Map<string, number>();
@@ -280,9 +286,9 @@ const DashboardPage: React.FC = () => {
     }, [categories]);
 
     const recentTransactionsForDashboard = useMemo(() => {
-        return filteredTransactions
+        return transactions // Use all transactions for recency
             .filter(t => t.type === TransactionType.INCOME || t.type === TransactionType.EXPENSE)
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .sort((a, b) => getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime())
             .slice(0, 4)
             .map(t => {
                 const categoryInfo = itemToCategoryMap.get(t.itemId || '');
@@ -291,7 +297,7 @@ const DashboardPage: React.FC = () => {
                     category: categoryInfo
                 };
             });
-    }, [filteredTransactions, itemToCategoryMap]);
+    }, [transactions, itemToCategoryMap]);
 
   return (
     <div className="space-y-6 relative">
@@ -304,7 +310,7 @@ const DashboardPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatCard title="Saldo no final do período" amount={balanceAtPeriodEnd} />
+          <StatCard title="Saldo do Período" amount={periodIncome - periodExpenses} />
           <StatCard title="Receitas (Período)" amount={periodIncome} />
           <StatCard title="Despesas (Período)" amount={periodExpenses} />
       </div>

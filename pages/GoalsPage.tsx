@@ -1,7 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-// Fix: Move AnnualGoals to types.ts and import it for reusability.
 import { Transaction, TransactionType, AnnualGoals } from '../types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -31,9 +30,14 @@ const GoalsPage: React.FC = () => {
 
 
     const { annualSavings } = useMemo(() => {
+        // Use UTC dates to ensure consistency with the dashboard
+        const startOfYear = new Date(Date.UTC(selectedYear, 0, 1));
+        const endOfYear = new Date(Date.UTC(selectedYear, 11, 31, 23, 59, 59, 999));
+
         const yearTrans = transactions.filter(t => {
-            const tDate = new Date(t.date);
-            return tDate.getUTCFullYear() === selectedYear && t.type !== TransactionType.TRANSFER;
+            const date = new Date(t.date);
+            const tDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+            return tDate >= startOfYear && tDate <= endOfYear && t.type !== TransactionType.TRANSFER;
         });
 
         const totalSavings = yearTrans.reduce((acc, t) => {

@@ -7,6 +7,9 @@ import PencilIcon from '../components/icons/PencilIcon';
 import SearchIcon from '../components/icons/SearchIcon';
 import MoneyIcon from '../components/icons/MoneyIcon';
 import UploadIcon from '../components/icons/UploadIcon';
+import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
+import ChevronRightIcon from '../components/icons/ChevronRightIcon';
+
 
 // Sample Data
 const sampleAccounts: Account[] = [
@@ -191,6 +194,12 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
     const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const [showInstallments, setShowInstallments] = useState(false);
+    const itemsPerPage = 10;
+    
     const addAccountTriggerRef = useRef(addAccountTrigger);
     
     const categoryMap = useMemo(() => {
@@ -211,6 +220,14 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
             setSelectedAccountId(accounts[0].id);
         }
     }, [accounts, selectedAccountId]);
+    
+    // Reset pagination and filters when account changes
+    useEffect(() => {
+        setCurrentPage(1);
+        setShowInstallments(false);
+        setSearchTerm('');
+    }, [selectedAccountId]);
+
 
     const accountBalances = useMemo(() => {
         const balances = new Map<string, number>();
@@ -233,11 +250,34 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
 
     const filteredTransactions = useMemo(() => {
         if (!selectedAccountId) return [];
-        return transactions
+        
+        let relatedTransactions = transactions
             .filter(t => t.accountId === selectedAccountId || t.destinationAccountId === selectedAccountId)
-            .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()))
-            .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [transactions, selectedAccountId, searchTerm]);
+            .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
+
+        if (!showInstallments) {
+            const installmentGroups = new Map<string, Transaction>();
+            const singleTransactions: Transaction[] = [];
+
+            relatedTransactions.forEach(t => {
+                if (t.installmentGroupId) {
+                    const existing = installmentGroups.get(t.installmentGroupId);
+                    if (!existing || new Date(t.date) > new Date(existing.date)) {
+                        installmentGroups.set(t.installmentGroupId, t);
+                    }
+                } else {
+                    singleTransactions.push(t);
+                }
+            });
+            relatedTransactions = [...singleTransactions, ...Array.from(installmentGroups.values())];
+        }
+        
+        return relatedTransactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [transactions, selectedAccountId, searchTerm, showInstallments]);
+    
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+    const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const handleOpenModal = (account: Account | null = null) => {
         setEditingAccount(account);
@@ -317,7 +357,6 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                 return { sign: '+ ', color: 'text-green-500' }; // Incoming
             }
         }
-        // Default/fallback
         return { sign: '', color: 'text-slate-800' };
     };
 
@@ -340,7 +379,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-1">
-                                    <p className="font-bold text-lg text-slate-800">{formatCurrency(accountBalances.get(acc.id) || 0)}</p>
+                                    <p className="font-bold text-lg text-slate-800 whitespace-nowrap">{formatCurrency(accountBalances.get(acc.id) || 0)}</p>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleOpenModal(acc); }} 
                                         className="p-2 rounded-full text-slate-400 hover:text-blue-500 hover:bg-slate-100 transition-colors"
@@ -384,15 +423,22 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                 )}
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
                     <div className="p-6 border-b border-slate-200">
-                        <div className="flex justify-between items-center">
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                             <h3 className="text-lg font-bold text-slate-800">Últimas Transações</h3>
-                            <div className="relative w-full max-w-xs">
-                                <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2"/>
-                                <input 
-                                    type="text" 
-                                    value={searchTerm} 
-                                    onChange={e => setSearchTerm(e.target.value)} 
-                                    className="input-style pl-10 h-10"/>
+                            <div className="flex items-center gap-4 w-full sm:w-auto">
+                                <div className="flex-grow sm:flex-grow-0 relative w-full max-w-xs">
+                                    {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
+                                    <input 
+                                        type="text" 
+                                        value={searchTerm} 
+                                        onChange={e => setSearchTerm(e.target.value)} 
+                                        onFocus={() => setIsSearchFocused(true)}
+                                        onBlur={() => setIsSearchFocused(false)}
+                                        className="input-style pl-10 h-10 w-full"/>
+                                </div>
+                                <button onClick={() => setShowInstallments(s => !s)} className={`px-3 py-2 text-sm font-semibold rounded-lg ${showInstallments ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+                                    {showInstallments ? 'Ver Todas' : 'Agrupar Parcelas'}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -407,10 +453,10 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200">
-                                {filteredTransactions.length === 0 ? (
-                                    <tr><td colSpan={4} className="text-center p-8 text-slate-500">Nenhuma transação encontrada para esta conta.</td></tr>
+                                {paginatedTransactions.length === 0 ? (
+                                    <tr><td colSpan={4} className="text-center p-8 text-slate-500">Nenhuma transação encontrada.</td></tr>
                                 ) : (
-                                    filteredTransactions.map(t => {
+                                    paginatedTransactions.map(t => {
                                         const categoryName = t.itemId ? categoryMap.get(t.itemId) : 'N/A';
                                         const displayProps = getTransactionDisplayProps(t, selectedAccountId);
                                         return (
@@ -432,6 +478,13 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                             </tbody>
                         </table>
                     </div>
+                    {totalPages > 1 && (
+                        <div className="p-4 border-t border-slate-200 flex justify-between items-center">
+                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center"><ChevronLeftIcon className="w-4 h-4 mr-1"/> Anterior</button>
+                            <span className="text-sm font-medium text-slate-600">Página {currentPage} de {totalPages}</span>
+                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center">Próxima <ChevronRightIcon className="w-4 h-4 ml-1"/></button>
+                        </div>
+                    )}
                 </div>
             </div>
 

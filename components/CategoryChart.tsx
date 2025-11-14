@@ -102,6 +102,8 @@ const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, categories 
                     <Tooltip
                         content={<CustomTooltipContent />}
                         cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                        position={{ x: 100, y: 100 }}
+                        offset={20}
                     />
                   </PieChart>
                 </ResponsiveContainer>

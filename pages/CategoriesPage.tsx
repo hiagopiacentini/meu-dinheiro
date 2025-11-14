@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Category, Subcategory, CategoryItem, TransactionType } from '../types';
@@ -219,6 +220,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
     const [modalConfig, setModalConfig] = useState<ModalConfig>({ isOpen: false });
     const [activeTab, setActiveTab] = useState<TransactionType>(TransactionType.EXPENSE);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isSearchFocused, setIsSearchFocused] = useState(false);
     const [expandedItems, setExpandedItems] = useState<{[key: string]: boolean}>({ 'cat-food': true, 'sub-restaurants': true });
     const addCategoryTriggerRef = useRef(addCategoryTrigger);
     const activeTabRef = useRef(activeTab);
@@ -242,9 +244,14 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
         setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
     }
 
+    const sortByName = <T extends { name: string }>(arr: T[]): T[] => {
+        return [...arr].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+    };
+
     const handleSave = (type: ModalType, names: string[], data: any, color?: string) => {
+        let newCategories = [...categories];
+        
         if (modalConfig.action === 'add') {
-             let newCategories = [...categories];
             names.forEach(name => {
                 if (type === 'category') {
                     const newCategory: Category = { id: crypto.randomUUID(), name, type: data.parentType, subcategories: [], color };
@@ -254,7 +261,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                     const newSub: Subcategory = { id: crypto.randomUUID(), name, items: [], categoryId: data.parentId };
                     newCategories = newCategories.map(cat => 
                         cat.id === data.parentId 
-                        ? { ...cat, subcategories: [...cat.subcategories, newSub] } 
+                        ? { ...cat, subcategories: sortByName([...cat.subcategories, newSub]) } 
                         : cat
                     );
                 }
@@ -264,7 +271,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                         if (cat.id === data.categoryId) {
                             const updatedSubcategories = cat.subcategories.map(sub => 
                                 sub.id === data.parentId 
-                                ? { ...sub, items: [...sub.items, newItem] } 
+                                ? { ...sub, items: sortByName([...sub.items, newItem]) } 
                                 : sub
                             );
                             return { ...cat, subcategories: updatedSubcategories };
@@ -273,28 +280,28 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                     });
                 }
             });
-            setCategories(newCategories);
         } else if (modalConfig.action === 'edit') {
              const name = names[0];
              if (type === 'category') {
-                setCategories(categories.map(cat => cat.id === data.id ? { ...cat, name, color } : cat));
+                newCategories = newCategories.map(cat => cat.id === data.id ? { ...cat, name, color } : cat);
             }
             if (type === 'subcategory') {
-                setCategories(categories.map(cat => {
-                     const updatedSubcategories = cat.subcategories.map(sub => sub.id === data.id ? { ...sub, name } : sub);
-                     return { ...cat, subcategories: updatedSubcategories };
+                newCategories = newCategories.map(cat => ({
+                     ...cat,
+                     subcategories: sortByName(cat.subcategories.map(sub => sub.id === data.id ? { ...sub, name } : sub))
                 }));
             }
             if (type === 'item') {
-                 setCategories(categories.map(cat => {
-                    const updatedSubcategories = cat.subcategories.map(sub => {
-                        const updatedItems = sub.items.map(item => item.id === data.id ? { ...item, name } : item);
-                        return { ...sub, items: updatedItems };
-                    });
-                    return { ...cat, subcategories: updatedSubcategories };
+                 newCategories = newCategories.map(cat => ({
+                    ...cat,
+                    subcategories: cat.subcategories.map(sub => ({
+                        ...sub,
+                        items: sortByName(sub.items.map(item => item.id === data.id ? { ...item, name } : item))
+                    }))
                 }));
             }
         }
+        setCategories(sortByName(newCategories));
         closeModal();
     };
 
@@ -329,7 +336,16 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
     
     const filteredCategories = useMemo(() => {
         const lowerSearch = searchTerm.toLowerCase();
-        return categories
+        
+        const sorted = categories.map(cat => ({
+            ...cat,
+            subcategories: cat.subcategories.map(sub => ({
+                ...sub,
+                items: sortByName(sub.items)
+            })).sort((a,b) => a.name.localeCompare(b.name))
+        })).sort((a,b) => a.name.localeCompare(b.name));
+
+        return sorted
             .filter(c => c.type === activeTab)
             .filter(cat => {
                 if (!searchTerm) return true;
@@ -357,8 +373,14 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                     <button onClick={() => setActiveTab(TransactionType.INCOME)} className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${activeTab === TransactionType.INCOME ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Receitas</button>
                 </div>
                 <div className="relative w-full sm:max-w-xs">
-                    <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2"/>
-                    <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="input-style pl-10"/>
+                    {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
+                    <input 
+                        type="text" 
+                        value={searchTerm} 
+                        onChange={e => setSearchTerm(e.target.value)} 
+                        onFocus={() => setIsSearchFocused(true)}
+                        onBlur={() => setIsSearchFocused(false)}
+                        className="input-style pl-10"/>
                 </div>
             </div>
             
