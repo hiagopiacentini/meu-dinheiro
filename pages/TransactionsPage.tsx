@@ -532,29 +532,25 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             </div>
 
             <div className="lg:col-span-7 xl:col-span-8 space-y-6">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="relative">
+                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="relative md:col-span-2">
                         {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
-                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10"/>
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10" placeholder="" />
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <FilterDropdown 
+                        options={['Este Mês', 'Mês Passado', 'Personalizado']}
+                        value={dateFilter}
+                        onChange={handleDateFilterChange}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
                         <FilterDropdown 
-                            options={['Este Mês', 'Mês Passado', 'Personalizado']}
-                            value={dateFilter}
-                            onChange={handleDateFilterChange}
-                            className="col-span-2"
+                            options={['Todos', 'Entradas', 'Saídas']}
+                            value={typeFilter}
+                            onChange={setTypeFilter}
                         />
-                        <div className="flex items-center gap-2 col-span-1">
-                            <FilterDropdown 
-                                options={['Todos', 'Entradas', 'Saídas']}
-                                value={typeFilter}
-                                onChange={setTypeFilter}
-                                className="flex-grow"
-                            />
-                            <button onClick={() => setInstallmentFilter(s => !s)} className={`px-3 py-2 text-sm font-semibold rounded-lg whitespace-nowrap h-full ${installmentFilter ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
-                                Parceladas
-                            </button>
-                        </div>
+                        <button onClick={() => setInstallmentFilter(s => !s)} className={`btn-secondary w-full h-full flex justify-center items-center px-3 py-2 text-sm ${installmentFilter ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600'}`}>
+                            Parceladas
+                        </button>
                     </div>
                 </div>
                 

@@ -179,13 +179,28 @@ const DashboardPage: React.FC = () => {
     const now = new Date();
     const currentYear = now.getUTCFullYear();
     const currentMonth = now.getUTCMonth();
-    const currentDayOfMonth = now.getUTCDate();
-
-    // This goal is only relevant for the "Mês Atual" filter
-    if (activeFilter !== 'Mês Atual') {
-      return { goalUntilNow: 0, showGoalUntilNow: false };
+    
+    let isWithinCurrentMonth = false;
+    if (activeFilter === 'Mês Atual') {
+        isWithinCurrentMonth = true;
+    } else if (activeFilter === 'Personalizado' && dateRange.start && dateRange.end) {
+        const start = dateRange.start;
+        const end = dateRange.end;
+        if (
+            start.getUTCFullYear() === currentYear &&
+            start.getUTCMonth() === currentMonth &&
+            end.getUTCFullYear() === currentYear &&
+            end.getUTCMonth() === currentMonth
+        ) {
+            isWithinCurrentMonth = true;
+        }
     }
 
+    if (!isWithinCurrentMonth) {
+        return { goalUntilNow: 0, showGoalUntilNow: false };
+    }
+
+    const currentDayOfMonth = now.getUTCDate();
     const annualGoal = goals[currentYear] || 0;
     if (annualGoal === 0) {
       return { goalUntilNow: 0, showGoalUntilNow: false };
@@ -199,7 +214,7 @@ const DashboardPage: React.FC = () => {
       goalUntilNow: dailyGoal * currentDayOfMonth,
       showGoalUntilNow: true,
     };
-  }, [goals, activeFilter]);
+  }, [goals, activeFilter, dateRange]);
 
   const { periodSpecificGoal, periodSpecificLabel } = useMemo(() => {
     if (!dateRange.start || !dateRange.end) {

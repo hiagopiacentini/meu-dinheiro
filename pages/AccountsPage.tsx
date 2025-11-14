@@ -256,25 +256,27 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     const filteredTransactions = useMemo(() => {
         if (!selectedAccountId) return [];
         
-        const now = new Date();
-        const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
-
+        // Base filter for account and search term
         let accountTransactions = transactions
-            .filter(t => getUTCDate(t.date) <= todayUTC) // Filter out future transactions
             .filter(t => t.accountId === selectedAccountId || t.destinationAccountId === selectedAccountId)
             .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
-
+            
         let finalTransactions: Transaction[];
 
         if (showInstallments) {
-            // When filter is ON, show all transactions that are installments.
+            // When filter is ON, show all installment transactions for the account (past, present, future).
             finalTransactions = accountTransactions.filter(t => !!t.installmentGroupId);
         } else {
-            // When filter is OFF, consolidate installments into the most recent one.
+            // When filter is OFF, filter out future transactions and consolidate installments.
+            const now = new Date();
+            const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+
+            const pastAndPresentTransactions = accountTransactions.filter(t => getUTCDate(t.date) <= todayUTC);
+            
             const installmentGroups = new Map<string, Transaction>();
             const singleTransactions: Transaction[] = [];
 
-            accountTransactions.forEach(t => {
+            pastAndPresentTransactions.forEach(t => {
                 if (t.installmentGroupId) {
                     const existing = installmentGroups.get(t.installmentGroupId);
                     // Keep the most recent installment for each group
@@ -488,6 +490,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                     onFocus={() => setIsSearchFocused(true)}
                                     onBlur={() => setIsSearchFocused(false)}
                                     className="input-style pl-10 h-10 w-full"
+                                    placeholder=""
                                 />
                             </div>
                             <button onClick={() => setShowInstallments(s => !s)} className={`px-3 py-2 text-sm font-semibold rounded-lg whitespace-nowrap h-10 ${showInstallments ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
