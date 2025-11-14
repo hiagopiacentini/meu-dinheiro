@@ -189,12 +189,13 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     useLocalStorage<Category[]>('categories', sampleCategories); // just to set sample data
     const [categories] = useLocalStorage<Category[]>('categories', []);
 
-
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
     const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearchFocused, setIsSearchFocused] = useState(false);
+    const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+    const [dragOverItemIndex, setDragOverItemIndex] = useState<number | null>(null);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [showInstallments, setShowInstallments] = useState(false);
@@ -342,6 +343,25 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
         e.stopPropagation();
     };
     
+    const handleDragStart = (index: number) => {
+        setDraggedItemIndex(index);
+    };
+
+    const handleDragEnter = (index: number) => {
+        setDragOverItemIndex(index);
+    };
+
+    const handleDragEnd = () => {
+        if (draggedItemIndex !== null && dragOverItemIndex !== null && draggedItemIndex !== dragOverItemIndex) {
+            const items = [...accounts];
+            const [reorderedItem] = items.splice(draggedItemIndex, 1);
+            items.splice(dragOverItemIndex, 0, reorderedItem);
+            setAccounts(items);
+        }
+        setDraggedItemIndex(null);
+        setDragOverItemIndex(null);
+    };
+
     const getTransactionDisplayProps = (transaction: Transaction, currentAccountId: string | null) => {
         if (transaction.type === TransactionType.INCOME) {
             return { sign: '+ ', color: 'text-green-500' };
@@ -363,10 +383,21 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     return (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
             <div className="xl:col-span-4 space-y-3">
-                {accounts.map(acc => {
+                {accounts.map((acc, index) => {
                     const isSelected = acc.id === selectedAccountId;
+                    const isBeingDragged = draggedItemIndex === index;
+                    const isDragOver = dragOverItemIndex === index;
                     return (
-                        <div key={acc.id} onClick={() => setSelectedAccountId(acc.id)} className={`w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-pointer ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}>
+                        <div 
+                            key={acc.id} 
+                            draggable
+                            onDragStart={() => handleDragStart(index)}
+                            onDragEnter={() => handleDragEnter(index)}
+                            onDragEnd={handleDragEnd}
+                            onDragOver={(e) => e.preventDefault()}
+                            onClick={() => setSelectedAccountId(acc.id)} 
+                            className={`w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-grab ${isBeingDragged ? 'opacity-50' : ''} ${isDragOver ? 'border-blue-500' : ''} ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}
+                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-4">
                                     <BankLogo account={acc} />

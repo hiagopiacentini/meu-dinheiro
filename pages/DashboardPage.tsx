@@ -145,9 +145,9 @@ const DashboardPage: React.FC = () => {
     setActiveFilter('Personalizado');
   };
 
-  const { filteredTransactions, periodIncome, periodExpenses } = useMemo(() => {
+  const { filteredTransactions, periodIncome, periodExpenses, periodSavings } = useMemo(() => {
       if (!dateRange.start || !dateRange.end) {
-          return { filteredTransactions: [], periodIncome: 0, periodExpenses: 0 };
+          return { filteredTransactions: [], periodIncome: 0, periodExpenses: 0, periodSavings: 0 };
       }
 
       const start = new Date(dateRange.start.getTime());
@@ -170,23 +170,47 @@ const DashboardPage: React.FC = () => {
       return {
           filteredTransactions: filtered,
           periodIncome: income,
-          periodExpenses: expense
+          periodExpenses: expense,
+          periodSavings: income - expense,
       };
   
   }, [transactions, dateRange]);
 
-  const periodSavings = periodIncome - periodExpenses;
+  const { periodSpecificGoal, periodSpecificLabel } = useMemo(() => {
+    if (!dateRange.start || !dateRange.end) {
+        return { periodSpecificGoal: 0, periodSpecificLabel: 'Meta do Período' };
+    }
+
+    const start = dateRange.start;
+    const end = dateRange.end;
+    const annualGoal = goals[start.getUTCFullYear()] || 0;
+    const monthlyGoal = annualGoal / 12;
+
+    if (start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth()) {
+        const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
+        return {
+            periodSpecificGoal: monthlyGoal,
+            periodSpecificLabel: `Meta Mensal (${monthName})`,
+        };
+    } else {
+         return {
+            periodSpecificGoal: periodSavings, // This logic isn't perfect, but reflects what user asked for a wider range.
+            periodSpecificLabel: 'Meta do Período',
+        };
+    }
+
+}, [dateRange, goals, periodSavings]);
   
-  const { periodGoal, periodLabel } = useMemo(() => {
-    if (!dateRange.start || !dateRange.end) return { periodGoal: 0, periodLabel: 'Meta do Período' };
+  const { annualPeriodGoal, annualPeriodLabel } = useMemo(() => {
+    if (!dateRange.start || !dateRange.end) return { annualPeriodGoal: 0, annualPeriodLabel: 'Meta do Período' };
     
     const startYear = dateRange.start.getUTCFullYear();
     const endYear = dateRange.end.getUTCFullYear();
 
     if (startYear === endYear) {
       return { 
-        periodGoal: goals[startYear] || 0,
-        periodLabel: `Meta Anual ${startYear}`
+        annualPeriodGoal: goals[startYear] || 0,
+        annualPeriodLabel: `Meta Anual ${startYear}`
       };
     } else {
       let totalGoal = 0;
@@ -203,34 +227,11 @@ const DashboardPage: React.FC = () => {
       }
         
       return {
-        periodGoal: totalGoal,
-        periodLabel: 'Meta do Período'
+        annualPeriodGoal: totalGoal,
+        annualPeriodLabel: 'Meta do Período'
       };
     }
   }, [dateRange, goals]);
-
-    const { currentMonthSavings, monthlyGoal } = useMemo(() => {
-      const now = new Date();
-      const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-      const endOfMonth = now; 
-
-      const monthTransactions = transactions.filter(t => {
-          const tDate = getUTCDate(t.date);
-          return tDate >= startOfMonth && tDate <= endOfMonth;
-      });
-
-      const savings = monthTransactions.reduce((acc, t) => {
-          if (t.type === TransactionType.INCOME) return acc + t.amount;
-          if (t.type === TransactionType.EXPENSE) return acc - t.amount;
-          return acc;
-      }, 0);
-
-      const currentYear = now.getUTCFullYear();
-      const annualGoal = goals[currentYear] || 0;
-      const mGoal = annualGoal / 12;
-
-      return { currentMonthSavings: savings, monthlyGoal: mGoal };
-  }, [transactions, goals]);
   
   const monthlyChartData = useMemo(() => {
       const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -316,17 +317,40 @@ const DashboardPage: React.FC = () => {
     }, [categories]);
 
     const recentTransactionsForDashboard = useMemo(() => {
-        return transactions
-            .filter(t => t.type === TransactionType.INCOME || t.type === TransactionType.EXPENSE)
+        const now = new Date();
+        const currentMonth = now.getUTCMonth();
+        const currentYear = now.getUTCFullYear();
+
+        const singleTransactions = transactions.filter(t => !t.installmentGroupId && (t.type === TransactionType.INCOME || t.type === TransactionType.EXPENSE));
+
+        const installmentGroups = transactions.reduce<Record<string, Transaction[]>>((acc, t) => {
+            if (t.installmentGroupId) {
+                (acc[t.installmentGroupId] = acc[t.installmentGroupId] || []).push(t);
+            }
+            return acc;
+        }, {});
+
+        const relevantInstallments: Transaction[] = [];
+        for (const groupId in installmentGroups) {
+            const currentMonthInstallment = installmentGroups[groupId]
+                .sort((a, b) => getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime()) // most recent first
+                .find(t => {
+                    const tDate = getUTCDate(t.date);
+                    return tDate.getUTCMonth() === currentMonth && tDate.getUTCFullYear() === currentYear;
+                });
+            if (currentMonthInstallment) {
+                relevantInstallments.push(currentMonthInstallment);
+            }
+        }
+        
+        return [...singleTransactions, ...relevantInstallments]
             .sort((a, b) => getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime())
             .slice(0, 4)
             .map(t => {
                 const categoryInfo = itemToCategoryMap.get(t.itemId || '');
-                return {
-                    transaction: t,
-                    category: categoryInfo
-                };
+                return { transaction: t, category: categoryInfo };
             });
+
     }, [transactions, itemToCategoryMap]);
 
   return (
@@ -355,8 +379,8 @@ const DashboardPage: React.FC = () => {
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="font-bold text-lg mb-4 text-slate-800">Metas de Economia</h3>
         <div className="space-y-4">
-          <SavingsGoalCard title="Meta Mensal" goal={monthlyGoal} current={currentMonthSavings} label={`Meta Mensal (${new Date().toLocaleString('pt-BR', { month: 'long' })})`} color="bg-blue-500" />
-          <SavingsGoalCard title="Meta Anual" goal={periodGoal} current={periodSavings} label={periodLabel} color="bg-green-500" />
+          <SavingsGoalCard title="Meta do Período" goal={periodSpecificGoal} current={periodSavings} label={periodSpecificLabel} color="bg-blue-500" />
+          <SavingsGoalCard title="Meta Anual" goal={annualPeriodGoal} current={periodSavings} label={annualPeriodLabel} color="bg-green-500" />
         </div>
       </div>
 

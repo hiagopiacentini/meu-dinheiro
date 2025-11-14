@@ -10,6 +10,8 @@ import PlusIcon from '../components/icons/PlusIcon';
 import XIcon from '../components/icons/XIcon';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
+import ChevronDownIcon from '../components/icons/ChevronDownIcon';
+
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -39,6 +41,71 @@ interface SplitItem {
     itemId: string;
     amount: string;
 }
+
+const DeleteConfirmationModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: (option: 'single' | 'future') => void;
+}> = ({ isOpen, onClose, onConfirm }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
+                <h2 className="text-xl font-bold mb-4 text-slate-800">Excluir Lançamento Parcelado</h2>
+                <p className="text-slate-600 mb-6">Como você deseja excluir este lançamento?</p>
+                <div className="flex flex-col space-y-3">
+                    <button onClick={() => onConfirm('single')} className="btn-secondary w-full">Excluir apenas esta parcela</button>
+                    <button onClick={() => onConfirm('future')} className="btn-secondary w-full">Excluir esta e as futuras</button>
+                    <button onClick={onClose} className="btn-primary w-full bg-slate-600 hover:bg-slate-700">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const FilterDropdown: React.FC<{
+    options: string[];
+    value: string;
+    onChange: (value: string) => void;
+    className?: string;
+}> = ({ options, value, onChange, className }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (ref.current && !ref.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [ref]);
+
+    const handleSelect = (option: string) => {
+        onChange(option);
+        setIsOpen(false);
+    };
+
+    return (
+        <div className={`relative ${className}`} ref={ref}>
+            <button onClick={() => setIsOpen(prev => !prev)} className="btn-secondary w-full flex justify-between items-center px-3 py-2">
+                <span>{value}</span>
+                <ChevronDownIcon className="w-4 h-4 text-slate-500" />
+            </button>
+            {isOpen && (
+                <div className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-10">
+                    {options.map(option => (
+                        <button key={option} onClick={() => handleSelect(option)} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg">
+                            {option}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTransactionTrigger }) => {
     const [transactions, setTransactions] = useLocalStorage<Transaction[]>('transactions', []);
@@ -71,6 +138,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+
+    // Delete Modal
+    const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean, transaction: Transaction | null }>({ isOpen: false, transaction: null });
     
     const descriptionInputRef = useRef<HTMLInputElement>(null);
 
@@ -308,17 +378,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     };
 
     const handleDelete = (id: string) => {
-        if (window.confirm('Tem certeza que deseja excluir este lançamento?')) {
-            const txToDelete = transactions.find(t => t.id === id);
-            if (!txToDelete) return;
-            
-            if (txToDelete.installmentGroupId) {
-                if (window.confirm('Este é um lançamento parcelado. Deseja excluir todas as parcelas?')) {
-                    setTransactions(prev => prev.filter(t => t.installmentGroupId !== txToDelete.installmentGroupId));
-                } else {
-                     setTransactions(prev => prev.filter(t => t.id !== id));
-                }
-            } else {
+        const txToDelete = transactions.find(t => t.id === id);
+        if (!txToDelete) return;
+
+        if (txToDelete.installmentGroupId) {
+            setDeleteModalState({ isOpen: true, transaction: txToDelete });
+        } else {
+            if (window.confirm('Tem certeza que deseja excluir este lançamento?')) {
                 const relatedLoan = loans.find(l => l.initialTransactionId === id || l.settlementTransactionId === id || l.partialSettlements?.some(p => p.transactionId === id));
                 if (relatedLoan) {
                    alert('Este lançamento está associado a um empréstimo e não pode ser excluído diretamente.');
@@ -327,6 +393,21 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                 setTransactions(prev => prev.filter(t => t.id !== id));
             }
         }
+    };
+    
+    const handleConfirmDelete = (option: 'single' | 'future') => {
+        const tx = deleteModalState.transaction;
+        if (!tx) return;
+
+        if (option === 'single') {
+            setTransactions(prev => prev.filter(t => t.id !== tx.id));
+        } else if (option === 'future') {
+            setTransactions(prev => prev.filter(t => 
+                t.installmentGroupId !== tx.installmentGroupId || 
+                (t.installmentGroupId === tx.installmentGroupId && t.currentInstallment! < tx.currentInstallment!)
+            ));
+        }
+        setDeleteModalState({ isOpen: false, transaction: null });
     };
     
     const categoryOptions = useMemo(() => {
@@ -453,19 +534,23 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
                         <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10" placeholder="Pesquisar..."/>
                     </div>
-                    <div className="flex space-x-2 sm:col-span-2 lg:col-span-4 xl:col-span-2">
-                        {['Este Mês', 'Mês Passado', 'Personalizado'].map(f => (
-                            <button key={f} onClick={() => handleDateFilterChange(f)} className={`w-full px-3 py-2 text-sm font-semibold rounded-lg transition-colors ${dateFilter === f ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-100 border border-slate-200'}`}>{f}</button>
-                        ))}
-                    </div>
-                    <div className="flex space-x-2 sm:col-span-2 lg:col-span-4 xl:col-span-2">
-                        {['Todos', 'Entradas', 'Saídas'].map(f => (
-                           <button key={f} onClick={() => setTypeFilter(f)} className={`w-full px-3 py-2 text-sm font-semibold rounded-lg transition-colors ${typeFilter === f ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-100 border border-slate-200'}`}>{f}</button>
-                        ))}
-                    </div>
+                    <FilterDropdown 
+                        options={['Este Mês', 'Mês Passado', 'Personalizado']}
+                        value={dateFilter}
+                        onChange={handleDateFilterChange}
+                        className="sm:col-span-1 lg:col-span-2 xl:col-span-1"
+                    />
+                     <FilterDropdown 
+                        options={['Todos', 'Entradas', 'Saídas']}
+                        value={typeFilter}
+                        onChange={setTypeFilter}
+                        className="sm:col-span-1 lg:col-span-2 xl:col-span-1"
+                    />
                 </div>
                 
                 <DateRangePickerModal isOpen={isPickerOpen} onClose={() => setIsPickerOpen(false)} value={customDateRange} onChange={handleCustomDateChange} />
+                <DeleteConfirmationModal isOpen={deleteModalState.isOpen} onClose={() => setDeleteModalState({isOpen: false, transaction: null})} onConfirm={handleConfirmDelete} />
+
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="bg-white p-4 rounded-xl border border-slate-200"><p className="text-sm text-slate-500 font-medium">Receitas no Período</p><p className="text-2xl font-bold text-green-600">{formatCurrency(periodIncome)}</p></div>

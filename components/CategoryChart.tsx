@@ -90,7 +90,7 @@ const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, categories 
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
-                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-2">
+                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-3">
                     {activeData ? (
                         <>
                             <span className="text-sm text-slate-500 text-center truncate max-w-full">{activeData.name}</span>
@@ -99,7 +99,7 @@ const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, categories 
                     ) : (
                         <>
                             <span className="text-xs text-slate-500">Total</span>
-                            <span className="text-xl font-bold text-slate-800">{formatCurrency(totalExpenses).replace('R$','R$ ')}</span>
+                            <span className="text-xl font-bold text-slate-800 text-center break-words">{formatCurrency(totalExpenses).replace('R$','R$ ')}</span>
                         </>
                     )}
                 </div>
