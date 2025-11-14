@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Transaction, TransactionType, Category, Account, AnnualGoals } from '../types';
@@ -200,7 +201,6 @@ const DashboardPage: React.FC = () => {
         return { goalUntilNow: 0, showGoalUntilNow: false };
     }
 
-    const currentDayOfMonth = now.getUTCDate();
     const annualGoal = goals[currentYear] || 0;
     if (annualGoal === 0) {
       return { goalUntilNow: 0, showGoalUntilNow: false };
@@ -208,10 +208,25 @@ const DashboardPage: React.FC = () => {
 
     const monthlyGoal = annualGoal / 12;
     const daysInCurrentMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0)).getUTCDate();
-    const dailyGoal = monthlyGoal / daysInCurrentMonth;
+    
+    let calculatedGoal = 0;
+
+    if (activeFilter === 'Personalizado' && dateRange.start && dateRange.end) {
+        // Custom range within the current month
+        const diffTime = Math.abs(dateRange.end.getTime() - dateRange.start.getTime());
+        // +1 to include both start and end days
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; 
+        
+        calculatedGoal = (monthlyGoal / daysInCurrentMonth) * diffDays;
+
+    } else { // 'Mês Atual' filter
+        const currentDayOfMonth = now.getUTCDate();
+        const dailyGoal = monthlyGoal / daysInCurrentMonth;
+        calculatedGoal = dailyGoal * currentDayOfMonth;
+    }
 
     return {
-      goalUntilNow: dailyGoal * currentDayOfMonth,
+      goalUntilNow: calculatedGoal,
       showGoalUntilNow: true,
     };
   }, [goals, activeFilter, dateRange]);
