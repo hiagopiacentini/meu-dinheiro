@@ -176,9 +176,35 @@ const DashboardPage: React.FC = () => {
   
   }, [transactions, dateRange]);
 
+  const { goalUntilNow, showGoalUntilNow } = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getUTCFullYear();
+    const currentMonth = now.getUTCMonth();
+    const currentDayOfMonth = now.getUTCDate();
+
+    // This goal is only relevant for the "Mês Atual" filter
+    if (activeFilter !== 'Mês Atual') {
+      return { goalUntilNow: 0, showGoalUntilNow: false };
+    }
+
+    const annualGoal = goals[currentYear] || 0;
+    if (annualGoal === 0) {
+      return { goalUntilNow: 0, showGoalUntilNow: false };
+    }
+
+    const monthlyGoal = annualGoal / 12;
+    const daysInCurrentMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0)).getUTCDate();
+    const dailyGoal = monthlyGoal / daysInCurrentMonth;
+
+    return {
+      goalUntilNow: dailyGoal * currentDayOfMonth,
+      showGoalUntilNow: true,
+    };
+  }, [goals, activeFilter]);
+
   const { periodSpecificGoal, periodSpecificLabel } = useMemo(() => {
     if (!dateRange.start || !dateRange.end) {
-        return { periodSpecificGoal: 0, periodSpecificLabel: 'Meta do Período' };
+      return { periodSpecificGoal: 0, periodSpecificLabel: 'Meta do Período' };
     }
 
     const start = dateRange.start;
@@ -186,34 +212,26 @@ const DashboardPage: React.FC = () => {
     const startYear = start.getUTCFullYear();
     const annualGoal = goals[startYear] || 0;
 
-    // Check for full months
-    const isStartOfMonth = start.getUTCDate() === 1;
-    const endPlusOne = new Date(end.getTime());
-    endPlusOne.setUTCDate(end.getUTCDate() + 1);
-    const isEndOfMonth = endPlusOne.getUTCDate() === 1;
+    const startDay = start.getUTCDate();
+    const endDay = end.getUTCDate();
+    const startMonth = start.getUTCMonth();
+    const endMonth = end.getUTCMonth();
 
-    if (isStartOfMonth && isEndOfMonth && start.getUTCFullYear() === end.getUTCFullYear()) {
-        const months = (end.getUTCMonth() - start.getUTCMonth()) + 1;
+    // Check if the range roughly corresponds to full month(s)
+    const isFullMonthRange = startDay === 1 && (new Date(end.getTime() + 24 * 60 * 60 * 1000)).getUTCDate() === 1;
+
+    if (isFullMonthRange) {
+        const months = (end.getUTCFullYear() - start.getUTCFullYear()) * 12 + (endMonth - startMonth) + 1;
         const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
-        
         return {
             periodSpecificGoal: (annualGoal / 12) * months,
             periodSpecificLabel: months === 1 ? `Meta Mensal (${monthName})` : 'Meta do Período'
         };
-    } else {
+    } else { // Custom date range (random intervals)
         const daysInYear = (startYear % 4 === 0 && startYear % 100 !== 0) || startYear % 400 === 0 ? 366 : 365;
-        const diffTime = end.getTime() - start.getTime();
-        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
         
-        const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
-        
-        if (start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth()) {
-            return {
-                periodSpecificGoal: (annualGoal / daysInYear) * diffDays,
-                periodSpecificLabel: `Meta Mensal (${monthName})`
-            }
-        }
-
         return {
             periodSpecificGoal: (annualGoal / daysInYear) * diffDays,
             periodSpecificLabel: 'Meta do Período'
@@ -422,8 +440,29 @@ const DashboardPage: React.FC = () => {
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="font-bold text-lg mb-4 text-slate-800">Metas de Economia</h3>
         <div className="space-y-4">
-          <SavingsGoalCard title="Meta do Período" goal={periodSpecificGoal} current={periodSavings} label={periodSpecificLabel} color="bg-blue-500" />
-          <SavingsGoalCard title="Meta Anual" goal={annualPeriodGoal} current={annualSavingsToDate} label={annualPeriodLabel} color="bg-green-500" />
+          {showGoalUntilNow && (
+            <SavingsGoalCard 
+              title="Meta até o Momento" 
+              goal={goalUntilNow} 
+              current={periodSavings} 
+              label="Meta até o Momento" 
+              color="bg-purple-500" 
+            />
+          )}
+          <SavingsGoalCard 
+            title="Meta do Período" 
+            goal={periodSpecificGoal} 
+            current={periodSavings} 
+            label={periodSpecificLabel} 
+            color="bg-blue-500" 
+          />
+          <SavingsGoalCard 
+            title="Meta Anual" 
+            goal={annualPeriodGoal} 
+            current={annualSavingsToDate} 
+            label={annualPeriodLabel} 
+            color="bg-green-500" 
+          />
         </div>
       </div>
 

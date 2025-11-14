@@ -265,7 +265,10 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
             .filter(t => t.accountId === selectedAccountId || t.destinationAccountId === selectedAccountId)
             .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
 
-        if (!showInstallments) {
+        if (showInstallments) {
+            // BUG FIX: Filter to show ONLY installment transactions.
+            relatedTransactions = relatedTransactions.filter(t => !!t.installmentGroupId);
+        } else {
             const installmentGroups = new Map<string, Transaction>();
             const singleTransactions: Transaction[] = [];
 
@@ -404,7 +407,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                             onDragEnd={handleDragEnd}
                             onDragOver={(e) => e.preventDefault()}
                             onClick={() => setSelectedAccountId(acc.id)} 
-                            className={`w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-grab ${isDragOver ? 'border-blue-500' : ''} ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}
+                            className={`w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-grab ${draggedItemIndex === index ? '' : ''} ${isDragOver ? 'border-blue-500' : ''} ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}
                          >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-4">
@@ -461,33 +464,36 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                     </div>
                 )}
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-                    <div className="p-6 border-b border-slate-200">
-                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <h3 className="text-lg font-bold text-slate-800">Últimas Transações</h3>
-                            <div className="flex items-center gap-4 w-full sm:w-auto">
-                                <div className="flex-grow sm:flex-grow-0 relative w-full max-w-xs">
-                                    {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
-                                    <input 
-                                        type="text" 
-                                        value={searchTerm} 
-                                        onChange={e => setSearchTerm(e.target.value)} 
-                                        onFocus={() => setIsSearchFocused(true)}
-                                        onBlur={() => setIsSearchFocused(false)}
-                                        className="input-style pl-10 h-10 w-full"/>
-                                </div>
-                                <button onClick={() => setShowInstallments(s => !s)} className={`px-3 py-2 text-sm font-semibold rounded-lg whitespace-nowrap ${showInstallments ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
-                                    {showInstallments ? 'Agrupar' : 'Parceladas'}
-                                </button>
+                    <div className="p-6 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                      <div className='flex-grow'>
+                        <h3 className="text-lg font-bold text-slate-800">Últimas Transações</h3>
+                      </div>
+                       {totalPages > 1 && (
+                            <div className="flex justify-center items-center gap-2">
+                                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center p-2"><ChevronLeftIcon className="w-4 h-4"/></button>
+                                <span className="text-sm font-medium text-slate-600 whitespace-nowrap">Página {currentPage} de {totalPages}</span>
+                                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center p-2"><ChevronRightIcon className="w-4 h-4"/></button>
                             </div>
+                        )}
+                        <div className="flex items-center gap-4 w-full sm:w-auto">
+                            <div className="flex-grow sm:flex-grow-0 relative w-full max-w-xs">
+                                {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
+                                <input 
+                                    type="text" 
+                                    value={searchTerm} 
+                                    onChange={e => setSearchTerm(e.target.value)} 
+                                    onFocus={() => setIsSearchFocused(true)}
+                                    onBlur={() => setIsSearchFocused(false)}
+                                    className="input-style pl-10 h-10 w-full"
+                                    placeholder='Pesquisar...'
+                                />
+                            </div>
+                            <button onClick={() => setShowInstallments(s => !s)} className={`px-3 py-2 text-sm font-semibold rounded-lg whitespace-nowrap h-10 ${showInstallments ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+                                Parceladas
+                            </button>
                         </div>
                     </div>
-                    {totalPages > 1 && (
-                        <div className="p-4 border-b border-slate-200 flex justify-between items-center">
-                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center"><ChevronLeftIcon className="w-4 h-4 mr-1"/> Anterior</button>
-                            <span className="text-sm font-medium text-slate-600">Página {currentPage} de {totalPages}</span>
-                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center">Próxima <ChevronRightIcon className="w-4 h-4 ml-1"/></button>
-                        </div>
-                    )}
+                    
                     <div className="overflow-x-auto">
                          <table className="w-full text-sm">
                             <thead className="bg-gray-50 text-slate-500 uppercase text-xs">
