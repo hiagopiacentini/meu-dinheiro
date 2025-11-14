@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Transaction, Account, Category, TransactionType, Loan, CategoryItem } from '../types';
@@ -131,6 +130,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const [dateFilter, setDateFilter] = useState('Este Mês');
     const [typeFilter, setTypeFilter] = useState('Todos');
+    const [installmentFilter, setInstallmentFilter] = useState(false);
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [customDateRange, setCustomDateRange] = useState<{start: Date | null, end: Date | null}>({ start: null, end: null });
 
@@ -174,7 +174,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, dateFilter, typeFilter, customDateRange]);
+    }, [searchTerm, dateFilter, typeFilter, installmentFilter, customDateRange]);
 
     const categoryMap = useMemo(() => {
         const map = new Map<string, { item: string, sub: string, cat: string, catType: TransactionType }>();
@@ -223,12 +223,16 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             items = items.filter(t => t.type === (typeFilter === 'Entradas' ? TransactionType.INCOME : TransactionType.EXPENSE));
         }
 
+        if (installmentFilter) {
+            items = items.filter(t => !!t.installmentGroupId);
+        }
+
         if (searchTerm) {
             items = items.filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
         }
 
         return items.sort((a, b) => getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime());
-    }, [transactions, searchTerm, dateFilter, typeFilter, customDateRange]);
+    }, [transactions, searchTerm, dateFilter, typeFilter, installmentFilter, customDateRange]);
     
     const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
     const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -528,23 +532,30 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             </div>
 
             <div className="lg:col-span-7 xl:col-span-8 space-y-6">
-                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-                    <div className="relative sm:col-span-2 lg:col-span-4 xl:col-span-2">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="relative">
                         {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
                         <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10"/>
                     </div>
-                    <FilterDropdown 
-                        options={['Este Mês', 'Mês Passado', 'Personalizado']}
-                        value={dateFilter}
-                        onChange={handleDateFilterChange}
-                        className="sm:col-span-1 lg:col-span-2 xl:col-span-1"
-                    />
-                     <FilterDropdown 
-                        options={['Todos', 'Entradas', 'Saídas']}
-                        value={typeFilter}
-                        onChange={setTypeFilter}
-                        className="sm:col-span-1 lg:col-span-2 xl:col-span-1"
-                    />
+                    <div className="grid grid-cols-3 gap-2">
+                        <FilterDropdown 
+                            options={['Este Mês', 'Mês Passado', 'Personalizado']}
+                            value={dateFilter}
+                            onChange={handleDateFilterChange}
+                            className="col-span-2"
+                        />
+                        <div className="flex items-center gap-2 col-span-1">
+                            <FilterDropdown 
+                                options={['Todos', 'Entradas', 'Saídas']}
+                                value={typeFilter}
+                                onChange={setTypeFilter}
+                                className="flex-grow"
+                            />
+                            <button onClick={() => setInstallmentFilter(s => !s)} className={`px-3 py-2 text-sm font-semibold rounded-lg whitespace-nowrap h-full ${installmentFilter ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+                                Parceladas
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 
                 <DateRangePickerModal isOpen={isPickerOpen} onClose={() => setIsPickerOpen(false)} value={customDateRange} onChange={handleCustomDateChange} />

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Account, Transaction, Loan, TransactionType, Category } from '../types';
@@ -260,21 +259,25 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
         const now = new Date();
         const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
 
-        let relatedTransactions = transactions
+        let accountTransactions = transactions
             .filter(t => getUTCDate(t.date) <= todayUTC) // Filter out future transactions
             .filter(t => t.accountId === selectedAccountId || t.destinationAccountId === selectedAccountId)
             .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
 
+        let finalTransactions: Transaction[];
+
         if (showInstallments) {
-            // BUG FIX: Filter to show ONLY installment transactions.
-            relatedTransactions = relatedTransactions.filter(t => !!t.installmentGroupId);
+            // When filter is ON, show all transactions that are installments.
+            finalTransactions = accountTransactions.filter(t => !!t.installmentGroupId);
         } else {
+            // When filter is OFF, consolidate installments into the most recent one.
             const installmentGroups = new Map<string, Transaction>();
             const singleTransactions: Transaction[] = [];
 
-            relatedTransactions.forEach(t => {
+            accountTransactions.forEach(t => {
                 if (t.installmentGroupId) {
                     const existing = installmentGroups.get(t.installmentGroupId);
+                    // Keep the most recent installment for each group
                     if (!existing || new Date(t.date) > new Date(existing.date)) {
                         installmentGroups.set(t.installmentGroupId, t);
                     }
@@ -282,10 +285,10 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                     singleTransactions.push(t);
                 }
             });
-            relatedTransactions = [...singleTransactions, ...Array.from(installmentGroups.values())];
+            finalTransactions = [...singleTransactions, ...Array.from(installmentGroups.values())];
         }
         
-        return relatedTransactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        return finalTransactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [transactions, selectedAccountId, searchTerm, showInstallments]);
     
     // Pagination Logic
@@ -485,7 +488,6 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                     onFocus={() => setIsSearchFocused(true)}
                                     onBlur={() => setIsSearchFocused(false)}
                                     className="input-style pl-10 h-10 w-full"
-                                    placeholder='Pesquisar...'
                                 />
                             </div>
                             <button onClick={() => setShowInstallments(s => !s)} className={`px-3 py-2 text-sm font-semibold rounded-lg whitespace-nowrap h-10 ${showInstallments ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>

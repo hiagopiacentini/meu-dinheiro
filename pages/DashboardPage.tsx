@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Transaction, TransactionType, Category, Account, AnnualGoals } from '../types';
@@ -204,7 +203,7 @@ const DashboardPage: React.FC = () => {
 
   const { periodSpecificGoal, periodSpecificLabel } = useMemo(() => {
     if (!dateRange.start || !dateRange.end) {
-      return { periodSpecificGoal: 0, periodSpecificLabel: 'Meta do Período' };
+      return { periodSpecificGoal: 0, periodSpecificLabel: 'Meta Mensal' };
     }
 
     const start = dateRange.start;
@@ -212,30 +211,24 @@ const DashboardPage: React.FC = () => {
     const startYear = start.getUTCFullYear();
     const annualGoal = goals[startYear] || 0;
 
-    const startDay = start.getUTCDate();
-    const endDay = end.getUTCDate();
-    const startMonth = start.getUTCMonth();
-    const endMonth = end.getUTCMonth();
+    const isSingleMonth = start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth();
 
-    // Check if the range roughly corresponds to full month(s)
-    const isFullMonthRange = startDay === 1 && (new Date(end.getTime() + 24 * 60 * 60 * 1000)).getUTCDate() === 1;
-
-    if (isFullMonthRange) {
-        const months = (end.getUTCFullYear() - start.getUTCFullYear()) * 12 + (endMonth - startMonth) + 1;
-        const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
-        return {
-            periodSpecificGoal: (annualGoal / 12) * months,
-            periodSpecificLabel: months === 1 ? `Meta Mensal (${monthName})` : 'Meta do Período'
-        };
-    } else { // Custom date range (random intervals)
-        const daysInYear = (startYear % 4 === 0 && startYear % 100 !== 0) || startYear % 400 === 0 ? 366 : 365;
-        const diffTime = Math.abs(end.getTime() - start.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        
-        return {
-            periodSpecificGoal: (annualGoal / daysInYear) * diffDays,
-            periodSpecificLabel: 'Meta do Período'
-        };
+    if (isSingleMonth) {
+      const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
+      return {
+        periodSpecificGoal: annualGoal / 12,
+        periodSpecificLabel: `Meta Mensal (${monthName})`
+      };
+    } else {
+      // Different months, calculate based on days
+      const daysInYear = (startYear % 4 === 0 && startYear % 100 !== 0) || startYear % 400 === 0 ? 366 : 365;
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end days
+      
+      return {
+          periodSpecificGoal: (annualGoal / daysInYear) * diffDays,
+          periodSpecificLabel: 'Meta do Período'
+      };
     }
   }, [dateRange, goals]);
 
@@ -450,7 +443,7 @@ const DashboardPage: React.FC = () => {
             />
           )}
           <SavingsGoalCard 
-            title="Meta do Período" 
+            title={periodSpecificLabel} 
             goal={periodSpecificGoal} 
             current={periodSavings} 
             label={periodSpecificLabel} 
