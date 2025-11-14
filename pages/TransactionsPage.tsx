@@ -48,6 +48,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     // Form State
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+    const [editingInstallmentGroup, setEditingInstallmentGroup] = useState<Transaction | null>(null);
     const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
@@ -77,6 +78,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const handleClearForm = useCallback(() => {
         setEditingTransaction(null);
+        setEditingInstallmentGroup(null);
         setType(TransactionType.EXPENSE);
         setDescription('');
         setAmount('');
@@ -101,7 +103,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         }
     }, [editingTransaction, activeAccounts, accountId]);
     
-    // Reset page to 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm, dateFilter, typeFilter, customDateRange]);
@@ -133,52 +134,31 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const filteredTransactions = useMemo(() => {
         let items = [...transactions];
-
-        const now = new Date();
-        const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-        const endOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
         
+        const now = new Date();
         if (dateFilter === 'Este Mês') {
-            items = items.filter(t => {
-                const tDate = getUTCDate(t.date);
-                return tDate >= startOfMonth && tDate <= endOfMonth;
-            });
+            const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+            const endOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+            items = items.filter(t => { const tDate = getUTCDate(t.date); return tDate >= startOfMonth && tDate <= endOfMonth; });
         } else if (dateFilter === 'Mês Passado') {
              const startOfLastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
              const endOfLastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0, 23, 59, 59, 999));
-             items = items.filter(t => {
-                const tDate = getUTCDate(t.date);
-                return tDate >= startOfLastMonth && tDate <= endOfLastMonth;
-            });
+             items = items.filter(t => { const tDate = getUTCDate(t.date); return tDate >= startOfLastMonth && tDate <= endOfLastMonth; });
         } else if (dateFilter === 'Personalizado' && customDateRange.start && customDateRange.end) {
-            const start = customDateRange.start;
-            start.setUTCHours(0,0,0,0);
-            const end = customDateRange.end;
-            end.setUTCHours(23,59,59,999);
-            items = items.filter(t => {
-                const tDate = getUTCDate(t.date);
-                return tDate >= start && tDate <= end;
-            });
+            const start = new Date(customDateRange.start.getTime()); start.setUTCHours(0,0,0,0);
+            const end = new Date(customDateRange.end.getTime()); end.setUTCHours(23,59,59,999);
+            items = items.filter(t => { const tDate = getUTCDate(t.date); return tDate >= start && tDate <= end; });
         }
         
         if (typeFilter !== 'Todos') {
-            const lowerTypeFilter = typeFilter === 'Entradas' ? TransactionType.INCOME : TransactionType.EXPENSE;
-            items = items.filter(t => t.type === lowerTypeFilter);
+            items = items.filter(t => t.type === (typeFilter === 'Entradas' ? TransactionType.INCOME : TransactionType.EXPENSE));
         }
 
         if (searchTerm) {
             items = items.filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
         }
 
-        return items.sort((a, b) => {
-            const dateA = new Date(a.date).getTime();
-            const dateB = new Date(b.date).getTime();
-            if (dateB !== dateA) return dateB - dateA;
-            // if dates are the same, we need a stable sort, assuming newer items are added later
-            const indexA = transactions.findIndex(t => t.id === a.id);
-            const indexB = transactions.findIndex(t => t.id === b.id);
-            return indexB - indexA;
-        });
+        return items.sort((a, b) => getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime());
     }, [transactions, searchTerm, dateFilter, typeFilter, customDateRange]);
     
     const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
@@ -198,55 +178,95 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
         const commonData = { description, date, accountId, type };
 
-        if (isSplit) {
-            const totalSplitAmount = splitItems.reduce((sum, item) => sum + parseFloat(item.amount || '0'), 0);
-            if(totalSplitAmount !== parseFloat(amount)) {
-                alert('A soma dos valores divididos deve ser igual ao valor total.');
-                return;
-            }
-            if(splitItems.some(i => !i.itemId || !i.amount)) {
-                alert('Todos os itens divididos devem ter um item e um valor.');
-                return;
-            }
-            
-            const newTransactions: Transaction[] = splitItems.map(item => ({
-                id: crypto.randomUUID(),
-                ...commonData,
-                amount: parseFloat(item.amount),
-                itemId: item.itemId,
-                description: `${description} - ${categoryMap.get(item.itemId)?.item}`
-            }));
-            setTransactions(prev => [...prev, ...newTransactions]);
-
-        } else if (isInstallment && type === TransactionType.EXPENSE) {
-            // Installment logic
+        if (editingInstallmentGroup) {
+            const groupId = editingInstallmentGroup.installmentGroupId!;
+            const remainingTransactions = transactions.filter(t => t.installmentGroupId !== groupId);
+            // Re-create installments
             const totalInstallments = parseInt(installmentsCount, 10);
-            const installmentGroupId = crypto.randomUUID();
             const originalDate = getUTCDate(date);
             const newTransactions: Transaction[] = [];
 
-            for(let i = 0; i < totalInstallments; i++) {
+            for (let i = 0; i < totalInstallments; i++) {
                 const installmentDate = new Date(originalDate);
                 installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
                 newTransactions.push({
                     id: crypto.randomUUID(),
                     ...commonData,
                     amount: parseFloat(amount),
-                    itemId: itemId,
+                    itemId,
                     date: installmentDate.toISOString().split('T')[0],
                     description: `${description} (${i + 1}/${totalInstallments})`,
-                    installmentGroupId,
+                    installmentGroupId: groupId,
                     currentInstallment: i + 1,
                     totalInstallments
                 });
             }
-            setTransactions(prev => [...prev, ...newTransactions]);
-        } else {
-            // Single transaction logic
-             if (!description || !amount || !date || !accountId || !itemId) {
-                alert('Por favor, preencha todos os campos obrigatórios.');
+            setTransactions([...remainingTransactions, ...newTransactions]);
+
+        } else if (isInstallment && isSplit) {
+            const totalInstallments = parseInt(installmentsCount, 10);
+            const installmentGroupId = crypto.randomUUID();
+            const originalDate = getUTCDate(date);
+            const allNewTransactions: Transaction[] = [];
+            const perInstallmentAmount = parseFloat(amount);
+
+            const totalSplitAmount = splitItems.reduce((sum, item) => sum + parseFloat(item.amount || '0'), 0);
+            if (Math.abs(totalSplitAmount - perInstallmentAmount) > 0.001) {
+                alert(`A soma dos valores divididos (${formatCurrency(totalSplitAmount)}) deve ser igual ao valor da parcela (${formatCurrency(perInstallmentAmount)}).`);
                 return;
             }
+
+            for (let i = 0; i < totalInstallments; i++) {
+                const installmentDate = new Date(originalDate);
+                installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
+                
+                splitItems.forEach(item => {
+                    allNewTransactions.push({
+                        id: crypto.randomUUID(),
+                        ...commonData,
+                        amount: parseFloat(item.amount),
+                        itemId: item.itemId,
+                        date: installmentDate.toISOString().split('T')[0],
+                        description: `${description} (${i+1}/${totalInstallments}) - ${categoryMap.get(item.itemId)?.item}`,
+                        installmentGroupId,
+                        currentInstallment: i + 1,
+                        totalInstallments
+                    });
+                });
+            }
+            setTransactions(prev => [...prev, ...allNewTransactions]);
+
+        } else if (isSplit) {
+            const totalSplitAmount = splitItems.reduce((sum, item) => sum + parseFloat(item.amount || '0'), 0);
+            if(Math.abs(totalSplitAmount - parseFloat(amount)) > 0.001) {
+                alert('A soma dos valores divididos deve ser igual ao valor total.'); return;
+            }
+            if(splitItems.some(i => !i.itemId || !i.amount)) {
+                alert('Todos os itens divididos devem ter um item e um valor.'); return;
+            }
+            const newTransactions: Transaction[] = splitItems.map(item => ({
+                id: crypto.randomUUID(), ...commonData, amount: parseFloat(item.amount), itemId: item.itemId,
+                description: `${description} - ${categoryMap.get(item.itemId)?.item}`
+            }));
+            setTransactions(prev => [...prev, ...newTransactions]);
+        } else if (isInstallment && type === TransactionType.EXPENSE) {
+            const totalInstallments = parseInt(installmentsCount, 10);
+            const installmentGroupId = crypto.randomUUID();
+            const originalDate = getUTCDate(date);
+            const newTransactions: Transaction[] = [];
+            for(let i = 0; i < totalInstallments; i++) {
+                const installmentDate = new Date(originalDate);
+                installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
+                newTransactions.push({
+                    id: crypto.randomUUID(), ...commonData, amount: parseFloat(amount), itemId,
+                    date: installmentDate.toISOString().split('T')[0],
+                    description: `${description} (${i + 1}/${totalInstallments})`,
+                    installmentGroupId, currentInstallment: i + 1, totalInstallments
+                });
+            }
+            setTransactions(prev => [...prev, ...newTransactions]);
+        } else {
+             if (!description || !amount || !date || !accountId || !itemId) { alert('Por favor, preencha todos os campos obrigatórios.'); return; }
             const transactionData = { ...commonData, amount: parseFloat(amount), itemId };
             if (editingTransaction) {
                 setTransactions(transactions.map(t => t.id === editingTransaction.id ? { ...t, ...transactionData } : t));
@@ -254,43 +274,65 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                 setTransactions([...transactions, { ...transactionData, id: crypto.randomUUID() }]);
             }
         }
-
         handleClearForm();
     };
 
     const handleEdit = (transaction: Transaction) => {
-        setEditingTransaction(transaction);
-        setType(transaction.type);
-        setDescription(transaction.description);
-        setAmount(String(transaction.amount));
-        setDate(transaction.date);
-        setAccountId(transaction.accountId);
-        setItemId(transaction.itemId || '');
-        setIsInstallment(false); // Can't edit installments for now
-        setIsSplit(false); // Can't edit split for now
+        window.scrollTo(0, 0);
+        if (transaction.installmentGroupId) {
+            const groupTransactions = transactions.filter(t => t.installmentGroupId === transaction.installmentGroupId).sort((a,b) => a.currentInstallment! - b.currentInstallment!);
+            const firstInstallment = groupTransactions[0];
+            setEditingTransaction(null);
+            setEditingInstallmentGroup(firstInstallment);
+            setType(firstInstallment.type);
+            setDescription(firstInstallment.description.replace(/\s\(\d+\/\d+\)$/, ''));
+            setAmount(String(firstInstallment.amount));
+            setDate(firstInstallment.date);
+            setAccountId(firstInstallment.accountId);
+            setItemId(firstInstallment.itemId || '');
+            setIsInstallment(true);
+            setInstallmentsCount(String(firstInstallment.totalInstallments));
+            setIsSplit(false);
+        } else {
+            setEditingInstallmentGroup(null);
+            setEditingTransaction(transaction);
+            setType(transaction.type);
+            setDescription(transaction.description);
+            setAmount(String(transaction.amount));
+            setDate(transaction.date);
+            setAccountId(transaction.accountId);
+            setItemId(transaction.itemId || '');
+            setIsInstallment(false);
+            setIsSplit(false);
+        }
     };
 
     const handleDelete = (id: string) => {
         if (window.confirm('Tem certeza que deseja excluir este lançamento?')) {
-            const transactionToDelete = transactions.find(t => t.id === id);
-            if (!transactionToDelete) return;
-            const relatedLoan = loans.find(l => l.initialTransactionId === id || l.settlementTransactionId === id || l.partialSettlements?.some(p => p.transactionId === id));
-            if (relatedLoan) {
-              // ... (loan update logic from before)
+            const txToDelete = transactions.find(t => t.id === id);
+            if (!txToDelete) return;
+            
+            if (txToDelete.installmentGroupId) {
+                if (window.confirm('Este é um lançamento parcelado. Deseja excluir todas as parcelas?')) {
+                    setTransactions(prev => prev.filter(t => t.installmentGroupId !== txToDelete.installmentGroupId));
+                } else {
+                     setTransactions(prev => prev.filter(t => t.id !== id));
+                }
+            } else {
+                const relatedLoan = loans.find(l => l.initialTransactionId === id || l.settlementTransactionId === id || l.partialSettlements?.some(p => p.transactionId === id));
+                if (relatedLoan) {
+                   alert('Este lançamento está associado a um empréstimo e não pode ser excluído diretamente.');
+                   return;
+                }
+                setTransactions(prev => prev.filter(t => t.id !== id));
             }
-            setTransactions(prev => prev.filter(t => t.id !== id));
         }
     };
     
     const categoryOptions = useMemo(() => {
         return categories
             .filter(cat => cat.type === type)
-            .flatMap(cat => 
-                cat.subcategories.flatMap(sub => 
-                    sub.items
-                        .map(item => ({...item, catName: cat.name, subName: sub.name}))
-                )
-            )
+            .flatMap(cat => cat.subcategories.flatMap(sub => sub.items.map(item => ({...item, catName: cat.name, subName: sub.name}))))
             .sort((a,b) => a.name.localeCompare(b.name, 'pt-BR'));
     }, [categories, type]);
     
@@ -311,19 +353,21 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const maxDate = isInstallment ? undefined : new Date().toISOString().split('T')[0];
 
+    const isEditing = editingTransaction || editingInstallmentGroup;
+    
     return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-5 xl:col-span-4">
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm sticky top-6">
                     <form onSubmit={handleSubmit}>
-                        <h2 className="text-xl font-bold text-slate-800 mb-4">{editingTransaction ? 'Editar Transação' : 'Nova Transação'}</h2>
+                        <h2 className="text-xl font-bold text-slate-800 mb-4">{isEditing ? 'Editar Transação' : 'Nova Transação'}</h2>
                         
                         <div className="p-1 bg-slate-100 rounded-lg flex space-x-1 mb-4">
                             <button type="button" onClick={() => { setType(TransactionType.EXPENSE); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.EXPENSE ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Saídas</button>
                             <button type="button" onClick={() => { setType(TransactionType.INCOME); setIsInstallment(false); setIsSplit(false); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.INCOME ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Entradas</button>
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="space-y-4 max-h-[calc(100vh-22rem)] overflow-y-auto pr-2">
                             <div>
                                 <label className="text-sm font-medium text-slate-600 mb-1 block">Descrição</label>
                                 <input ref={descriptionInputRef} type="text" value={description} onChange={e => setDescription(e.target.value)} onBlur={handleDescriptionBlur} required className="input-style" placeholder="Ex: Almoço no restaurante" />
@@ -338,14 +382,14 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="input-style" max={maxDate} />
                                 </div>
                             </div>
-                            {type === TransactionType.EXPENSE && !editingTransaction && (
+                            {type === TransactionType.EXPENSE && (
                                 <div className="flex space-x-6">
                                     <div className="flex items-center">
-                                        <input type="checkbox" id="installment-check" checked={isInstallment} onChange={e => { setIsInstallment(e.target.checked); if(e.target.checked) setIsSplit(false); }} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+                                        <input type="checkbox" id="installment-check" checked={isInstallment} onChange={e => setIsInstallment(e.target.checked)} disabled={!!editingInstallmentGroup} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
                                         <label htmlFor="installment-check" className="ml-2 block text-sm text-slate-800">Parcelar</label>
                                     </div>
                                     <div className="flex items-center">
-                                        <input type="checkbox" id="split-check" checked={isSplit} onChange={e => { setIsSplit(e.target.checked); if(e.target.checked) setIsInstallment(false); }} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+                                        <input type="checkbox" id="split-check" checked={isSplit} onChange={e => setIsSplit(e.target.checked)} disabled={!!editingTransaction || !!editingInstallmentGroup} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
                                         <label htmlFor="split-check" className="ml-2 block text-sm text-slate-800">Dividir</label>
                                     </div>
                                 </div>
@@ -397,35 +441,28 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         </div>
                         <div className="flex items-center space-x-3 mt-6">
                             <button type="button" onClick={handleClearForm} className="btn-secondary w-full">Cancelar</button>
-                            <button type="submit" className="btn-primary w-full">{editingTransaction ? 'Salvar' : (isInstallment ? 'Lançar Parcelas' : (isSplit ? 'Salvar Lançamentos' : 'Salvar'))}</button>
+                            <button type="submit" className="btn-primary w-full">{isEditing ? 'Salvar Alterações' : 'Salvar'}</button>
                         </div>
                     </form>
                 </div>
             </div>
 
             <div className="lg:col-span-7 xl:col-span-8 space-y-6">
-                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
-                    <div className="relative sm:col-span-2 md:col-span-4 lg:col-span-2">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div className="relative sm:col-span-2 lg:col-span-4 xl:col-span-2">
                         {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
-                        <input 
-                            type="text" 
-                            value={searchTerm} 
-                            onChange={e => setSearchTerm(e.target.value)} 
-                            onFocus={() => setIsSearchFocused(true)}
-                            onBlur={() => setIsSearchFocused(false)}
-                            className="input-style pl-10"/>
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10" placeholder="Pesquisar..."/>
                     </div>
-                    <select value={dateFilter} onChange={e => handleDateFilterChange(e.target.value)} className="input-style">
-                        <option>Este Mês</option>
-                        <option>Mês Passado</option>
-                        <option>Sempre</option>
-                        <option>Personalizado</option>
-                    </select>
-                    <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="input-style">
-                        <option>Todos</option>
-                        <option>Entradas</option>
-                        <option>Saídas</option>
-                    </select>
+                    <div className="flex space-x-2 sm:col-span-2 lg:col-span-4 xl:col-span-2">
+                        {['Este Mês', 'Mês Passado', 'Personalizado'].map(f => (
+                            <button key={f} onClick={() => handleDateFilterChange(f)} className={`w-full px-3 py-2 text-sm font-semibold rounded-lg transition-colors ${dateFilter === f ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-100 border border-slate-200'}`}>{f}</button>
+                        ))}
+                    </div>
+                    <div className="flex space-x-2 sm:col-span-2 lg:col-span-4 xl:col-span-2">
+                        {['Todos', 'Entradas', 'Saídas'].map(f => (
+                           <button key={f} onClick={() => setTypeFilter(f)} className={`w-full px-3 py-2 text-sm font-semibold rounded-lg transition-colors ${typeFilter === f ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-100 border border-slate-200'}`}>{f}</button>
+                        ))}
+                    </div>
                 </div>
                 
                 <DateRangePickerModal isOpen={isPickerOpen} onClose={() => setIsPickerOpen(false)} value={customDateRange} onChange={handleCustomDateChange} />

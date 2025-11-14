@@ -150,9 +150,9 @@ const DashboardPage: React.FC = () => {
           return { filteredTransactions: [], periodIncome: 0, periodExpenses: 0 };
       }
 
-      const start = dateRange.start;
+      const start = new Date(dateRange.start.getTime());
       start.setUTCHours(0,0,0,0);
-      const end = dateRange.end;
+      const end = new Date(dateRange.end.getTime());
       end.setUTCHours(23,59,59,999);
       
       const filtered = transactions.filter(t => {
@@ -189,10 +189,9 @@ const DashboardPage: React.FC = () => {
         periodLabel: `Meta Anual ${startYear}`
       };
     } else {
-      // Multi-year range. Prorate by month.
       let totalGoal = 0;
       let currentDate = new Date(dateRange.start);
-      currentDate.setUTCDate(1); // Start from the beginning of the start month
+      currentDate.setUTCDate(1); 
 
       while (currentDate <= dateRange.end) {
         const year = currentDate.getUTCFullYear();
@@ -200,7 +199,6 @@ const DashboardPage: React.FC = () => {
         const monthlyGoal = annualGoalForYear / 12;
         totalGoal += monthlyGoal;
         
-        // Move to the next month
         currentDate.setUTCMonth(currentDate.getUTCMonth() + 1);
       }
         
@@ -210,16 +208,39 @@ const DashboardPage: React.FC = () => {
       };
     }
   }, [dateRange, goals]);
+
+    const { currentMonthSavings, monthlyGoal } = useMemo(() => {
+      const now = new Date();
+      const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const endOfMonth = now; 
+
+      const monthTransactions = transactions.filter(t => {
+          const tDate = getUTCDate(t.date);
+          return tDate >= startOfMonth && tDate <= endOfMonth;
+      });
+
+      const savings = monthTransactions.reduce((acc, t) => {
+          if (t.type === TransactionType.INCOME) return acc + t.amount;
+          if (t.type === TransactionType.EXPENSE) return acc - t.amount;
+          return acc;
+      }, 0);
+
+      const currentYear = now.getUTCFullYear();
+      const annualGoal = goals[currentYear] || 0;
+      const mGoal = annualGoal / 12;
+
+      return { currentMonthSavings: savings, monthlyGoal: mGoal };
+  }, [transactions, goals]);
   
   const monthlyChartData = useMemo(() => {
       const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
       
       const dataMap = new Map<string, { Receitas: number, Despesas: number, monthIndex: number }>();
 
-      // Initialize all months of the current year to ensure they appear in order
-      const currentYear = new Date().getFullYear();
+      const yearForAxis = dateRange.start?.getUTCFullYear() || new Date().getFullYear();
+
       monthNames.forEach((name, index) => {
-          dataMap.set(`${name}/${currentYear}`, { Receitas: 0, Despesas: 0, monthIndex: index });
+          dataMap.set(`${name}/${yearForAxis}`, { Receitas: 0, Despesas: 0, monthIndex: index });
       });
 
       filteredTransactions.forEach(t => {
@@ -238,10 +259,9 @@ const DashboardPage: React.FC = () => {
 
       return Array.from(dataMap.entries())
           .map(([name, values]) => ({ name, ...values }))
-          .sort((a, b) => a.monthIndex - b.monthIndex) // Sort by month index
-          .filter(d => d.Receitas > 0 || d.Despesas > 0); // Only show months with data
-
-  }, [filteredTransactions]);
+          .sort((a, b) => a.monthIndex - b.monthIndex) 
+          .filter(d => (dateRange.end?.getUTCFullYear() || 0) > (dateRange.start?.getUTCFullYear() || 1) || d.Receitas > 0 || d.Despesas > 0); 
+  }, [filteredTransactions, dateRange]);
 
 
   const accountBalances = useMemo(() => {
@@ -296,7 +316,7 @@ const DashboardPage: React.FC = () => {
     }, [categories]);
 
     const recentTransactionsForDashboard = useMemo(() => {
-        return transactions // Use all transactions for recency
+        return transactions
             .filter(t => t.type === TransactionType.INCOME || t.type === TransactionType.EXPENSE)
             .sort((a, b) => getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime())
             .slice(0, 4)
@@ -320,9 +340,9 @@ const DashboardPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatCard title="Saldo do Período" amount={periodIncome - periodExpenses} />
-          <StatCard title="Receitas (Período)" amount={periodIncome} />
-          <StatCard title="Despesas (Período)" amount={periodExpenses} />
+          <StatCard title="Resultado" amount={periodIncome - periodExpenses} />
+          <StatCard title="Receitas" amount={periodIncome} />
+          <StatCard title="Despesas" amount={periodExpenses} />
       </div>
 
       <DateRangePickerModal
@@ -335,7 +355,8 @@ const DashboardPage: React.FC = () => {
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="font-bold text-lg mb-4 text-slate-800">Metas de Economia</h3>
         <div className="space-y-4">
-          <SavingsGoalCard title="Meta de Economia do Período" goal={periodGoal} current={periodSavings} label={periodLabel} color="bg-green-500" />
+          <SavingsGoalCard title="Meta Mensal" goal={monthlyGoal} current={currentMonthSavings} label={`Meta Mensal (${new Date().toLocaleString('pt-BR', { month: 'long' })})`} color="bg-blue-500" />
+          <SavingsGoalCard title="Meta Anual" goal={periodGoal} current={periodSavings} label={periodLabel} color="bg-green-500" />
         </div>
       </div>
 
@@ -343,7 +364,7 @@ const DashboardPage: React.FC = () => {
           <div className="lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
               <h3 className="font-bold text-lg mb-4 text-slate-800">Receitas vs. Despesas</h3>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={monthlyChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                <BarChart data={monthlyChartData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="#64748b"/>
                   <YAxis fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" tickFormatter={(value) => `R$${(value as number)/1000}k`} />

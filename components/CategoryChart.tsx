@@ -1,7 +1,7 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Transaction, TransactionType, Category } from '../types';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
 interface CategoryChartProps {
   transactions: Transaction[];
@@ -12,8 +12,7 @@ const COLORS = ['#a855f7', '#3b82f6', '#facc15', '#64748b', '#ec4899', '#22c55e'
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-const CustomLegend = (props: any) => {
-    const { payload } = props;
+const CustomLegend: React.FC<{ payload: any[] }> = ({ payload }) => {
     const total = payload.reduce((acc: number, entry: any) => acc + entry.payload.value, 0);
 
     return (
@@ -24,28 +23,16 @@ const CustomLegend = (props: any) => {
                         <span className="w-2.5 h-2.5 rounded-full mr-2" style={{ backgroundColor: entry.color }}></span>
                         <span className="text-slate-700">{entry.value}</span>
                     </div>
-                    <span className="font-medium text-slate-500">{((entry.payload.value / total) * 100).toFixed(0)}%</span>
+                    <span className="font-medium text-slate-500">{total > 0 ? ((entry.payload.value / total) * 100).toFixed(0) : 0}%</span>
                 </li>
             ))}
         </ul>
     );
 };
 
-const CustomTooltipContent = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0];
-      return (
-        <div className="bg-white p-3 rounded-lg shadow-lg border border-slate-200">
-          <p className="text-sm text-slate-700 font-semibold">{data.name}</p>
-          <p className="text-lg font-bold text-slate-900">{formatCurrency(data.value)}</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-
 const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, categories }) => {
+  const [activeData, setActiveData] = useState<{ name: string, value: number } | null>(null);
+
   const { chartData, totalExpenses } = useMemo(() => {
     const itemToCategoryMap = new Map<string, string>();
     categories.forEach(cat => {
@@ -94,22 +81,27 @@ const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, categories 
                       fill="#8884d8"
                       dataKey="value"
                       nameKey="name"
+                      onMouseEnter={(_, index) => setActiveData(chartData[index])}
+                      onMouseLeave={() => setActiveData(null)}
                     >
                       {chartData.map((_entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
                       ))}
                     </Pie>
-                    <Tooltip
-                        content={<CustomTooltipContent />}
-                        cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-                        position={{ x: 100, y: 100 }}
-                        offset={20}
-                    />
                   </PieChart>
                 </ResponsiveContainer>
-                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-xs text-slate-500">Total</span>
-                    <span className="text-xl font-bold text-slate-800">{formatCurrency(totalExpenses).replace('R$','R$ ')}</span>
+                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-2">
+                    {activeData ? (
+                        <>
+                            <span className="text-sm text-slate-500 text-center truncate max-w-full">{activeData.name}</span>
+                            <span className="text-xl font-bold text-slate-800">{formatCurrency(activeData.value)}</span>
+                        </>
+                    ) : (
+                        <>
+                            <span className="text-xs text-slate-500">Total</span>
+                            <span className="text-xl font-bold text-slate-800">{formatCurrency(totalExpenses).replace('R$','R$ ')}</span>
+                        </>
+                    )}
                 </div>
             </div>
             <div className="w-full">
