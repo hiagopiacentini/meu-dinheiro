@@ -183,22 +183,32 @@ const DashboardPage: React.FC = () => {
     const startYear = dateRange.start.getUTCFullYear();
     const endYear = dateRange.end.getUTCFullYear();
 
-    let totalGoal = 0;
-    const isLeap = (year: number) => new Date(Date.UTC(year, 1, 29)).getUTCDate() === 29;
+    if (startYear === endYear) {
+      return { 
+        periodGoal: goals[startYear] || 0,
+        periodLabel: `Meta Anual ${startYear}`
+      };
+    } else {
+      // Multi-year range. Prorate by month.
+      let totalGoal = 0;
+      let currentDate = new Date(dateRange.start);
+      currentDate.setUTCDate(1); // Start from the beginning of the start month
 
-    let currentDate = new Date(dateRange.start);
-    while (currentDate <= dateRange.end) {
+      while (currentDate <= dateRange.end) {
         const year = currentDate.getUTCFullYear();
         const annualGoalForYear = goals[year] || 0;
-        const daysInYear = isLeap(year) ? 366 : 365;
-        const dailyGoal = annualGoalForYear / daysInYear;
-        totalGoal += dailyGoal;
-        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+        const monthlyGoal = annualGoalForYear / 12;
+        totalGoal += monthlyGoal;
+        
+        // Move to the next month
+        currentDate.setUTCMonth(currentDate.getUTCMonth() + 1);
+      }
+        
+      return {
+        periodGoal: totalGoal,
+        periodLabel: 'Meta do Período'
+      };
     }
-    
-    const label = startYear === endYear ? `Meta Anual ${startYear}` : 'Meta do Período';
-    return { periodGoal: totalGoal, periodLabel: label };
-
   }, [dateRange, goals]);
   
   const monthlyChartData = useMemo(() => {

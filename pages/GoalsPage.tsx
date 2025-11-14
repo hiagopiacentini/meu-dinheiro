@@ -30,14 +30,18 @@ const GoalsPage: React.FC = () => {
 
 
     const { annualSavings } = useMemo(() => {
-        // Use UTC dates to ensure consistency with the dashboard
         const startOfYear = new Date(Date.UTC(selectedYear, 0, 1));
-        const endOfYear = new Date(Date.UTC(selectedYear, 11, 31, 23, 59, 59, 999));
+        
+        const now = new Date();
+        const isCurrentYear = selectedYear === now.getFullYear();
+        const endOfPeriod = isCurrentYear 
+            ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
+            : new Date(Date.UTC(selectedYear, 11, 31, 23, 59, 59, 999));
 
         const yearTrans = transactions.filter(t => {
             const date = new Date(t.date);
             const tDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-            return tDate >= startOfYear && tDate <= endOfYear && t.type !== TransactionType.TRANSFER;
+            return tDate >= startOfYear && tDate <= endOfPeriod && t.type !== TransactionType.TRANSFER;
         });
 
         const totalSavings = yearTrans.reduce((acc, t) => {

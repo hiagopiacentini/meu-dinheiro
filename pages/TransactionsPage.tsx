@@ -8,6 +8,8 @@ import SearchIcon from '../components/icons/SearchIcon';
 import DateRangePickerModal from '../components/DateRangePickerModal';
 import PlusIcon from '../components/icons/PlusIcon';
 import XIcon from '../components/icons/XIcon';
+import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
+import ChevronRightIcon from '../components/icons/ChevronRightIcon';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -64,9 +66,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [typeFilter, setTypeFilter] = useState('Todos');
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [customDateRange, setCustomDateRange] = useState<{start: Date | null, end: Date | null}>({ start: null, end: null });
-    const [itemSearch, setItemSearch] = useState('');
 
-    const formRef = useRef<HTMLDivElement>(null);
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
     
     const descriptionInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,13 +87,11 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setInstallmentsCount('2');
         setIsSplit(false);
         setSplitItems([{ id: 1, itemId: '', amount: '' }]);
-        setItemSearch('');
     }, [activeAccounts]);
 
     useEffect(() => {
         if (addTransactionTrigger > 0) {
             handleClearForm();
-            formRef.current?.scrollTo(0, 0);
         }
     }, [addTransactionTrigger, handleClearForm]);
 
@@ -99,6 +100,11 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             setAccountId(activeAccounts[0].id);
         }
     }, [editingTransaction, activeAccounts, accountId]);
+    
+    // Reset page to 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, dateFilter, typeFilter, customDateRange]);
 
     const categoryMap = useMemo(() => {
         const map = new Map<string, { item: string, sub: string, cat: string, catType: TransactionType }>();
@@ -174,6 +180,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             return indexB - indexA;
         });
     }, [transactions, searchTerm, dateFilter, typeFilter, customDateRange]);
+    
+    const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+    const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const { periodIncome, periodExpenses } = useMemo(() => {
         return filteredTransactions.reduce((acc, t) => {
@@ -259,7 +268,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setItemId(transaction.itemId || '');
         setIsInstallment(false); // Can't edit installments for now
         setIsSplit(false); // Can't edit split for now
-        formRef.current?.scrollTo(0, 0);
     };
 
     const handleDelete = (id: string) => {
@@ -275,21 +283,16 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     };
     
     const categoryOptions = useMemo(() => {
-        const lowerItemSearch = itemSearch.toLowerCase();
         return categories
             .filter(cat => cat.type === type)
             .flatMap(cat => 
                 cat.subcategories.flatMap(sub => 
                     sub.items
-                        .filter(item => {
-                            const fullName = `${cat.name} > ${sub.name} > ${item.name}`;
-                            return fullName.toLowerCase().includes(lowerItemSearch);
-                        })
                         .map(item => ({...item, catName: cat.name, subName: sub.name}))
                 )
             )
             .sort((a,b) => a.name.localeCompare(b.name, 'pt-BR'));
-    }, [categories, type, itemSearch]);
+    }, [categories, type]);
     
     const handleDateFilterChange = (value: string) => {
         setDateFilter(value);
@@ -311,7 +314,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-5 xl:col-span-4">
-                <div ref={formRef} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto">
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm sticky top-6">
                     <form onSubmit={handleSubmit}>
                         <h2 className="text-xl font-bold text-slate-800 mb-4">{editingTransaction ? 'Editar Transação' : 'Nova Transação'}</h2>
                         
@@ -378,13 +381,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                             ) : (
                                 <div>
                                     <label className="text-sm font-medium text-slate-600 mb-1 block">Item</label>
-                                    <div className="p-2 border border-slate-200 rounded-lg">
-                                        <input type="text" value={itemSearch} onChange={e => setItemSearch(e.target.value)} className="input-style mb-2" placeholder="Pesquisar item..."/>
-                                        <select value={itemId} onChange={e => setItemId(e.target.value)} required className="input-style" size={5}>
-                                            <option value="" disabled>Selecione um item...</option>
-                                            {categoryOptions.map(opt => <option key={opt.id} value={opt.id}>{`${opt.catName} > ${opt.subName} > ${opt.name}`}</option>)}
-                                        </select>
-                                    </div>
+                                    <select value={itemId} onChange={e => setItemId(e.target.value)} required className="input-style">
+                                        <option value="" disabled>Selecione um item...</option>
+                                        {categoryOptions.map(opt => <option key={opt.id} value={opt.id}>{`${opt.catName} > ${opt.subName} > ${opt.name}`}</option>)}
+                                    </select>
                                 </div>
                             )}
                             <div>
@@ -449,10 +449,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200">
-                                {filteredTransactions.length === 0 ? (
+                                {paginatedTransactions.length === 0 ? (
                                     <tr><td colSpan={5} className="text-center p-8 text-slate-500">Nenhum lançamento encontrado.</td></tr>
                                 ) : (
-                                    filteredTransactions.map(t => {
+                                    paginatedTransactions.map(t => {
                                         const categoryInfo = t.itemId ? categoryMap.get(t.itemId) : null;
                                         const isExpense = t.type === TransactionType.EXPENSE;
                                         return (
@@ -479,6 +479,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                             </tbody>
                         </table>
                     </div>
+                     {totalPages > 1 && (
+                        <div className="p-4 border-t border-slate-200 flex justify-between items-center">
+                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center"><ChevronLeftIcon className="w-4 h-4 mr-1"/> Anterior</button>
+                            <span className="text-sm font-medium text-slate-600">Página {currentPage} de {totalPages}</span>
+                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center">Próxima <ChevronRightIcon className="w-4 h-4 ml-1"/></button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

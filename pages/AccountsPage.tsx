@@ -198,7 +198,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
 
     const [currentPage, setCurrentPage] = useState(1);
     const [showInstallments, setShowInstallments] = useState(false);
-    const itemsPerPage = 10;
+    const itemsPerPage = 5;
     
     const addAccountTriggerRef = useRef(addAccountTrigger);
     
@@ -436,12 +436,19 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                         onBlur={() => setIsSearchFocused(false)}
                                         className="input-style pl-10 h-10 w-full"/>
                                 </div>
-                                <button onClick={() => setShowInstallments(s => !s)} className={`px-3 py-2 text-sm font-semibold rounded-lg ${showInstallments ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
-                                    {showInstallments ? 'Ver Todas' : 'Agrupar Parcelas'}
+                                <button onClick={() => setShowInstallments(s => !s)} className={`px-3 py-2 text-sm font-semibold rounded-lg whitespace-nowrap ${showInstallments ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+                                    {showInstallments ? 'Agrupar' : 'Parceladas'}
                                 </button>
                             </div>
                         </div>
                     </div>
+                    {totalPages > 1 && (
+                        <div className="p-4 border-b border-slate-200 flex justify-between items-center">
+                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center"><ChevronLeftIcon className="w-4 h-4 mr-1"/> Anterior</button>
+                            <span className="text-sm font-medium text-slate-600">Página {currentPage} de {totalPages}</span>
+                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center">Próxima <ChevronRightIcon className="w-4 h-4 ml-1"/></button>
+                        </div>
+                    )}
                     <div className="overflow-x-auto">
                          <table className="w-full text-sm">
                             <thead className="bg-gray-50 text-slate-500 uppercase text-xs">
@@ -478,13 +485,6 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                             </tbody>
                         </table>
                     </div>
-                    {totalPages > 1 && (
-                        <div className="p-4 border-t border-slate-200 flex justify-between items-center">
-                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center"><ChevronLeftIcon className="w-4 h-4 mr-1"/> Anterior</button>
-                            <span className="text-sm font-medium text-slate-600">Página {currentPage} de {totalPages}</span>
-                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed flex items-center">Próxima <ChevronRightIcon className="w-4 h-4 ml-1"/></button>
-                        </div>
-                    )}
                 </div>
             </div>
 
