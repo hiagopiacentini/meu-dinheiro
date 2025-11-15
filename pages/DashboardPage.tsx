@@ -242,102 +242,74 @@ const DashboardPage: React.FC = () => {
 
   const { periodSpecificGoal, periodSpecificLabel } = useMemo(() => {
     if (!dateRange.start || !dateRange.end) {
-      return { periodSpecificGoal: 0, periodSpecificLabel: 'Meta Mensal' };
+        return { periodSpecificGoal: 0, periodSpecificLabel: 'Meta Mensal' };
     }
-  
+
     const start = dateRange.start;
     const end = dateRange.end;
-  
-    if (activeFilter === 'Mês Atual') {
-      const year = start.getUTCFullYear();
-      const annualGoal = goals[year] || 0;
-      const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
-      return {
-        periodSpecificGoal: annualGoal / 12,
-        periodSpecificLabel: `Meta Mensal (${monthName})`
-      };
-    }
-  
-    const calculatePeriodGoal = () => {
-      let totalGoal = 0;
-      const sYear = start.getUTCFullYear();
-      const sMonth = start.getUTCMonth();
-      const sDay = start.getUTCDate();
-      const eYear = end.getUTCFullYear();
-      const eMonth = end.getUTCMonth();
-      const eDay = end.getUTCDate();
-  
-      for (let y = sYear; y <= eYear; y++) {
-        const annualGoalForCurrentYear = goals[y] || 0;
-        if (annualGoalForCurrentYear === 0) continue;
-        const monthlyGoalForCurrentYear = annualGoalForCurrentYear / 12;
-        const startMonthInLoop = (y === sYear) ? sMonth : 0;
-        const endMonthInLoop = (y === eYear) ? eMonth : 11;
-  
-        for (let m = startMonthInLoop; m <= endMonthInLoop; m++) {
-          const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-          const isStartMonth = y === sYear && m === sMonth;
-          const isEndMonth = y === eYear && m === eMonth;
-  
-          if (isStartMonth && isEndMonth) {
-            const startDay = sDay;
-            const endDay = eDay;
-            if (startDay === 1 && endDay === daysInMonth) {
-              totalGoal += monthlyGoalForCurrentYear;
-            } else {
-              const daysInRange = endDay - startDay + 1;
-              if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
-            }
-          } else if (isStartMonth) {
-            const startDay = sDay;
-            if (startDay === 1) {
-              totalGoal += monthlyGoalForCurrentYear;
-            } else {
-              const daysInRange = daysInMonth - startDay + 1;
-              if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
-            }
-          } else if (isEndMonth) {
-            const endDay = eDay;
-            if (endDay === daysInMonth) {
-              totalGoal += monthlyGoalForCurrentYear;
-            } else {
-              const daysInRange = endDay;
-              if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
-            }
-          } else {
-            totalGoal += monthlyGoalForCurrentYear;
-          }
-        }
-      }
-      return totalGoal;
-    };
-  
-    const goalValue = calculatePeriodGoal();
+
     const isSingleMonth = start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth();
-  
-    if (isSingleMonth && activeFilter !== 'Mês Atual') {
-      const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
-      return {
-        periodSpecificGoal: goalValue,
-        periodSpecificLabel: `Meta Mensal (${monthName})`
-      };
-    } else if (!isSingleMonth) {
-      return {
-        periodSpecificGoal: goalValue,
-        periodSpecificLabel: 'Meta do Período'
-      };
+
+    if (isSingleMonth) {
+        const year = start.getUTCFullYear();
+        const annualGoal = goals[year] || 0;
+        const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
+        return {
+            periodSpecificGoal: annualGoal / 12,
+            periodSpecificLabel: `Meta Mensal (${monthName})`
+        };
     }
-  
-    // Fallback for Mês Atual if not caught above (though it should be)
-    const year = start.getUTCFullYear();
-    const annualGoal = goals[year] || 0;
-    const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
-    return {
-      periodSpecificGoal: annualGoal / 12,
-      periodSpecificLabel: `Meta Mensal (${monthName})`
+
+    // Logic for multi-month periods
+    const calculatePeriodGoal = () => {
+        let totalGoal = 0;
+        const sYear = start.getUTCFullYear();
+        const sMonth = start.getUTCMonth();
+        const sDay = start.getUTCDate();
+        const eYear = end.getUTCFullYear();
+        const eMonth = end.getUTCMonth();
+        const eDay = end.getUTCDate();
+
+        for (let y = sYear; y <= eYear; y++) {
+            const annualGoalForCurrentYear = goals[y] || 0;
+            if (annualGoalForCurrentYear === 0) continue;
+            const monthlyGoalForCurrentYear = annualGoalForCurrentYear / 12;
+            const startMonthInLoop = (y === sYear) ? sMonth : 0;
+            const endMonthInLoop = (y === eYear) ? eMonth : 11;
+
+            for (let m = startMonthInLoop; m <= endMonthInLoop; m++) {
+                const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+                const isStartMonth = y === sYear && m === sMonth;
+                const isEndMonth = y === eYear && m === eMonth;
+
+                if (isStartMonth) {
+                    if (sDay === 1) { // Full starting month
+                        totalGoal += monthlyGoalForCurrentYear;
+                    } else { // Partial starting month
+                        const daysInRange = daysInMonth - sDay + 1;
+                        if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
+                    }
+                } else if (isEndMonth) {
+                    if (eDay === daysInMonth) { // Full ending month
+                        totalGoal += monthlyGoalForCurrentYear;
+                    } else { // Partial ending month
+                        const daysInRange = eDay;
+                        if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
+                    }
+                } else { // Full month in between
+                    totalGoal += monthlyGoalForCurrentYear;
+                }
+            }
+        }
+        return totalGoal;
     };
-  
-  }, [dateRange, goals, activeFilter]);
+
+    return {
+        periodSpecificGoal: calculatePeriodGoal(),
+        periodSpecificLabel: 'Meta do Período'
+    };
+
+}, [dateRange, goals]);
 
   const { annualSavingsToDate } = useMemo(() => {
     if (!dateRange.start) return { annualSavingsToDate: 0 };

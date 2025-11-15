@@ -748,15 +748,15 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-sm table-fixed">
                             <thead className="bg-gray-50 text-slate-500 uppercase text-xs">
                                 <tr>
-                                    <th className="px-4 py-3 font-semibold text-left">Data</th>
+                                    <th className="px-4 py-3 font-semibold text-left w-[110px]">Data</th>
                                     <th className="px-4 py-3 font-semibold text-left">Descrição</th>
-                                    <th className="px-4 py-3 font-semibold text-left">Conta</th>
-                                    <th className="px-4 py-3 font-semibold text-left">Item</th>
-                                    <th className="px-4 py-3 font-semibold text-right">Valor</th>
-                                    <th className="px-4 py-3 font-semibold text-center">Ações</th>
+                                    <th className="px-4 py-3 font-semibold text-left w-[150px]">Conta</th>
+                                    <th className="px-4 py-3 font-semibold text-center w-[180px]">Item</th>
+                                    <th className="px-4 py-3 font-semibold text-right w-[120px]">Valor</th>
+                                    <th className="px-4 py-3 font-semibold text-center w-[100px]">Ações</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200">
@@ -769,9 +769,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                         return (
                                         <tr key={t.id} className="hover:bg-gray-50">
                                             <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(t.date)}</td>
-                                            <td className="px-4 py-3 text-slate-800 font-medium">{t.description}</td>
-                                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{accountMap.get(t.accountId)}</td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-4 py-3 text-slate-800 font-medium truncate">{t.description}</td>
+                                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap truncate">{accountMap.get(t.accountId)}</td>
+                                            <td className="px-4 py-3 text-center align-middle">
                                                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${categoryInfo ? (categoryColors[categoryInfo.cat] || defaultCategoryColor) : defaultCategoryColor}`}>
                                                     {categoryInfo?.item || 'N/A'}
                                                 </span>
