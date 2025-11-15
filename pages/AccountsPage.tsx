@@ -28,16 +28,20 @@ const sampleTransactions: Transaction[] = [
 
 const sampleCategories: Category[] = [
   { id: 'cat-receita', name: 'Receita', type: TransactionType.INCOME, subcategories: [
-    {id: 'sub-receita', name: 'Receita', items: [{id: 'receita-salario', name: 'Salário', subcategoryId: 'sub-receita', categoryId: 'cat-receita'}, {id: 'receita-extra', name: 'Renda Extra', subcategoryId: 'sub-receita', categoryId: 'cat-receita'}], categoryId: 'cat-receita'}
+    // Fix: Add missing 'includeInBalance' property to conform to the CategoryItem type.
+    {id: 'sub-receita', name: 'Receita', items: [{id: 'receita-salario', name: 'Salário', subcategoryId: 'sub-receita', categoryId: 'cat-receita', includeInBalance: true}, {id: 'receita-extra', name: 'Renda Extra', subcategoryId: 'sub-receita', categoryId: 'cat-receita', includeInBalance: true}], categoryId: 'cat-receita'}
   ]},
   { id: 'cat-transporte', name: 'Transporte', type: TransactionType.EXPENSE, subcategories: [
-    {id: 'sub-transporte', name: 'Transporte', items: [{id: 'transporte-uber', name: 'Uber', subcategoryId: 'sub-transporte', categoryId: 'cat-transporte'}], categoryId: 'cat-transporte'}
+    // Fix: Add missing 'includeInBalance' property to conform to the CategoryItem type.
+    {id: 'sub-transporte', name: 'Transporte', items: [{id: 'transporte-uber', name: 'Uber', subcategoryId: 'sub-transporte', categoryId: 'cat-transporte', includeInBalance: true}], categoryId: 'cat-transporte'}
   ]},
   { id: 'cat-lazer', name: 'Lazer', type: TransactionType.EXPENSE, subcategories: [
-    {id: 'sub-lazer', name: 'Lazer', items: [{id: 'lazer-assinaturas', name: 'Assinaturas', subcategoryId: 'sub-lazer', categoryId: 'cat-lazer'}], categoryId: 'cat-lazer'}
+    // Fix: Add missing 'includeInBalance' property to conform to the CategoryItem type.
+    {id: 'sub-lazer', name: 'Lazer', items: [{id: 'lazer-assinaturas', name: 'Assinaturas', subcategoryId: 'sub-lazer', categoryId: 'cat-lazer', includeInBalance: true}], categoryId: 'cat-lazer'}
   ]},
   { id: 'cat-alimentacao', name: 'Alimentação', type: TransactionType.EXPENSE, subcategories: [
-    {id: 'sub-alimentacao', name: 'Alimentação', items: [{id: 'alimentacao-supermercado', name: 'Supermercado', subcategoryId: 'sub-alimentacao', categoryId: 'cat-alimentacao'}], categoryId: 'cat-alimentacao'}
+    // Fix: Add missing 'includeInBalance' property to conform to the CategoryItem type.
+    {id: 'sub-alimentacao', name: 'Alimentação', items: [{id: 'alimentacao-supermercado', name: 'Supermercado', subcategoryId: 'sub-alimentacao', categoryId: 'cat-alimentacao', includeInBalance: true}], categoryId: 'cat-alimentacao'}
   ]},
 ];
 

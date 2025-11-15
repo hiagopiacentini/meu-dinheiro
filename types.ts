@@ -21,6 +21,7 @@ export interface CategoryItem {
   name: string;
   subcategoryId: string;
   categoryId: string;
+  includeInBalance: boolean;
 }
 
 export interface Subcategory {

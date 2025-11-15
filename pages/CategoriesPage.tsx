@@ -25,8 +25,8 @@ const sampleCategories: Category[] = [
       id: 'cat-food', name: 'Alimentação', type: TransactionType.EXPENSE, color: '#ef4444',
       subcategories: [
         { id: 'sub-restaurants', name: 'Restaurantes', categoryId: 'cat-food', items: [
-          { id: 'item-lunch', name: 'Almoço', subcategoryId: 'sub-restaurants', categoryId: 'cat-food' },
-          { id: 'item-dinner', name: 'Jantar', subcategoryId: 'sub-restaurants', categoryId: 'cat-food' },
+          { id: 'item-lunch', name: 'Almoço', subcategoryId: 'sub-restaurants', categoryId: 'cat-food', includeInBalance: true },
+          { id: 'item-dinner', name: 'Jantar', subcategoryId: 'sub-restaurants', categoryId: 'cat-food', includeInBalance: true },
         ]},
         { id: 'sub-supermarket', name: 'Supermercado', categoryId: 'cat-food', items: [] },
       ]
@@ -35,17 +35,26 @@ const sampleCategories: Category[] = [
     { id: 'cat-transport', name: 'Transporte', type: TransactionType.EXPENSE, color: '#8b5cf6', subcategories: [] },
     { id: 'cat-salary', name: 'Salário', type: TransactionType.INCOME, color: '#22c55e', subcategories: [] },
     { id: 'cat-freelance', name: 'Renda Extra', type: TransactionType.INCOME, color: '#16a34a', subcategories: [] },
+    {
+      id: 'cat-transfer', name: 'Movimentações', type: TransactionType.EXPENSE, color: '#64748b',
+      subcategories: [
+        { id: 'sub-transfer', name: 'Transferência entre contas', categoryId: 'cat-transfer', items: [
+          { id: 'item-transfer', name: 'Transferência', subcategoryId: 'sub-transfer', categoryId: 'cat-transfer', includeInBalance: false },
+        ]},
+      ]
+    },
 ];
 
 const CategoryModal: React.FC<{
     config: ModalConfig;
     onClose: () => void;
-    onSave: (type: ModalType, names: string[], data?: any, color?: string) => void;
+    onSave: (type: ModalType, names: string[], data?: any, color?: string, includeInBalance?: boolean) => void;
 }> = ({ config, onClose, onSave }) => {
     const [name, setName] = useState('');
     const [currentName, setCurrentName] = useState('');
     const [namesList, setNamesList] = useState<string[]>([]);
     const [selectedColor, setSelectedColor] = useState<string>('#3b82f6');
+    const [includeInBalance, setIncludeInBalance] = useState(true);
     
     const predefinedColors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899'];
 
@@ -57,8 +66,14 @@ const CategoryModal: React.FC<{
             if (config.action === 'edit' && config.data) {
                 if('name' in config.data) setName(config.data.name);
                 if('color' in config.data && config.data.color) setSelectedColor(config.data.color);
+                if('includeInBalance' in config.data) {
+                    setIncludeInBalance(config.data.includeInBalance);
+                } else {
+                    setIncludeInBalance(true);
+                }
             } else {
                 setSelectedColor(predefinedColors[5]); // Default to blue
+                setIncludeInBalance(true);
             }
         }
     }, [config]);
@@ -100,12 +115,12 @@ const CategoryModal: React.FC<{
                 finalNames.push(trimmedCurrent);
             }
             if (finalNames.length > 0) {
-                onSave(config.type!, finalNames, config.data, selectedColor);
+                onSave(config.type!, finalNames, config.data, selectedColor, includeInBalance);
             }
         } else { // 'edit'
             const trimmedName = name.trim();
             if (trimmedName) {
-                onSave(config.type!, [trimmedName], config.data, selectedColor);
+                onSave(config.type!, [trimmedName], config.data, selectedColor, includeInBalance);
             }
         }
         
@@ -195,6 +210,12 @@ const CategoryModal: React.FC<{
                             </div>
                         </div>
                     )}
+                     {config.type === 'item' && (
+                        <div className="flex items-center mt-4 pt-4 border-t border-slate-200">
+                            <input type="checkbox" id="cat-balance" checked={includeInBalance} onChange={e => setIncludeInBalance(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+                            <label htmlFor="cat-balance" className="ml-2 block text-sm text-slate-800">Incluir no balanço (receitas/despesas)</label>
+                        </div>
+                    )}
                     <div className="flex justify-end space-x-3 pt-6">
                         <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
                         <button type="submit" className="btn-primary">Salvar</button>
@@ -248,7 +269,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
         return [...arr].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
     };
 
-    const handleSave = (type: ModalType, names: string[], data: any, color?: string) => {
+    const handleSave = (type: ModalType, names: string[], data: any, color?: string, includeInBalance = true) => {
         let newCategories = [...categories];
         
         if (modalConfig.action === 'add') {
@@ -266,7 +287,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                     );
                 }
                 if (type === 'item') {
-                    const newItem: CategoryItem = { id: crypto.randomUUID(), name, subcategoryId: data.parentId, categoryId: data.categoryId };
+                    const newItem: CategoryItem = { id: crypto.randomUUID(), name, subcategoryId: data.parentId, categoryId: data.categoryId, includeInBalance };
                     newCategories = newCategories.map(cat => {
                         if (cat.id === data.categoryId) {
                             const updatedSubcategories = cat.subcategories.map(sub => 
@@ -296,7 +317,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                     ...cat,
                     subcategories: cat.subcategories.map(sub => ({
                         ...sub,
-                        items: sortByName(sub.items.map(item => item.id === data.id ? { ...item, name } : item))
+                        items: sortByName(sub.items.map(item => item.id === data.id ? { ...item, name, includeInBalance } : item))
                     }))
                 }));
             }

@@ -32,6 +32,7 @@ const categoryColors: { [key: string]: string } = {
     'Renda Extra': 'bg-green-100 text-green-800',
     'Lazer': 'bg-purple-100 text-purple-800',
     'Transporte': 'bg-indigo-100 text-indigo-800',
+    'Movimentações': 'bg-slate-200 text-slate-800'
 };
 const defaultCategoryColor = 'bg-slate-100 text-slate-800';
 
@@ -88,7 +89,7 @@ const FilterDropdown: React.FC<{
 
     return (
         <div className={`relative ${className}`} ref={ref}>
-            <button onClick={() => setIsOpen(prev => !prev)} className="btn-secondary w-full flex justify-center items-center px-3 py-2">
+            <button onClick={() => setIsOpen(prev => !prev)} className="btn-secondary w-full flex justify-center items-center px-3 py-2 h-full">
                 <span>{value}</span>
             </button>
             {isOpen && (
@@ -135,6 +136,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const [dateFilter, setDateFilter] = useState('Este Mês');
     const [typeFilter, setTypeFilter] = useState('Todos');
+    const [accountFilter, setAccountFilter] = useState('Todos');
     const [installmentFilter, setInstallmentFilter] = useState(false);
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [customDateRange, setCustomDateRange] = useState<{start: Date | null, end: Date | null}>({ start: null, end: null });
@@ -183,7 +185,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, dateFilter, typeFilter, installmentFilter, customDateRange]);
+    }, [searchTerm, dateFilter, typeFilter, installmentFilter, accountFilter, customDateRange]);
 
     const categoryMap = useMemo(() => {
         const map = new Map<string, { item: string, sub: string, cat: string, catType: TransactionType }>();
@@ -197,6 +199,12 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         return map;
     }, [categories]);
     
+    const itemBalanceMap = useMemo(() => {
+        const map = new Map<string, boolean>();
+        categories.forEach(cat => cat.subcategories.forEach(sub => sub.items.forEach(item => map.set(item.id, item.includeInBalance))));
+        return map;
+    }, [categories]);
+
     const accountMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.name])), [accounts]);
     
     const handleDescriptionBlur = () => {
@@ -228,8 +236,19 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             items = items.filter(t => { const tDate = getUTCDate(t.date); return tDate >= start && tDate <= end; });
         }
         
-        if (typeFilter !== 'Todos') {
-            items = items.filter(t => t.type === (typeFilter === 'Entradas' ? TransactionType.INCOME : TransactionType.EXPENSE));
+        if (typeFilter === 'Movimentações') {
+            items = items.filter(t => t.itemId && itemBalanceMap.get(t.itemId) === false);
+        } else {
+            // For Todos, Entradas, Saídas, only show transactions that should be in the balance
+            items = items.filter(t => !t.itemId || itemBalanceMap.get(t.itemId) !== false);
+
+            if (typeFilter !== 'Todos') {
+                items = items.filter(t => t.type === (typeFilter === 'Entradas' ? TransactionType.INCOME : TransactionType.EXPENSE));
+            }
+        }
+        
+        if (accountFilter !== 'Todos') {
+            items = items.filter(t => t.accountId === accountFilter);
         }
 
         if (installmentFilter) {
@@ -246,18 +265,20 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         }
 
         return items.sort((a, b) => getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime());
-    }, [transactions, searchTerm, dateFilter, typeFilter, installmentFilter, customDateRange]);
+    }, [transactions, searchTerm, dateFilter, typeFilter, accountFilter, installmentFilter, customDateRange, itemBalanceMap]);
     
     const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
     const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const { periodIncome, periodExpenses } = useMemo(() => {
         return filteredTransactions.reduce((acc, t) => {
-            if (t.type === TransactionType.INCOME) acc.periodIncome += t.amount;
-            else if (t.type === TransactionType.EXPENSE) acc.periodExpenses += t.amount;
+            if (!t.itemId || itemBalanceMap.get(t.itemId) !== false) {
+                if (t.type === TransactionType.INCOME) acc.periodIncome += t.amount;
+                else if (t.type === TransactionType.EXPENSE) acc.periodExpenses += t.amount;
+            }
             return acc;
         }, { periodIncome: 0, periodExpenses: 0 });
-    }, [filteredTransactions]);
+    }, [filteredTransactions, itemBalanceMap]);
 
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -475,14 +496,22 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         return categories
             .filter(cat => cat.type === type)
             .flatMap(cat => cat.subcategories.flatMap(sub => sub.items.map(item => ({...item, catName: cat.name, subName: sub.name}))))
-            .sort((a,b) => a.name.localeCompare(b.name, 'pt-BR'));
+            .sort((a,b) => {
+                if (a.catName !== b.catName) return a.catName.localeCompare(b.catName, 'pt-BR');
+                if (a.subName !== b.subName) return a.subName.localeCompare(b.subName, 'pt-BR');
+                return a.name.localeCompare(b.name, 'pt-BR');
+            });
     }, [categories, type]);
 
      const expenseCategoryOptions = useMemo(() => {
         return categories
             .filter(cat => cat.type === TransactionType.EXPENSE)
             .flatMap(cat => cat.subcategories.flatMap(sub => sub.items.map(item => ({...item, catName: cat.name, subName: sub.name}))))
-            .sort((a,b) => `${a.catName} ${a.name}`.localeCompare(`${b.catName} ${b.name}`, 'pt-BR'));
+            .sort((a,b) => {
+                if (a.catName !== b.catName) return a.catName.localeCompare(b.catName, 'pt-BR');
+                if (a.subName !== b.subName) return a.subName.localeCompare(b.subName, 'pt-BR');
+                return a.name.localeCompare(b.name, 'pt-BR');
+            });
     }, [categories]);
     
     const handleDateFilterChange = (value: string) => {
@@ -629,10 +658,15 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
             <div className="lg:col-span-7 xl:col-span-8 space-y-6">
                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="relative md:col-span-2">
+                    <div className="relative">
                         {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
-                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10" placeholder="" />
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10 h-full" placeholder="" />
                     </div>
+                    <FilterDropdown 
+                        options={['Todos', ...activeAccounts.map(a => a.name)]}
+                        value={accountFilter === 'Todos' ? 'Todas as Contas' : accounts.find(a => a.id === accountFilter)?.name || 'Todas as Contas'}
+                        onChange={(value) => setAccountFilter(value === 'Todas as Contas' ? 'Todos' : accounts.find(a => a.name === value)?.id || 'Todos')}
+                    />
                     <FilterDropdown 
                         options={['Este Mês', 'Mês Passado', 'Personalizado']}
                         value={dateFilter}
@@ -640,7 +674,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     />
                     <div className="grid grid-cols-2 gap-2">
                         <FilterDropdown 
-                            options={['Todos', 'Entradas', 'Saídas']}
+                            options={['Todos', 'Entradas', 'Saídas', 'Movimentações']}
                             value={typeFilter}
                             onChange={setTypeFilter}
                         />
@@ -667,14 +701,15 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                 <tr>
                                     <th className="px-4 py-3 font-semibold text-left">Data</th>
                                     <th className="px-4 py-3 font-semibold text-left">Descrição</th>
-                                    <th className="px-4 py-3 font-semibold text-left">Categoria</th>
+                                    <th className="px-4 py-3 font-semibold text-left">Conta</th>
+                                    <th className="px-4 py-3 font-semibold text-left">Item</th>
                                     <th className="px-4 py-3 font-semibold text-right">Valor</th>
                                     <th className="px-4 py-3 font-semibold text-center">Ações</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200">
                                 {paginatedTransactions.length === 0 ? (
-                                    <tr><td colSpan={5} className="text-center p-8 text-slate-500">Nenhum lançamento encontrado.</td></tr>
+                                    <tr><td colSpan={6} className="text-center p-8 text-slate-500">Nenhum lançamento encontrado.</td></tr>
                                 ) : (
                                     paginatedTransactions.map(t => {
                                         const categoryInfo = t.itemId ? categoryMap.get(t.itemId) : null;
@@ -683,9 +718,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                         <tr key={t.id} className="hover:bg-gray-50">
                                             <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(t.date)}</td>
                                             <td className="px-4 py-3 text-slate-800 font-medium">{t.description}</td>
+                                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{accountMap.get(t.accountId)}</td>
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${categoryInfo ? (categoryColors[categoryInfo.cat] || defaultCategoryColor) : defaultCategoryColor}`}>
-                                                    {categoryInfo?.cat || 'N/A'}
+                                                    {categoryInfo?.item || 'N/A'}
                                                 </span>
                                             </td>
                                             <td className={`px-4 py-3 text-right font-bold ${isExpense ? 'text-red-500' : 'text-green-500'}`}>
