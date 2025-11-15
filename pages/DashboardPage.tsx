@@ -238,28 +238,82 @@ const DashboardPage: React.FC = () => {
 
     const start = dateRange.start;
     const end = dateRange.end;
-    const startYear = start.getUTCFullYear();
-    const annualGoal = goals[startYear] || 0;
 
+    const calculatePeriodGoal = () => {
+        let totalGoal = 0;
+        
+        const sYear = start.getUTCFullYear();
+        const sMonth = start.getUTCMonth();
+        const sDay = start.getUTCDate();
+
+        const eYear = end.getUTCFullYear();
+        const eMonth = end.getUTCMonth();
+        const eDay = end.getUTCDate();
+        
+        for (let y = sYear; y <= eYear; y++) {
+            const annualGoalForCurrentYear = goals[y] || 0;
+            if (annualGoalForCurrentYear === 0) continue;
+
+            const monthlyGoalForCurrentYear = annualGoalForCurrentYear / 12;
+            
+            const startMonthInLoop = (y === sYear) ? sMonth : 0;
+            const endMonthInLoop = (y === eYear) ? eMonth : 11;
+
+            for (let m = startMonthInLoop; m <= endMonthInLoop; m++) {
+                const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+                const isStartMonth = y === sYear && m === sMonth;
+                const isEndMonth = y === eYear && m === eMonth;
+
+                if (isStartMonth && isEndMonth) { // Range is within a single month
+                    const startDay = sDay;
+                    const endDay = eDay;
+                    if (startDay === 1 && endDay === daysInMonth) {
+                        totalGoal += monthlyGoalForCurrentYear;
+                    } else {
+                        const daysInRange = endDay - startDay + 1;
+                        if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
+                    }
+                } else if (isStartMonth) { // First month of a multi-month range
+                    const startDay = sDay;
+                    if (startDay === 1) {
+                        totalGoal += monthlyGoalForCurrentYear;
+                    } else {
+                        const daysInRange = daysInMonth - startDay + 1;
+                        if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
+                    }
+                } else if (isEndMonth) { // Last month of a multi-month range
+                    const endDay = eDay;
+                    if (endDay === daysInMonth) {
+                        totalGoal += monthlyGoalForCurrentYear;
+                    } else {
+                        const daysInRange = endDay;
+                        if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
+                    }
+                } else { // A full month in between
+                    totalGoal += monthlyGoalForCurrentYear;
+                }
+            }
+        }
+        return totalGoal;
+    };
+
+    const goalValue = calculatePeriodGoal();
+    
     const isSingleMonth = start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth();
 
     if (isSingleMonth) {
       const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
       return {
-        periodSpecificGoal: annualGoal / 12,
+        periodSpecificGoal: goalValue,
         periodSpecificLabel: `Meta Mensal (${monthName})`
       };
     } else {
-      // Different months, calculate based on days
-      const daysInYear = (startYear % 4 === 0 && startYear % 100 !== 0) || startYear % 400 === 0 ? 366 : 365;
-      const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end days
-      
       return {
-          periodSpecificGoal: (annualGoal / daysInYear) * diffDays,
+          periodSpecificGoal: goalValue,
           periodSpecificLabel: 'Meta do Período'
       };
     }
+
   }, [dateRange, goals]);
 
   const { annualSavingsToDate } = useMemo(() => {
