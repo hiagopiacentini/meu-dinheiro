@@ -124,6 +124,11 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [installmentsCount, setInstallmentsCount] = useState('2');
     const [isSplit, setIsSplit] = useState(false);
     const [splitItems, setSplitItems] = useState<SplitItem[]>([{ id: 1, itemId: '', amount: '' }]);
+    const [isChange, setIsChange] = useState(false);
+    const [amountPaid, setAmountPaid] = useState('');
+    const [changeAccountId, setChangeAccountId] = useState('');
+    const [changeItemId, setChangeItemId] = useState('');
+
 
     // Filter State
     const [searchTerm, setSearchTerm] = useState('');
@@ -158,6 +163,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setInstallmentsCount('2');
         setIsSplit(false);
         setSplitItems([{ id: 1, itemId: '', amount: '' }]);
+        setIsChange(false);
+        setAmountPaid('');
+        setChangeAccountId('');
+        setChangeItemId('');
     }, [activeAccounts]);
 
     useEffect(() => {
@@ -228,7 +237,12 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         }
 
         if (searchTerm) {
-            items = items.filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
+            const lowerSearchTerm = searchTerm.toLowerCase();
+            const normalizedSearchTerm = lowerSearchTerm.replace(',', '.');
+            items = items.filter(t => 
+                t.description.toLowerCase().includes(lowerSearchTerm) ||
+                t.amount.toFixed(2).includes(normalizedSearchTerm)
+            );
         }
 
         return items.sort((a, b) => getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime());
@@ -248,6 +262,50 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (type === TransactionType.INCOME && isChange) {
+            const saleAmount = parseFloat(amount);
+            const paidAmount = parseFloat(amountPaid);
+            if (isNaN(saleAmount) || saleAmount <= 0) {
+                alert('O valor da receita deve ser positivo.'); return;
+            }
+            if (isNaN(paidAmount) || paidAmount < saleAmount) {
+                alert('O valor pago deve ser maior ou igual ao valor da receita.'); return;
+            }
+            if (!changeAccountId || !changeItemId || !accountId || !itemId) {
+                alert('Selecione a conta e a categoria para a receita e para o troco.'); return;
+            }
+            
+            const changeAmount = paidAmount - saleAmount;
+            
+            const incomeTransaction: Omit<Transaction, 'id'> = {
+                description,
+                amount: saleAmount,
+                date,
+                type: TransactionType.INCOME,
+                accountId,
+                itemId,
+            };
+            
+            const newTxs = [{ ...incomeTransaction, id: crypto.randomUUID() }];
+    
+            if (changeAmount > 0) {
+                const changeTransaction: Omit<Transaction, 'id'> = {
+                    description: `Troco para: ${description}`,
+                    amount: changeAmount,
+                    date,
+                    type: TransactionType.EXPENSE,
+                    accountId: changeAccountId,
+                    itemId: changeItemId,
+                };
+                newTxs.push({ ...changeTransaction, id: crypto.randomUUID() });
+            }
+            
+            setTransactions(prev => [...prev, ...newTxs]);
+            handleClearForm();
+            return;
+        }
+
 
         const commonData = { description, date, accountId, type };
 
@@ -419,6 +477,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             .flatMap(cat => cat.subcategories.flatMap(sub => sub.items.map(item => ({...item, catName: cat.name, subName: sub.name}))))
             .sort((a,b) => a.name.localeCompare(b.name, 'pt-BR'));
     }, [categories, type]);
+
+     const expenseCategoryOptions = useMemo(() => {
+        return categories
+            .filter(cat => cat.type === TransactionType.EXPENSE)
+            .flatMap(cat => cat.subcategories.flatMap(sub => sub.items.map(item => ({...item, catName: cat.name, subName: sub.name}))))
+            .sort((a,b) => `${a.catName} ${a.name}`.localeCompare(`${b.catName} ${b.name}`, 'pt-BR'));
+    }, [categories]);
     
     const handleDateFilterChange = (value: string) => {
         setDateFilter(value);
@@ -484,6 +549,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     <input type="number" value={installmentsCount} onChange={e => setInstallmentsCount(e.target.value)} required min="2" className="input-style" />
                                 </div>
                             )}
+                             <div>
+                                <label className="text-sm font-medium text-slate-600 mb-1 block">Conta</label>
+                                <select value={accountId} onChange={e => setAccountId(e.target.value)} required className="input-style">
+                                    <option value="" disabled>Selecione uma conta...</option>
+                                    {activeAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                                </select>
+                            </div>
                             {isSplit ? (
                                 <div className="space-y-3 border-t border-slate-200 pt-4">
                                     {splitItems.map((item, index) => (
@@ -492,7 +564,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                                 {index === 0 && <label className="text-sm font-medium text-slate-600 mb-1 block">Item</label>}
                                                 <select value={item.itemId} onChange={e => handleSplitItemChange(item.id, 'itemId', e.target.value)} required className="input-style">
                                                     <option value="" disabled>Selecione...</option>
-                                                    {categoryOptions.map(opt => <option key={opt.id} value={opt.id}>{`${opt.catName} > ${opt.name}`}</option>)}
+                                                    {categoryOptions.map(opt => <option key={opt.id} value={opt.id}>{`${opt.catName} > ${opt.subName} > ${opt.name}`}</option>)}
                                                 </select>
                                             </div>
                                             <div className="col-span-4">
@@ -515,13 +587,37 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     </select>
                                 </div>
                             )}
-                            <div>
-                                <label className="text-sm font-medium text-slate-600 mb-1 block">Conta</label>
-                                <select value={accountId} onChange={e => setAccountId(e.target.value)} required className="input-style">
-                                    <option value="" disabled>Selecione uma conta...</option>
-                                    {activeAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                                </select>
-                            </div>
+                             {type === TransactionType.INCOME && (
+                                <div className="flex items-center pt-4 border-t border-slate-200 mt-4">
+                                    <input type="checkbox" id="change-check" checked={isChange} onChange={e => setIsChange(e.target.checked)} disabled={isEditing} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+                                    <label htmlFor="change-check" className="ml-2 block text-sm text-slate-800">Devolver troco</label>
+                                </div>
+                            )}
+                            {isChange && type === TransactionType.INCOME && (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-sm font-medium text-slate-600 mb-1 block">Valor Pago pelo Cliente</label>
+                                        <input type="number" value={amountPaid} onChange={e => setAmountPaid(e.target.value)} required step="0.01" min={amount || '0'} className="input-style" placeholder="R$ 0,00" />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-medium text-slate-600 mb-1 block">Conta para o Troco</label>
+                                        <select value={changeAccountId} onChange={e => setChangeAccountId(e.target.value)} required className="input-style">
+                                            <option value="" disabled>Selecione uma conta...</option>
+                                            {activeAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                                        </select>
+                                    </div>
+                                     <div>
+                                        <label className="text-sm font-medium text-slate-600 mb-1 block">Categoria do Troco</label>
+                                        <select value={changeItemId} onChange={e => setChangeItemId(e.target.value)} required className="input-style">
+                                            <option value="" disabled>Selecione um item...</option>
+                                            {expenseCategoryOptions.map(opt => <option key={opt.id} value={opt.id}>{`${opt.catName} > ${opt.subName} > ${opt.name}`}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-slate-500">Valor do Troco: <span className="font-semibold">{formatCurrency(Math.max(0, parseFloat(amountPaid || '0') - parseFloat(amount || '0')))}</span></p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <div className="flex items-center space-x-3 mt-6">
                             <button type="button" onClick={handleClearForm} className="btn-secondary w-full">Cancelar</button>
