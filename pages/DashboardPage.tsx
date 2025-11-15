@@ -117,6 +117,12 @@ const DashboardPage: React.FC = () => {
       end: today 
   });
 
+  const itemBalanceMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    categories.forEach(cat => cat.subcategories.forEach(sub => sub.items.forEach(item => map.set(item.id, item.includeInBalance))));
+    return map;
+  }, [categories]);
+
   useEffect(() => {
     const now = new Date();
     const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
@@ -163,8 +169,11 @@ const DashboardPage: React.FC = () => {
       let income = 0;
       let expense = 0;
       filtered.forEach(t => {
-        if (t.type === TransactionType.INCOME) income += t.amount;
-        else if (t.type === TransactionType.EXPENSE) expense += t.amount;
+        const shouldInclude = !t.itemId || itemBalanceMap.get(t.itemId) !== false;
+        if (shouldInclude) {
+            if (t.type === TransactionType.INCOME) income += t.amount;
+            else if (t.type === TransactionType.EXPENSE) expense += t.amount;
+        }
       });
       
       return {
@@ -174,7 +183,7 @@ const DashboardPage: React.FC = () => {
           periodSavings: income - expense,
       };
   
-  }, [transactions, dateRange]);
+  }, [transactions, dateRange, itemBalanceMap]);
 
   const { goalUntilNow, showGoalUntilNow } = useMemo(() => {
     const now = new Date();
@@ -235,86 +244,100 @@ const DashboardPage: React.FC = () => {
     if (!dateRange.start || !dateRange.end) {
       return { periodSpecificGoal: 0, periodSpecificLabel: 'Meta Mensal' };
     }
-
+  
     const start = dateRange.start;
     const end = dateRange.end;
-
+  
+    if (activeFilter === 'Mês Atual') {
+      const year = start.getUTCFullYear();
+      const annualGoal = goals[year] || 0;
+      const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
+      return {
+        periodSpecificGoal: annualGoal / 12,
+        periodSpecificLabel: `Meta Mensal (${monthName})`
+      };
+    }
+  
     const calculatePeriodGoal = () => {
-        let totalGoal = 0;
-        
-        const sYear = start.getUTCFullYear();
-        const sMonth = start.getUTCMonth();
-        const sDay = start.getUTCDate();
-
-        const eYear = end.getUTCFullYear();
-        const eMonth = end.getUTCMonth();
-        const eDay = end.getUTCDate();
-        
-        for (let y = sYear; y <= eYear; y++) {
-            const annualGoalForCurrentYear = goals[y] || 0;
-            if (annualGoalForCurrentYear === 0) continue;
-
-            const monthlyGoalForCurrentYear = annualGoalForCurrentYear / 12;
-            
-            const startMonthInLoop = (y === sYear) ? sMonth : 0;
-            const endMonthInLoop = (y === eYear) ? eMonth : 11;
-
-            for (let m = startMonthInLoop; m <= endMonthInLoop; m++) {
-                const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-                const isStartMonth = y === sYear && m === sMonth;
-                const isEndMonth = y === eYear && m === eMonth;
-
-                if (isStartMonth && isEndMonth) { // Range is within a single month
-                    const startDay = sDay;
-                    const endDay = eDay;
-                    if (startDay === 1 && endDay === daysInMonth) {
-                        totalGoal += monthlyGoalForCurrentYear;
-                    } else {
-                        const daysInRange = endDay - startDay + 1;
-                        if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
-                    }
-                } else if (isStartMonth) { // First month of a multi-month range
-                    const startDay = sDay;
-                    if (startDay === 1) {
-                        totalGoal += monthlyGoalForCurrentYear;
-                    } else {
-                        const daysInRange = daysInMonth - startDay + 1;
-                        if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
-                    }
-                } else if (isEndMonth) { // Last month of a multi-month range
-                    const endDay = eDay;
-                    if (endDay === daysInMonth) {
-                        totalGoal += monthlyGoalForCurrentYear;
-                    } else {
-                        const daysInRange = endDay;
-                        if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
-                    }
-                } else { // A full month in between
-                    totalGoal += monthlyGoalForCurrentYear;
-                }
+      let totalGoal = 0;
+      const sYear = start.getUTCFullYear();
+      const sMonth = start.getUTCMonth();
+      const sDay = start.getUTCDate();
+      const eYear = end.getUTCFullYear();
+      const eMonth = end.getUTCMonth();
+      const eDay = end.getUTCDate();
+  
+      for (let y = sYear; y <= eYear; y++) {
+        const annualGoalForCurrentYear = goals[y] || 0;
+        if (annualGoalForCurrentYear === 0) continue;
+        const monthlyGoalForCurrentYear = annualGoalForCurrentYear / 12;
+        const startMonthInLoop = (y === sYear) ? sMonth : 0;
+        const endMonthInLoop = (y === eYear) ? eMonth : 11;
+  
+        for (let m = startMonthInLoop; m <= endMonthInLoop; m++) {
+          const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+          const isStartMonth = y === sYear && m === sMonth;
+          const isEndMonth = y === eYear && m === eMonth;
+  
+          if (isStartMonth && isEndMonth) {
+            const startDay = sDay;
+            const endDay = eDay;
+            if (startDay === 1 && endDay === daysInMonth) {
+              totalGoal += monthlyGoalForCurrentYear;
+            } else {
+              const daysInRange = endDay - startDay + 1;
+              if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
             }
+          } else if (isStartMonth) {
+            const startDay = sDay;
+            if (startDay === 1) {
+              totalGoal += monthlyGoalForCurrentYear;
+            } else {
+              const daysInRange = daysInMonth - startDay + 1;
+              if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
+            }
+          } else if (isEndMonth) {
+            const endDay = eDay;
+            if (endDay === daysInMonth) {
+              totalGoal += monthlyGoalForCurrentYear;
+            } else {
+              const daysInRange = endDay;
+              if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
+            }
+          } else {
+            totalGoal += monthlyGoalForCurrentYear;
+          }
         }
-        return totalGoal;
+      }
+      return totalGoal;
     };
-
+  
     const goalValue = calculatePeriodGoal();
-    
     const isSingleMonth = start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth();
-
-    if (isSingleMonth) {
+  
+    if (isSingleMonth && activeFilter !== 'Mês Atual') {
       const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
       return {
         periodSpecificGoal: goalValue,
         periodSpecificLabel: `Meta Mensal (${monthName})`
       };
-    } else {
+    } else if (!isSingleMonth) {
       return {
-          periodSpecificGoal: goalValue,
-          periodSpecificLabel: 'Meta do Período'
+        periodSpecificGoal: goalValue,
+        periodSpecificLabel: 'Meta do Período'
       };
     }
-
-  }, [dateRange, goals]);
+  
+    // Fallback for Mês Atual if not caught above (though it should be)
+    const year = start.getUTCFullYear();
+    const annualGoal = goals[year] || 0;
+    const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
+    return {
+      periodSpecificGoal: annualGoal / 12,
+      periodSpecificLabel: `Meta Mensal (${monthName})`
+    };
+  
+  }, [dateRange, goals, activeFilter]);
 
   const { annualSavingsToDate } = useMemo(() => {
     if (!dateRange.start) return { annualSavingsToDate: 0 };
@@ -331,13 +354,16 @@ const DashboardPage: React.FC = () => {
         const tDate = getUTCDate(t.date);
         return tDate >= startOfYear && tDate <= endOfPeriod;
     }).reduce((acc, t) => {
-        if (t.type === TransactionType.INCOME) return acc + t.amount;
-        if (t.type === TransactionType.EXPENSE) return acc - t.amount;
+        const shouldInclude = !t.itemId || itemBalanceMap.get(t.itemId) !== false;
+        if(shouldInclude){
+            if (t.type === TransactionType.INCOME) return acc + t.amount;
+            if (t.type === TransactionType.EXPENSE) return acc - t.amount;
+        }
         return acc;
     }, 0);
     
     return { annualSavingsToDate: savings };
-  }, [transactions, dateRange.start]);
+  }, [transactions, dateRange.start, itemBalanceMap]);
   
   const { annualPeriodGoal, annualPeriodLabel } = useMemo(() => {
     if (!dateRange.start || !dateRange.end) return { annualPeriodGoal: 0, annualPeriodLabel: 'Meta do Período' };
@@ -383,6 +409,9 @@ const DashboardPage: React.FC = () => {
       });
 
       filteredTransactions.forEach(t => {
+          const shouldInclude = !t.itemId || itemBalanceMap.get(t.itemId) !== false;
+          if (!shouldInclude) return;
+
           const tDate = getUTCDate(t.date);
           const monthIndex = tDate.getUTCMonth();
           const year = tDate.getUTCFullYear();
@@ -400,7 +429,7 @@ const DashboardPage: React.FC = () => {
           .map(([name, values]) => ({ name, ...values }))
           .sort((a, b) => a.monthIndex - b.monthIndex) 
           .filter(d => (dateRange.end?.getUTCFullYear() || 0) > (dateRange.start?.getUTCFullYear() || 1) || d.Receitas > 0 || d.Despesas > 0); 
-  }, [filteredTransactions, dateRange]);
+  }, [filteredTransactions, dateRange, itemBalanceMap]);
 
 
   const accountBalances = useMemo(() => {
@@ -502,7 +531,7 @@ const DashboardPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatCard title="Resultado" amount={periodIncome - periodExpenses} />
+          <StatCard title="Resultado" amount={periodSavings} />
           <StatCard title="Receitas" amount={periodIncome} />
           <StatCard title="Despesas" amount={periodExpenses} />
       </div>

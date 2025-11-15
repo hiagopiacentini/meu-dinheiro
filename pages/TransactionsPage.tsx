@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Transaction, Account, Category, TransactionType, Loan, CategoryItem } from '../types';
@@ -67,8 +68,7 @@ const FilterDropdown: React.FC<{
     options: string[];
     value: string;
     onChange: (value: string) => void;
-    className?: string;
-}> = ({ options, value, onChange, className }) => {
+}> = ({ options, value, onChange }) => {
     const [isOpen, setIsOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -88,7 +88,7 @@ const FilterDropdown: React.FC<{
     };
 
     return (
-        <div className={`relative ${className}`} ref={ref}>
+        <div className="relative h-full" ref={ref}>
             <button onClick={() => setIsOpen(prev => !prev)} className="btn-secondary w-full flex justify-center items-center px-3 py-2 h-full">
                 <span>{value}</span>
             </button>
@@ -129,6 +129,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [amountPaid, setAmountPaid] = useState('');
     const [changeAccountId, setChangeAccountId] = useState('');
     const [changeItemId, setChangeItemId] = useState('');
+    const [peerAccountId, setPeerAccountId] = useState('');
 
 
     // Filter State
@@ -169,6 +170,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setAmountPaid('');
         setChangeAccountId('');
         setChangeItemId('');
+        setPeerAccountId('');
     }, [activeAccounts]);
 
     useEffect(() => {
@@ -283,6 +285,33 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+
+        const isTransfer = itemBalanceMap.get(itemId) === false;
+        
+        if (isTransfer) {
+            if (!peerAccountId || !accountId || !amount) {
+                alert('Para transferências, selecione as contas de origem, destino e o valor.');
+                return;
+            }
+            const transferAmount = parseFloat(amount);
+            const sourceAccId = type === TransactionType.EXPENSE ? accountId : peerAccountId;
+            const destAccId = type === TransactionType.EXPENSE ? peerAccountId : accountId;
+
+            const expenseTx: Omit<Transaction, 'id'> = {
+                description: `Transferência para ${accountMap.get(destAccId)}`,
+                amount: transferAmount, date, type: TransactionType.EXPENSE,
+                accountId: sourceAccId, itemId
+            };
+            const incomeTx: Omit<Transaction, 'id'> = {
+                description: `Transferência de ${accountMap.get(sourceAccId)}`,
+                amount: transferAmount, date, type: TransactionType.INCOME,
+                accountId: destAccId, itemId
+            };
+
+            setTransactions(prev => [...prev, { ...expenseTx, id: crypto.randomUUID() }, { ...incomeTx, id: crypto.randomUUID() }]);
+            handleClearForm();
+            return;
+        }
 
         if (type === TransactionType.INCOME && isChange) {
             const saleAmount = parseFloat(amount);
@@ -532,6 +561,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const maxDate = isInstallment ? undefined : new Date().toISOString().split('T')[0];
 
     const isEditing = editingTransaction || editingInstallmentGroup;
+    const isTransfer = itemBalanceMap.get(itemId) === false;
     
     return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -616,6 +646,24 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     </select>
                                 </div>
                             )}
+                             {isTransfer && !isEditing && (
+                                <div>
+                                    <label className="text-sm font-medium text-slate-600 mb-1 block">
+                                        {type === TransactionType.EXPENSE ? 'Conta de Destino' : 'Conta de Origem'}
+                                    </label>
+                                    <select 
+                                        value={peerAccountId} 
+                                        onChange={e => setPeerAccountId(e.target.value)} 
+                                        required 
+                                        className="input-style"
+                                    >
+                                        <option value="" disabled>Selecione a outra conta...</option>
+                                        {activeAccounts
+                                            .filter(acc => acc.id !== accountId)
+                                            .map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
                              {type === TransactionType.INCOME && (
                                 <div className="flex items-center pt-4 border-t border-slate-200 mt-4">
                                     <input type="checkbox" id="change-check" checked={isChange} onChange={e => setIsChange(e.target.checked)} disabled={isEditing} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
@@ -657,23 +705,27 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             </div>
 
             <div className="lg:col-span-7 xl:col-span-8 space-y-6">
-                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="relative">
+                 <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                    <div className="relative md:col-span-3">
                         {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
                         <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10 h-full" placeholder="" />
                     </div>
-                    <FilterDropdown 
-                        options={['Todos', ...activeAccounts.map(a => a.name)]}
-                        value={accountFilter === 'Todos' ? 'Todas as Contas' : accounts.find(a => a.id === accountFilter)?.name || 'Todas as Contas'}
-                        onChange={(value) => setAccountFilter(value === 'Todas as Contas' ? 'Todos' : accounts.find(a => a.name === value)?.id || 'Todos')}
-                    />
-                    <FilterDropdown 
-                        options={['Este Mês', 'Mês Passado', 'Personalizado']}
-                        value={dateFilter}
-                        onChange={handleDateFilterChange}
-                    />
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="md:col-span-3">
                         <FilterDropdown 
+                            options={['Todos', ...activeAccounts.map(a => a.name)]}
+                            value={accountFilter === 'Todos' ? 'Todas as Contas' : accounts.find(a => a.id === accountFilter)?.name || 'Todas as Contas'}
+                            onChange={(value) => setAccountFilter(value === 'Todas as Contas' ? 'Todos' : accounts.find(a => a.name === value)?.id || 'Todos')}
+                        />
+                    </div>
+                    <div className="md:col-span-2">
+                        <FilterDropdown 
+                            options={['Este Mês', 'Mês Passado', 'Personalizado']}
+                            value={dateFilter}
+                            onChange={handleDateFilterChange}
+                        />
+                    </div>
+                    <div className="md:col-span-4 grid grid-cols-2 gap-2">
+                         <FilterDropdown 
                             options={['Todos', 'Entradas', 'Saídas', 'Movimentações']}
                             value={typeFilter}
                             onChange={setTypeFilter}
