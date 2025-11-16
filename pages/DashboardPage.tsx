@@ -10,7 +10,15 @@ import DownArrowIcon from '../components/icons/DownArrowIcon';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-// Helper function to create a UTC date from a local date string to avoid timezone issues.
+// Helper to get the current date in GMT-4
+const getNowGmtMinus4 = () => {
+    const now = new Date();
+    // Offset in milliseconds for GMT-4
+    const offset = -4 * 60 * 60 * 1000;
+    const localOffset = now.getTimezoneOffset() * 60 * 1000;
+    return new Date(now.getTime() + localOffset + offset);
+}
+
 const getUTCDate = (dateString: string) => {
     const date = new Date(dateString);
     return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
@@ -89,7 +97,7 @@ const TopListItem: React.FC<{ index: number, description: string, percentage: st
 
 const getTimeAgo = (dateString: string): string => {
     const date = getUTCDate(dateString);
-    const now = new Date();
+    const now = getNowGmtMinus4();
     const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
     const diffInMs = today.getTime() - date.getTime();
@@ -111,7 +119,7 @@ const DashboardPage: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState('Mês Atual');
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   
-  const today = new Date();
+  const today = getNowGmtMinus4();
   const [dateRange, setDateRange] = useState<{start: Date | null, end: Date | null}>({ 
       start: new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1)), 
       end: today 
@@ -124,14 +132,14 @@ const DashboardPage: React.FC = () => {
   }, [categories]);
 
   useEffect(() => {
-    const now = new Date();
-    const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+    const now = getNowGmtMinus4();
+    const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
     let startUTC: Date;
 
     if (activeFilter === 'Mês Atual') {
-      startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      startUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
     } else if (activeFilter === 'Este Ano') {
-      startUTC = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+      startUTC = new Date(Date.UTC(now.getFullYear(), 0, 1));
     } else {
       return;
     }
@@ -186,9 +194,9 @@ const DashboardPage: React.FC = () => {
   }, [transactions, dateRange, itemBalanceMap]);
 
   const { goalUntilNow, showGoalUntilNow } = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getUTCFullYear();
-    const currentMonth = now.getUTCMonth();
+    const now = getNowGmtMinus4();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
     
     let isWithinCurrentMonth = false;
     if (activeFilter === 'Mês Atual') {
@@ -229,7 +237,7 @@ const DashboardPage: React.FC = () => {
         calculatedGoal = (monthlyGoal / daysInCurrentMonth) * diffDays;
 
     } else { // 'Mês Atual' filter
-        const currentDayOfMonth = now.getUTCDate();
+        const currentDayOfMonth = now.getDate();
         const dailyGoal = monthlyGoal / daysInCurrentMonth;
         calculatedGoal = dailyGoal * currentDayOfMonth;
     }
@@ -282,7 +290,10 @@ const DashboardPage: React.FC = () => {
                 const isStartMonth = y === sYear && m === sMonth;
                 const isEndMonth = y === eYear && m === eMonth;
 
-                if (isStartMonth) {
+                if (isStartMonth && isEndMonth) { // The whole range is within a single month
+                    const daysInRange = eDay - sDay + 1;
+                    if (daysInMonth > 0) totalGoal += (monthlyGoalForCurrentYear / daysInMonth) * daysInRange;
+                } else if (isStartMonth) {
                     if (sDay === 1) { // Full starting month
                         totalGoal += monthlyGoalForCurrentYear;
                     } else { // Partial starting month
@@ -313,13 +324,12 @@ const DashboardPage: React.FC = () => {
 
   const { annualSavingsToDate } = useMemo(() => {
     if (!dateRange.start) return { annualSavingsToDate: 0 };
-
+    const now = getNowGmtMinus4();
     const year = dateRange.start.getUTCFullYear();
     const startOfYear = new Date(Date.UTC(year, 0, 1));
-    const now = new Date();
     
-    const endOfPeriod = year === now.getUTCFullYear() 
-        ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
+    const endOfPeriod = year === now.getFullYear() 
+        ? new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999))
         : new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
 
     const savings = transactions.filter(t => {
@@ -374,7 +384,7 @@ const DashboardPage: React.FC = () => {
       
       const dataMap = new Map<string, { Receitas: number, Despesas: number, monthIndex: number }>();
 
-      const yearForAxis = dateRange.start?.getUTCFullYear() || new Date().getFullYear();
+      const yearForAxis = dateRange.start?.getUTCFullYear() || getNowGmtMinus4().getFullYear();
 
       monthNames.forEach((name, index) => {
           dataMap.set(`${name}/${yearForAxis}`, { Receitas: 0, Despesas: 0, monthIndex: index });
@@ -456,9 +466,9 @@ const DashboardPage: React.FC = () => {
     }, [categories]);
 
     const recentTransactionsForDashboard = useMemo(() => {
-        const now = new Date();
-        const currentMonth = now.getUTCMonth();
-        const currentYear = now.getUTCFullYear();
+        const now = getNowGmtMinus4();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
 
         const singleTransactions = transactions.filter(t => !t.installmentGroupId && (t.type === TransactionType.INCOME || t.type === TransactionType.EXPENSE));
 

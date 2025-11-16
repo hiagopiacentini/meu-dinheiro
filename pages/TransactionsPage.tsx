@@ -15,7 +15,15 @@ import ChevronDownIcon from '../components/icons/ChevronDownIcon';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-// Helper function to create a UTC date from a local date string to avoid timezone issues.
+// Helper to get the current date in GMT-4
+const getNowGmtMinus4 = () => {
+    const now = new Date();
+    // Offset in milliseconds for GMT-4
+    const offset = -4 * 60 * 60 * 1000;
+    const localOffset = now.getTimezoneOffset() * 60 * 1000;
+    return new Date(now.getTime() + localOffset + offset);
+}
+
 const getUTCDate = (dateString: string) => {
     const date = new Date(dateString);
     return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
@@ -111,15 +119,21 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [accounts] = useLocalStorage<Account[]>('accounts', []);
     const [categories] = useLocalStorage<Category[]>('categories', []);
     const [loans, setLoans] = useLocalStorage<Loan[]>('loans', []);
+    
+    // State to remember last used form fields
+    const [lastUsedDetails, setLastUsedDetails] = useState({
+        accountId: '',
+        type: TransactionType.EXPENSE,
+    });
 
     // Form State
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [editingInstallmentGroup, setEditingInstallmentGroup] = useState<Transaction | null>(null);
-    const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
+    const [type, setType] = useState<TransactionType>(lastUsedDetails.type);
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [accountId, setAccountId] = useState('');
+    const [accountId, setAccountId] = useState(lastUsedDetails.accountId);
     const [itemId, setItemId] = useState('');
     const [isInstallment, setIsInstallment] = useState(false);
     const [installmentsCount, setInstallmentsCount] = useState('2');
@@ -156,11 +170,11 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const handleClearForm = useCallback(() => {
         setEditingTransaction(null);
         setEditingInstallmentGroup(null);
-        setType(TransactionType.EXPENSE);
+        setType(lastUsedDetails.type);
         setDescription('');
         setAmount('');
         setDate(new Date().toISOString().split('T')[0]);
-        setAccountId(activeAccounts.length > 0 ? activeAccounts[0].id : '');
+        setAccountId(lastUsedDetails.accountId || (activeAccounts.length > 0 ? activeAccounts[0].id : ''));
         setItemId('');
         setIsInstallment(false);
         setInstallmentsCount('2');
@@ -171,7 +185,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setChangeAccountId('');
         setChangeItemId('');
         setPeerAccountId('');
-    }, [activeAccounts]);
+    }, [activeAccounts, lastUsedDetails]);
 
     useEffect(() => {
         if (addTransactionTrigger > 0) {
@@ -181,9 +195,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     useEffect(() => {
         if (!editingTransaction && activeAccounts.length > 0 && !accountId) {
-            setAccountId(activeAccounts[0].id);
+             setAccountId(lastUsedDetails.accountId || activeAccounts[0].id);
+             setType(lastUsedDetails.type);
         }
-    }, [editingTransaction, activeAccounts, accountId]);
+    }, [editingTransaction, activeAccounts, accountId, lastUsedDetails]);
     
     useEffect(() => {
         setCurrentPage(1);
@@ -223,14 +238,14 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const filteredTransactions = useMemo(() => {
         let items = [...transactions];
         
-        const now = new Date();
+        const now = getNowGmtMinus4();
         if (dateFilter === 'Este Mês') {
-            const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-            const endOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+            const startOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+            const endOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
             items = items.filter(t => { const tDate = getUTCDate(t.date); return tDate >= startOfMonth && tDate <= endOfMonth; });
         } else if (dateFilter === 'Mês Passado') {
-             const startOfLastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-             const endOfLastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0, 23, 59, 59, 999));
+             const startOfLastMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
+             const endOfLastMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
              items = items.filter(t => { const tDate = getUTCDate(t.date); return tDate >= startOfLastMonth && tDate <= endOfLastMonth; });
         } else if (dateFilter === 'Personalizado' && customDateRange.start && customDateRange.end) {
             const start = new Date(customDateRange.start.getTime()); start.setUTCHours(0,0,0,0);
@@ -240,14 +255,12 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         
         if (typeFilter === 'Movimentações') {
             items = items.filter(t => t.itemId && itemBalanceMap.get(t.itemId) === false);
-        } else {
-            // For Todos, Entradas, Saídas, only show transactions that should be in the balance
-            items = items.filter(t => !t.itemId || itemBalanceMap.get(t.itemId) !== false);
-
-            if (typeFilter !== 'Todos') {
-                items = items.filter(t => t.type === (typeFilter === 'Entradas' ? TransactionType.INCOME : TransactionType.EXPENSE));
-            }
+        } else if (typeFilter === 'Entradas') {
+             items = items.filter(t => t.type === TransactionType.INCOME && (!t.itemId || itemBalanceMap.get(t.itemId) !== false));
+        } else if (typeFilter === 'Saídas') {
+            items = items.filter(t => t.type === TransactionType.EXPENSE && (!t.itemId || itemBalanceMap.get(t.itemId) !== false));
         }
+        // For 'Todos', no type filter is applied, showing all items.
         
         if (accountFilter !== 'Todos') {
             items = items.filter(t => t.accountId === accountFilter);
@@ -285,6 +298,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Update last used details before clearing form
+        setLastUsedDetails({ accountId, type });
 
         const isTransfer = itemBalanceMap.get(itemId) === false;
         

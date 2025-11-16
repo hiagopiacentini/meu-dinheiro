@@ -34,11 +34,11 @@ const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, categories 
   const [activeData, setActiveData] = useState<{ name: string, value: number } | null>(null);
 
   const { chartData, totalExpenses } = useMemo(() => {
-    const itemToCategoryMap = new Map<string, string>();
+    const itemInfoMap = new Map<string, { categoryName: string, includeInBalance: boolean }>();
     categories.forEach(cat => {
       cat.subcategories.forEach(sub => {
         sub.items.forEach(item => {
-          itemToCategoryMap.set(item.id, cat.name);
+          itemInfoMap.set(item.id, { categoryName: cat.name, includeInBalance: item.includeInBalance });
         });
       });
     });
@@ -46,9 +46,14 @@ const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, categories 
     const expenseData = new Map<string, number>();
     let total = 0;
     transactions
-      .filter(t => t.type === TransactionType.EXPENSE && t.itemId)
+      .filter(t => {
+          if (t.type !== TransactionType.EXPENSE || !t.itemId) return false;
+          const itemInfo = itemInfoMap.get(t.itemId);
+          // Only include if it's meant to be in the balance
+          return itemInfo ? itemInfo.includeInBalance : true; 
+      })
       .forEach(t => {
-        const categoryName = itemToCategoryMap.get(t.itemId!) || 'Outros';
+        const categoryName = itemInfoMap.get(t.itemId!)?.categoryName || 'Outros';
         const currentAmount = expenseData.get(categoryName) || 0;
         expenseData.set(categoryName, currentAmount + t.amount);
         total += t.amount;

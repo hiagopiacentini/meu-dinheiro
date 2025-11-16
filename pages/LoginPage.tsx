@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { sampleAccounts, sampleTransactions, sampleCategories, sampleLoans, sampleGoals } from '../data/demoData';
 
 interface LoginPageProps {
   onLogin: () => void;
@@ -10,11 +11,24 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
+  const handleDemoLogin = () => {
+    // Clear existing data and set demo data
+    localStorage.setItem('accounts', JSON.stringify(sampleAccounts));
+    localStorage.setItem('transactions', JSON.stringify(sampleTransactions));
+    localStorage.setItem('categories', JSON.stringify(sampleCategories));
+    localStorage.setItem('loans', JSON.stringify(sampleLoans));
+    localStorage.setItem('goals', JSON.stringify(sampleGoals));
+    onLogin();
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (email === 'hiago.vha@gmail.com' && password === 'nbt1515') {
       setError('');
       onLogin();
+    } else if (email === 'alebarros.vha@gmail.com' && password === 'nbt1515') {
+      setError('');
+      handleDemoLogin();
     } else {
       setError('Email ou senha inválidos.');
     }
@@ -63,6 +77,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               <button type="submit" className="btn-primary w-full py-3">
                 Entrar
               </button>
+            </div>
+            <div className="text-center text-sm text-slate-500">
+                <p>Use <span className="font-semibold text-slate-600">alebarros.vha@gmail.com</span> e senha <span className="font-semibold text-slate-600">nbt1515</span> para uma demonstração.</p>
             </div>
           </form>
         </div>
