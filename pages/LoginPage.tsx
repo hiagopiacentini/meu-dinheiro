@@ -41,7 +41,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <h1 className="text-4xl font-bold text-slate-900 tracking-tight text-center mb-2">
             Sobra+
           </h1>
-          <p className="text-center text-slate-500 mb-8">A organização de hoje é a tranquilidade de amanhã.</p>
+          <p className="text-center text-slate-500 mb-8">Acesse sua conta para continuar.</p>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
