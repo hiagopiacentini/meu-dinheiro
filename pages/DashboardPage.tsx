@@ -7,8 +7,13 @@ import CategoryChart from '../components/CategoryChart';
 import DateRangePickerModal from '../components/DateRangePickerModal';
 import UpArrowIcon from '../components/icons/UpArrowIcon';
 import DownArrowIcon from '../components/icons/DownArrowIcon';
+import { sampleCategories } from '../data/demoData';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()).toLocaleDateString('pt-BR');
+};
 
 // Helper to get the current date in GMT-4
 const getNowGmtMinus4 = () => {
@@ -95,24 +100,9 @@ const TopListItem: React.FC<{ index: number, description: string, percentage: st
     </div>
 );
 
-const getTimeAgo = (dateString: string): string => {
-    const date = getUTCDate(dateString);
-    const now = getNowGmtMinus4();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-
-    const diffInMs = today.getTime() - date.getTime();
-    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-
-    if (diffInDays === 0) return 'Hoje';
-    if (diffInDays === 1) return 'Ontem';
-    if (diffInDays > 1) return `${diffInDays} dias atrás`;
-    return 'Recentemente';
-};
-
-
 const DashboardPage: React.FC = () => {
   const [transactions] = useLocalStorage<Transaction[]>('transactions', []);
-  const [categories] = useLocalStorage<Category[]>('categories', []);
+  const [categories] = useLocalStorage<Category[]>('categories', sampleCategories);
   const [accounts] = useLocalStorage<Account[]>('accounts', []);
   const [goals] = useLocalStorage<AnnualGoals>('goals', {});
 
@@ -430,22 +420,28 @@ const DashboardPage: React.FC = () => {
   }, [accounts, transactions]);
 
   const topExpenses = useMemo(() => {
-    const total = filteredTransactions.filter(t => t.type === TransactionType.EXPENSE).reduce((sum, t) => sum + t.amount, 0);
-    return filteredTransactions
-        .filter(t => t.type === TransactionType.EXPENSE)
+    const expenseTransactions = filteredTransactions.filter(t => 
+        t.type === TransactionType.EXPENSE && 
+        (!t.itemId || itemBalanceMap.get(t.itemId) !== false)
+    );
+    const total = expenseTransactions.reduce((sum, t) => sum + t.amount, 0);
+    return expenseTransactions
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 4)
         .map(t => ({...t, percentage: total > 0 ? ((t.amount / total) * 100).toFixed(1) + '% do total' : '0% do total' }));
-  }, [filteredTransactions]);
+  }, [filteredTransactions, itemBalanceMap]);
   
   const topIncomes = useMemo(() => {
-    const total = filteredTransactions.filter(t => t.type === TransactionType.INCOME).reduce((sum, t) => sum + t.amount, 0);
-    return filteredTransactions
-        .filter(t => t.type === TransactionType.INCOME)
+    const incomeTransactions = filteredTransactions.filter(t => 
+        t.type === TransactionType.INCOME && 
+        (!t.itemId || itemBalanceMap.get(t.itemId) !== false)
+    );
+    const total = incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
+    return incomeTransactions
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 4)
         .map(t => ({...t, percentage: total > 0 ? ((t.amount / total) * 100).toFixed(1) + '% do total' : '0% do total' }));
-  }, [filteredTransactions]);
+  }, [filteredTransactions, itemBalanceMap]);
   
     const itemToCategoryMap = useMemo(() => {
         const map = new Map<string, { name: string, color?: string }>();
@@ -590,7 +586,7 @@ const DashboardPage: React.FC = () => {
                             description={t.description}
                             category={category?.name || 'Sem Categoria'}
                             amount={`${t.type === TransactionType.EXPENSE ? '-' : '+'} ${formatCurrency(t.amount)}`}
-                            time={getTimeAgo(t.date)}
+                            time={formatDate(t.date)}
                         />
                     ))
                 ) : (

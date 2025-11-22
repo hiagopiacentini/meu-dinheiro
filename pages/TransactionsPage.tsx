@@ -11,6 +11,7 @@ import XIcon from '../components/icons/XIcon';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
 import ChevronDownIcon from '../components/icons/ChevronDownIcon';
+import { sampleCategories } from '../data/demoData';
 
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -117,7 +118,7 @@ const FilterDropdown: React.FC<{
 const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTransactionTrigger }) => {
     const [transactions, setTransactions] = useLocalStorage<Transaction[]>('transactions', []);
     const [accounts] = useLocalStorage<Account[]>('accounts', []);
-    const [categories] = useLocalStorage<Category[]>('categories', []);
+    const [categories] = useLocalStorage<Category[]>('categories', sampleCategories);
     const [loans, setLoans] = useLocalStorage<Loan[]>('loans', []);
     
     // State to remember last used form fields
@@ -236,7 +237,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     };
 
     const filteredTransactions = useMemo(() => {
-        let items = [...transactions];
+        // First reverse the transactions so newer ones (by insertion order) are first.
+        // This effectively ensures LIFO for transactions on the same day when sorted by date.
+        let items = [...transactions].reverse();
         
         const now = getNowGmtMinus4();
         if (dateFilter === 'Este Mês') {
@@ -279,6 +282,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             );
         }
 
+        // Sort by date. Stable sort + reversed input ensures newer items first for same date.
         return items.sort((a, b) => getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime());
     }, [transactions, searchTerm, dateFilter, typeFilter, accountFilter, installmentFilter, customDateRange, itemBalanceMap]);
     
@@ -324,7 +328,26 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                 accountId: destAccId, itemId
             };
 
-            setTransactions(prev => [...prev, { ...expenseTx, id: crypto.randomUUID() }, { ...incomeTx, id: crypto.randomUUID() }]);
+            if (editingTransaction) {
+                // When editing a transfer, remove the old pair and add the new pair
+                const oldTx = editingTransaction;
+                const partnerTx = transactions.find(t => 
+                     t.id !== oldTx.id &&
+                     t.date === oldTx.date &&
+                     t.amount === oldTx.amount &&
+                     t.itemId === oldTx.itemId &&
+                     t.type !== oldTx.type
+                );
+
+                const idsToRemove = [oldTx.id];
+                if (partnerTx) idsToRemove.push(partnerTx.id);
+
+                const remainingTxs = transactions.filter(t => !idsToRemove.includes(t.id));
+                setTransactions([...remainingTxs, { ...expenseTx, id: crypto.randomUUID() }, { ...incomeTx, id: crypto.randomUUID() }]);
+
+            } else {
+                setTransactions(prev => [...prev, { ...expenseTx, id: crypto.randomUUID() }, { ...incomeTx, id: crypto.randomUUID() }]);
+            }
             handleClearForm();
             return;
         }
@@ -501,6 +524,21 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             setItemId(transaction.itemId || '');
             setIsInstallment(false);
             setIsSplit(false);
+
+            // Check if it's a transfer and try to find the partner account
+            // Also rely on itemBalanceMap to ensure isTransfer logic works
+            if (transaction.itemId && itemBalanceMap.get(transaction.itemId) === false) {
+                const partner = transactions.find(t => 
+                     t.id !== transaction.id &&
+                     t.date === transaction.date &&
+                     t.amount === transaction.amount &&
+                     t.itemId === transaction.itemId &&
+                     t.type !== transaction.type
+                );
+                if (partner) {
+                    setPeerAccountId(partner.accountId);
+                }
+            }
         }
     };
 
@@ -517,6 +555,24 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                    alert('Este lançamento está associado a um empréstimo e não pode ser excluído diretamente.');
                    return;
                 }
+
+                // Check if it's a transfer and delete the partner transaction as well
+                const isTransfer = txToDelete.itemId && itemBalanceMap.get(txToDelete.itemId) === false;
+                if (isTransfer) {
+                    const partner = transactions.find(t => 
+                        t.id !== txToDelete.id &&
+                        t.date === txToDelete.date &&
+                        t.amount === txToDelete.amount &&
+                        t.itemId === txToDelete.itemId &&
+                        t.type !== txToDelete.type
+                   );
+                   
+                   if (partner) {
+                       setTransactions(prev => prev.filter(t => t.id !== id && t.id !== partner.id));
+                       return;
+                   }
+                }
+
                 setTransactions(prev => prev.filter(t => t.id !== id));
             }
         }
@@ -662,7 +718,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     </select>
                                 </div>
                             )}
-                             {isTransfer && !isEditing && (
+                             {isTransfer && (
                                 <div>
                                     <label className="text-sm font-medium text-slate-600 mb-1 block">
                                         {type === TransactionType.EXPENSE ? 'Conta de Destino' : 'Conta de Origem'}
