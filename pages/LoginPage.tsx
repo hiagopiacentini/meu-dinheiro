@@ -41,7 +41,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <h1 className="text-4xl font-bold text-slate-900 tracking-tight text-center mb-2">
             Sobra+
           </h1>
-          <p className="text-center text-slate-500 mb-8">Acesse sua conta para continuar</p>
+          <p className="text-center text-slate-500 mb-8">A organização de hoje é a tranquilidade de amanhã.</p>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
@@ -77,9 +77,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               <button type="submit" className="btn-primary w-full py-3">
                 Entrar
               </button>
-            </div>
-            <div className="text-center text-sm text-slate-500">
-                <p>Use <span className="font-semibold text-slate-600">alebarros.vha@gmail.com</span> e senha <span className="font-semibold text-slate-600">nbt1515</span> para uma demonstração.</p>
             </div>
           </form>
         </div>
