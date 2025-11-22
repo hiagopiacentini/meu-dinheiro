@@ -14,43 +14,6 @@ const formatDate = (dateString: string) => {
 };
 
 
-const sampleLoans: Loan[] = [
-    {
-        id: 'loan-1',
-        description: 'Reserva de Emergência',
-        amount: 1500,
-        date: '2024-05-30',
-        lenderAccountId: 'itau-1',
-        borrowerAccountId: 'bradesco-1',
-        status: 'active',
-        initialTransactionId: 't-loan-1',
-        partialSettlements: [],
-    },
-    {
-        id: 'loan-2',
-        description: 'Adiantamento Fatura',
-        amount: 750,
-        date: '2024-05-20',
-        lenderAccountId: 'bradesco-1',
-        borrowerAccountId: 'itau-1',
-        status: 'active',
-        initialTransactionId: 't-loan-2',
-        partialSettlements: [{ transactionId: 't-partial-2', amount: 250, date: '2024-06-20' }],
-    },
-    {
-        id: 'loan-3',
-        description: 'Compra Online',
-        amount: 300,
-        date: '2024-04-15',
-        lenderAccountId: 'nubank-1',
-        borrowerAccountId: 'itau-1',
-        status: 'paid',
-        initialTransactionId: 't-loan-3',
-        settlementTransactionId: 't-settle-3',
-        partialSettlements: [],
-    }
-];
-
 const PartialSettlementModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
@@ -208,7 +171,7 @@ const LoanHistoryModal: React.FC<{
 
 
 const LoansPage: React.FC = () => {
-    const [loans, setLoans] = useLocalStorage<Loan[]>('loans', sampleLoans);
+    const [loans, setLoans] = useLocalStorage<Loan[]>('loans', []);
     const [transactions, setTransactions] = useLocalStorage<Transaction[]>('transactions', []);
     const [accounts] = useLocalStorage<Account[]>('accounts', []);
 

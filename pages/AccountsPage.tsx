@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Account, Transaction, Loan, TransactionType, Category } from '../types';
@@ -10,37 +11,17 @@ import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
 
 
-// Sample Data
-const sampleAccounts: Account[] = [
-    { id: 'nubank-1', name: 'Nubank - NuConta', initialBalance: 3480.20, bank: 'Nubank', isActive: true },
-    { id: 'itau-1', name: 'Itaú - Conta Corrente', initialBalance: 1250.75, bank: 'Itaú', isActive: true },
-    { id: 'paypal-1', name: 'PayPal', initialBalance: 815.00, bank: 'PayPal', isActive: true },
-    { id: 'bradesco-1', name: 'Bradesco - Poupança', initialBalance: 10000, bank: 'Bradesco', isActive: false },
-];
-
-const sampleTransactions: Transaction[] = [
-    { id: 't1', description: 'Uber', amount: 22.50, date: '2024-07-25T12:00:00Z', type: TransactionType.EXPENSE, accountId: 'nubank-1', itemId: 'transporte-uber' },
-    { id: 't2', description: 'Salário', amount: 4500.00, date: '2024-07-24T12:00:00Z', type: TransactionType.INCOME, accountId: 'itau-1', itemId: 'receita-salario' },
-    { id: 't3', description: 'Spotify', amount: 21.90, date: '2024-07-23T12:00:00Z', type: TransactionType.EXPENSE, accountId: 'nubank-1', itemId: 'lazer-assinaturas' },
-    { id: 't4', description: 'Supermercado Pão de Açúcar', amount: 345.80, date: '2024-07-22T12:00:00Z', type: TransactionType.EXPENSE, accountId: 'itau-1', itemId: 'alimentacao-supermercado' },
-    { id: 't5', description: 'Venda Online', amount: 150.00, date: '2024-07-21T12:00:00Z', type: TransactionType.INCOME, accountId: 'paypal-1', itemId: 'receita-extra' },
-];
-
 const sampleCategories: Category[] = [
   { id: 'cat-receita', name: 'Receita', type: TransactionType.INCOME, subcategories: [
-    // Fix: Add missing 'includeInBalance' property to conform to the CategoryItem type.
     {id: 'sub-receita', name: 'Receita', items: [{id: 'receita-salario', name: 'Salário', subcategoryId: 'sub-receita', categoryId: 'cat-receita', includeInBalance: true}, {id: 'receita-extra', name: 'Renda Extra', subcategoryId: 'sub-receita', categoryId: 'cat-receita', includeInBalance: true}], categoryId: 'cat-receita'}
   ]},
   { id: 'cat-transporte', name: 'Transporte', type: TransactionType.EXPENSE, subcategories: [
-    // Fix: Add missing 'includeInBalance' property to conform to the CategoryItem type.
     {id: 'sub-transporte', name: 'Transporte', items: [{id: 'transporte-uber', name: 'Uber', subcategoryId: 'sub-transporte', categoryId: 'cat-transporte', includeInBalance: true}], categoryId: 'cat-transporte'}
   ]},
   { id: 'cat-lazer', name: 'Lazer', type: TransactionType.EXPENSE, subcategories: [
-    // Fix: Add missing 'includeInBalance' property to conform to the CategoryItem type.
     {id: 'sub-lazer', name: 'Lazer', items: [{id: 'lazer-assinaturas', name: 'Assinaturas', subcategoryId: 'sub-lazer', categoryId: 'cat-lazer', includeInBalance: true}], categoryId: 'cat-lazer'}
   ]},
   { id: 'cat-alimentacao', name: 'Alimentação', type: TransactionType.EXPENSE, subcategories: [
-    // Fix: Add missing 'includeInBalance' property to conform to the CategoryItem type.
     {id: 'sub-alimentacao', name: 'Alimentação', items: [{id: 'alimentacao-supermercado', name: 'Supermercado', subcategoryId: 'sub-alimentacao', categoryId: 'cat-alimentacao', includeInBalance: true}], categoryId: 'cat-alimentacao'}
   ]},
 ];
@@ -191,8 +172,8 @@ const categoryColors: { [key: string]: string } = {
 const defaultCategoryColor = 'bg-slate-100 text-slate-800';
 
 const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigger }) => {
-    const [accounts, setAccounts] = useLocalStorage<Account[]>('accounts', sampleAccounts);
-    const [transactions] = useLocalStorage<Transaction[]>('transactions', sampleTransactions);
+    const [accounts, setAccounts] = useLocalStorage<Account[]>('accounts', []);
+    const [transactions] = useLocalStorage<Transaction[]>('transactions', []);
     const [loans] = useLocalStorage<Loan[]>('loans', []);
     useLocalStorage<Category[]>('categories', sampleCategories); // just to set sample data
     const [categories] = useLocalStorage<Category[]>('categories', []);
