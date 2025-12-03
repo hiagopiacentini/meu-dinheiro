@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useTransactions, useAccounts, useCategories, useLoans } from '../hooks/useFirestore';
 import { Transaction, Account, Category, TransactionType, Loan, CategoryItem } from '../types';
 import PencilIcon from '../components/icons/PencilIcon';
 import TrashIcon from '../components/icons/TrashIcon';
@@ -11,8 +11,6 @@ import XIcon from '../components/icons/XIcon';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
 import ChevronDownIcon from '../components/icons/ChevronDownIcon';
-import { sampleCategories } from '../data/demoData';
-
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -55,7 +53,7 @@ interface SplitItem {
 const DeleteConfirmationModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (option: 'single' | 'future') => void;
+    onConfirm: (option: 'single' | 'future') => Promise<void>;
 }> = ({ isOpen, onClose, onConfirm }) => {
     if (!isOpen) return null;
     return (
@@ -116,10 +114,10 @@ const FilterDropdown: React.FC<{
 
 
 const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTransactionTrigger }) => {
-    const [transactions, setTransactions] = useLocalStorage<Transaction[]>('transactions', []);
-    const [accounts] = useLocalStorage<Account[]>('accounts', []);
-    const [categories] = useLocalStorage<Category[]>('categories', sampleCategories);
-    const [loans, setLoans] = useLocalStorage<Loan[]>('loans', []);
+    const { transactions, addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions } = useTransactions();
+    const { accounts } = useAccounts();
+    const { categories } = useCategories();
+    const { loans } = useLoans();
     
     // State to remember last used form fields
     const [lastUsedDetails, setLastUsedDetails] = useState({
@@ -300,11 +298,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     }, [filteredTransactions, itemBalanceMap]);
 
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
         // Update last used details before clearing form
         setLastUsedDetails({ accountId, type });
+        
+        let success = false;
 
         const isTransfer = itemBalanceMap.get(itemId) === false;
         
@@ -341,14 +341,16 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
                 const idsToRemove = [oldTx.id];
                 if (partnerTx) idsToRemove.push(partnerTx.id);
-
-                const remainingTxs = transactions.filter(t => !idsToRemove.includes(t.id));
-                setTransactions([...remainingTxs, { ...expenseTx, id: crypto.randomUUID() }, { ...incomeTx, id: crypto.randomUUID() }]);
-
+                
+                // Perform async operations
+                const delSuccess = await deleteTransactions(idsToRemove);
+                if(delSuccess) {
+                   success = await addTransactions([expenseTx, incomeTx]);
+                }
             } else {
-                setTransactions(prev => [...prev, { ...expenseTx, id: crypto.randomUUID() }, { ...incomeTx, id: crypto.randomUUID() }]);
+                success = await addTransactions([expenseTx, incomeTx]);
             }
-            handleClearForm();
+            if (success) handleClearForm();
             return;
         }
 
@@ -376,7 +378,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                 itemId,
             };
             
-            const newTxs = [{ ...incomeTransaction, id: crypto.randomUUID() }];
+            const newTxs = [incomeTransaction];
     
             if (changeAmount > 0) {
                 const changeTransaction: Omit<Transaction, 'id'> = {
@@ -387,11 +389,11 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     accountId: changeAccountId,
                     itemId: changeItemId,
                 };
-                newTxs.push({ ...changeTransaction, id: crypto.randomUUID() });
+                newTxs.push(changeTransaction);
             }
             
-            setTransactions(prev => [...prev, ...newTxs]);
-            handleClearForm();
+            success = await addTransactions(newTxs);
+            if(success) handleClearForm();
             return;
         }
 
@@ -400,34 +402,40 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
         if (editingInstallmentGroup) {
             const groupId = editingInstallmentGroup.installmentGroupId!;
-            const remainingTransactions = transactions.filter(t => t.installmentGroupId !== groupId);
-            // Re-create installments
-            const totalInstallments = parseInt(installmentsCount, 10);
-            const originalDate = getUTCDate(date);
-            const newTransactions: Transaction[] = [];
+            // Delete old installments
+            const idsToRemove = transactions
+                .filter(t => t.installmentGroupId === groupId)
+                .map(t => t.id);
+            const delSuccess = await deleteTransactions(idsToRemove);
 
-            for (let i = 0; i < totalInstallments; i++) {
-                const installmentDate = new Date(originalDate);
-                installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
-                newTransactions.push({
-                    id: crypto.randomUUID(),
-                    ...commonData,
-                    amount: parseFloat(amount),
-                    itemId,
-                    date: installmentDate.toISOString().split('T')[0],
-                    description: `${description} (${i + 1}/${totalInstallments})`,
-                    installmentGroupId: groupId,
-                    currentInstallment: i + 1,
-                    totalInstallments
-                });
+            if (delSuccess) {
+                 // Re-create installments
+                const totalInstallments = parseInt(installmentsCount, 10);
+                const originalDate = getUTCDate(date);
+                const newTransactions: Omit<Transaction, 'id'>[] = [];
+
+                for (let i = 0; i < totalInstallments; i++) {
+                    const installmentDate = new Date(originalDate);
+                    installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
+                    newTransactions.push({
+                        ...commonData,
+                        amount: parseFloat(amount),
+                        itemId,
+                        date: installmentDate.toISOString().split('T')[0],
+                        description: `${description} (${i + 1}/${totalInstallments})`,
+                        installmentGroupId: groupId,
+                        currentInstallment: i + 1,
+                        totalInstallments
+                    });
+                }
+                success = await addTransactions(newTransactions);
             }
-            setTransactions([...remainingTransactions, ...newTransactions]);
 
         } else if (isInstallment && isSplit) {
             const totalInstallments = parseInt(installmentsCount, 10);
             const installmentGroupId = crypto.randomUUID();
             const originalDate = getUTCDate(date);
-            const allNewTransactions: Transaction[] = [];
+            const allNewTransactions: Omit<Transaction, 'id'>[] = [];
             const perInstallmentAmount = parseFloat(amount);
 
             const totalSplitAmount = splitItems.reduce((sum, item) => sum + parseFloat(item.amount || '0'), 0);
@@ -442,7 +450,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                 
                 splitItems.forEach(item => {
                     allNewTransactions.push({
-                        id: crypto.randomUUID(),
                         ...commonData,
                         amount: parseFloat(item.amount),
                         itemId: item.itemId,
@@ -454,7 +461,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     });
                 });
             }
-            setTransactions(prev => [...prev, ...allNewTransactions]);
+            success = await addTransactions(allNewTransactions);
 
         } else if (isSplit) {
             const totalSplitAmount = splitItems.reduce((sum, item) => sum + parseFloat(item.amount || '0'), 0);
@@ -464,37 +471,42 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             if(splitItems.some(i => !i.itemId || !i.amount)) {
                 alert('Todos os itens divididos devem ter um item e um valor.'); return;
             }
-            const newTransactions: Transaction[] = splitItems.map(item => ({
-                id: crypto.randomUUID(), ...commonData, amount: parseFloat(item.amount), itemId: item.itemId,
+            const newTransactions: Omit<Transaction, 'id'>[] = splitItems.map(item => ({
+                 ...commonData, amount: parseFloat(item.amount), itemId: item.itemId,
                 description: `${description} - ${categoryMap.get(item.itemId)?.item}`
             }));
-            setTransactions(prev => [...prev, ...newTransactions]);
+            success = await addTransactions(newTransactions);
+
         } else if (isInstallment && type === TransactionType.EXPENSE) {
             const totalInstallments = parseInt(installmentsCount, 10);
             const installmentGroupId = crypto.randomUUID();
             const originalDate = getUTCDate(date);
-            const newTransactions: Transaction[] = [];
+            const newTransactions: Omit<Transaction, 'id'>[] = [];
             for(let i = 0; i < totalInstallments; i++) {
                 const installmentDate = new Date(originalDate);
                 installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
                 newTransactions.push({
-                    id: crypto.randomUUID(), ...commonData, amount: parseFloat(amount), itemId,
+                    ...commonData, amount: parseFloat(amount), itemId,
                     date: installmentDate.toISOString().split('T')[0],
                     description: `${description} (${i + 1}/${totalInstallments})`,
                     installmentGroupId, currentInstallment: i + 1, totalInstallments
                 });
             }
-            setTransactions(prev => [...prev, ...newTransactions]);
+            success = await addTransactions(newTransactions);
         } else {
              if (!description || !amount || !date || !accountId || !itemId) { alert('Por favor, preencha todos os campos obrigatórios.'); return; }
             const transactionData = { ...commonData, amount: parseFloat(amount), itemId };
             if (editingTransaction) {
-                setTransactions(transactions.map(t => t.id === editingTransaction.id ? { ...t, ...transactionData } : t));
+                success = await updateTransaction({ ...editingTransaction, ...transactionData });
             } else {
-                setTransactions([...transactions, { ...transactionData, id: crypto.randomUUID() }]);
+                const newId = await addTransaction(transactionData);
+                success = !!newId;
             }
         }
-        handleClearForm();
+        
+        if (success) {
+            handleClearForm();
+        }
     };
 
     const handleEdit = (transaction: Transaction) => {
@@ -542,7 +554,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         }
     };
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         const txToDelete = transactions.find(t => t.id === id);
         if (!txToDelete) return;
 
@@ -568,29 +580,33 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                    );
                    
                    if (partner) {
-                       setTransactions(prev => prev.filter(t => t.id !== id && t.id !== partner.id));
+                       await deleteTransactions([id, partner.id]);
                        return;
                    }
                 }
 
-                setTransactions(prev => prev.filter(t => t.id !== id));
+                await deleteTransaction(id);
             }
         }
     };
     
-    const handleConfirmDelete = (option: 'single' | 'future') => {
+    const handleConfirmDelete = async (option: 'single' | 'future') => {
         const tx = deleteModalState.transaction;
         if (!tx) return;
 
+        let success = false;
         if (option === 'single') {
-            setTransactions(prev => prev.filter(t => t.id !== tx.id));
+            success = await deleteTransaction(tx.id);
         } else if (option === 'future') {
-            setTransactions(prev => prev.filter(t => 
-                t.installmentGroupId !== tx.installmentGroupId || 
-                (t.installmentGroupId === tx.installmentGroupId && t.currentInstallment! < tx.currentInstallment!)
-            ));
+             const idsToRemove = transactions.filter(t => 
+                t.installmentGroupId === tx.installmentGroupId && 
+                (t.currentInstallment! >= tx.currentInstallment!)
+            ).map(t => t.id);
+            success = await deleteTransactions(idsToRemove);
         }
-        setDeleteModalState({ isOpen: false, transaction: null });
+        if (success) {
+             setDeleteModalState({ isOpen: false, transaction: null });
+        }
     };
     
     const categoryOptions = useMemo(() => {
@@ -632,7 +648,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const maxDate = isInstallment ? undefined : new Date().toISOString().split('T')[0];
 
-    const isEditing = editingTransaction || editingInstallmentGroup;
+    const isEditing = !!(editingTransaction || editingInstallmentGroup);
     const isTransfer = itemBalanceMap.get(itemId) === false;
     
     return (

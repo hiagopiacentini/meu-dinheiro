@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import DashboardPage from './pages/DashboardPage';
 import AccountsPage from './pages/AccountsPage';
@@ -10,6 +10,8 @@ import BalancesPage from './pages/BalancesPage';
 import GoalsPage from './pages/GoalsPage';
 import ReportsPage from './pages/ReportsPage';
 import LoginPage from './pages/LoginPage';
+import { auth } from './services/firebase';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 
 import DashboardIcon from './components/icons/DashboardIcon';
 import AccountsIcon from './components/icons/AccountsIcon';
@@ -30,7 +32,24 @@ const App: React.FC = () => {
   const [addAccountTrigger, setAddAccountTrigger] = useState(0);
   const [addCategoryTrigger, setAddCategoryTrigger] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Store only what we need to avoid circular reference issues with the full User object
+  const [userName, setUserName] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setIsAuthenticated(true);
+        setUserName(currentUser.displayName || '');
+      } else {
+        setIsAuthenticated(false);
+        setUserName('');
+      }
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleAddTransactionClick = () => {
     setAddTransactionTrigger(Date.now());
@@ -44,14 +63,28 @@ const App: React.FC = () => {
     setAddCategoryTrigger(Date.now());
   };
   
-  const handleLogin = () => {
-    setIsAuthenticated(true);
+  const handleLogin = async () => {
+    if (auth.currentUser) {
+        try {
+            await auth.currentUser.reload();
+            setUserName(auth.currentUser.displayName || '');
+        } catch (e) {
+            console.warn("User profile reload failed:", e);
+        }
+    }
     setActivePage('Dashboard');
   };
 
-  const handleLogout = () => {
-    if (window.confirm('Tem certeza que deseja sair?')) {
-      setIsAuthenticated(false);
+  const handleLogout = async () => {
+    try {
+        await signOut(auth);
+    } catch (error) {
+        console.error("Erro ao tentar fazer logout no Firebase:", error);
+    } finally {
+        // Force state cleanup regardless of backend error
+        setIsAuthenticated(false);
+        setUserName('');
+        setActivePage('Dashboard');
     }
   };
 
@@ -94,7 +127,10 @@ const App: React.FC = () => {
       'Contas': 'Visualize todas as suas contas bancárias e carteiras digitais.',
       'Categorias': 'Organize suas receitas e despesas com categorias e subcategorias.',
       'Lançamentos': 'Adicione, edite e visualize todas as suas transações.',
-      // Add other subtitles here if needed
+  }
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50">Carregando...</div>;
   }
 
   return (
@@ -172,6 +208,7 @@ const App: React.FC = () => {
               setActiveItem={setActivePage}
               isOpen={isSidebarOpen}
               setIsOpen={setIsSidebarOpen}
+              userName={userName}
             />
             <div className="md:ml-64 flex flex-col h-screen">
               <header className="sticky top-0 z-20 flex items-center justify-between p-4 md:p-6 bg-white border-b border-slate-200">

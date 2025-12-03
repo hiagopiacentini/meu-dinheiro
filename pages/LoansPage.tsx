@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useLoans, useTransactions, useAccounts } from '../hooks/useFirestore';
 import { Loan, Account, Transaction, TransactionType } from '../types';
 import TrashIcon from '../components/icons/TrashIcon';
 import XIcon from '../components/icons/XIcon';
@@ -17,7 +17,7 @@ const formatDate = (dateString: string) => {
 const PartialSettlementModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onSave: (amount: number, date: string) => void;
+    onSave: (amount: number, date: string) => Promise<void>;
     loan: Loan;
     remainingAmount: number;
 }> = ({ isOpen, onClose, onSave, loan, remainingAmount }) => {
@@ -26,14 +26,14 @@ const PartialSettlementModal: React.FC<{
 
     if (!isOpen) return null;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const settleAmount = parseFloat(amount);
         if(isNaN(settleAmount) || settleAmount <= 0 || settleAmount > remainingAmount) {
             alert(`Por favor, insira um valor válido, maior que zero e menor ou igual a ${formatCurrency(remainingAmount)}.`);
             return;
         }
-        onSave(settleAmount, date);
+        await onSave(settleAmount, date);
         setAmount('');
         setDate(new Date().toISOString().split('T')[0]);
     };
@@ -87,7 +87,7 @@ const PartialSettlementModal: React.FC<{
 const SettleLoanModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onSettle: (date: string) => void;
+    onSettle: (date: string) => Promise<void>;
     loan: Loan;
     remainingAmount: number;
 }> = ({ isOpen, onClose, onSettle, loan, remainingAmount }) => {
@@ -95,9 +95,9 @@ const SettleLoanModal: React.FC<{
 
     if (!isOpen) return null;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        onSettle(date);
+        await onSettle(date);
     };
 
     return (
@@ -171,9 +171,9 @@ const LoanHistoryModal: React.FC<{
 
 
 const LoansPage: React.FC = () => {
-    const [loans, setLoans] = useLocalStorage<Loan[]>('loans', []);
-    const [transactions, setTransactions] = useLocalStorage<Transaction[]>('transactions', []);
-    const [accounts] = useLocalStorage<Account[]>('accounts', []);
+    const { loans, addLoan, updateLoan, deleteLoan } = useLoans();
+    const { transactions, addTransaction, deleteTransactions } = useTransactions();
+    const { accounts } = useAccounts();
 
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
@@ -189,7 +189,7 @@ const LoansPage: React.FC = () => {
     const accountMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.name])), [accounts]);
     const activeAccounts = useMemo(() => accounts.filter(a => a.isActive), [accounts]);
 
-    const handleRegisterLoan = (e: React.FormEvent) => {
+    const handleRegisterLoan = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!description || !amount || !lenderAccountId || !borrowerAccountId || !date) {
             alert('Por favor, preencha todos os campos.');
@@ -201,8 +201,7 @@ const LoansPage: React.FC = () => {
         }
 
         const loanAmount = parseFloat(amount);
-        const newTransaction: Transaction = {
-            id: crypto.randomUUID(),
+        const newTransaction: Omit<Transaction, 'id'> = {
             description: `Empréstimo: ${description}`,
             amount: loanAmount,
             date: date,
@@ -210,27 +209,31 @@ const LoansPage: React.FC = () => {
             accountId: lenderAccountId,
             destinationAccountId: borrowerAccountId,
         };
-        const newLoan: Loan = {
-            id: crypto.randomUUID(),
+        
+        const txId = await addTransaction(newTransaction);
+        if(!txId) return;
+
+        const newLoan: Omit<Loan, 'id'> = {
             description,
             amount: loanAmount,
-            date: date,
+            date,
             lenderAccountId,
             borrowerAccountId,
             status: 'active',
-            initialTransactionId: newTransaction.id,
-            partialSettlements: [],
+            initialTransactionId: txId,
         };
-        setTransactions(prev => [...prev, newTransaction]);
-        setLoans(prev => [...prev, newLoan]);
-        setDescription('');
-        setAmount('');
-        setDate(new Date().toISOString().split('T')[0]);
-        setLenderAccountId('');
-        setBorrowerAccountId('');
+        
+        const loanId = await addLoan(newLoan);
+        if (loanId) {
+            setDescription('');
+            setAmount('');
+            setDate(new Date().toISOString().split('T')[0]);
+            setLenderAccountId('');
+            setBorrowerAccountId('');
+        }
     };
 
-    const handleDeleteLoan = (id: string) => {
+    const handleDeleteLoan = async (id: string) => {
       if(window.confirm('Tem certeza que deseja excluir este empréstimo? Todas as transações associadas serão removidas.')) {
         const loanToDelete = loans.find(l => l.id === id);
         if (!loanToDelete) return;
@@ -238,18 +241,21 @@ const LoansPage: React.FC = () => {
         const txIdsToDelete = [loanToDelete.initialTransactionId];
         if(loanToDelete.settlementTransactionId) txIdsToDelete.push(loanToDelete.settlementTransactionId);
         loanToDelete.partialSettlements?.forEach(p => txIdsToDelete.push(p.transactionId));
+        
+        const validIds = txIdsToDelete.filter(Boolean) as string[];
 
-        setTransactions(prev => prev.filter(t => !txIdsToDelete.includes(t.id)));
-        setLoans(prev => prev.filter(l => l.id !== id));
+        const txSuccess = await deleteTransactions(validIds);
+        if(txSuccess) {
+            await deleteLoan(id);
+        }
       }
     }
     
-    const handleSettleLoan = (settleDate: string) => {
+    const handleSettleLoan = async (settleDate: string) => {
         if (!selectedLoan) return;
         const remaining = calculateRemainingAmount(selectedLoan);
         
-        const settlementTransaction: Transaction = {
-            id: crypto.randomUUID(),
+        const settlementTransaction: Omit<Transaction, 'id'> = {
             description: `Quitação Empréstimo: ${selectedLoan.description}`,
             amount: remaining,
             date: settleDate,
@@ -257,17 +263,18 @@ const LoansPage: React.FC = () => {
             accountId: selectedLoan.borrowerAccountId,
             destinationAccountId: selectedLoan.lenderAccountId,
         };
-        setTransactions(prev => [...prev, settlementTransaction]);
-        setLoans(prev => prev.map(l => l.id === selectedLoan.id ? { ...l, status: 'paid', settlementTransactionId: settlementTransaction.id } : l));
         
-        setIsSettleModalOpen(false);
-        setSelectedLoan(null);
+        const txId = await addTransaction(settlementTransaction);
+        if (txId) {
+             await updateLoan({ ...selectedLoan, status: 'paid', settlementTransactionId: txId });
+             setIsSettleModalOpen(false);
+             setSelectedLoan(null);
+        }
     };
     
-    const handlePartialSettle = (settleAmount: number, settleDate: string) => {
+    const handlePartialSettle = async (settleAmount: number, settleDate: string) => {
         if (!selectedLoan) return;
-        const partialTransaction: Transaction = {
-            id: crypto.randomUUID(),
+        const partialTransaction: Omit<Transaction, 'id'> = {
             description: `Pgto. Parcial Empréstimo: ${selectedLoan.description}`,
             amount: settleAmount,
             date: settleDate,
@@ -275,23 +282,21 @@ const LoansPage: React.FC = () => {
             accountId: selectedLoan.borrowerAccountId,
             destinationAccountId: selectedLoan.lenderAccountId,
         };
-        setTransactions(prev => [...prev, partialTransaction]);
-
-        const updatedLoans = loans.map(l => {
-            if (l.id === selectedLoan.id) {
-                const newPartial = {
-                    transactionId: partialTransaction.id,
-                    amount: settleAmount,
-                    date: partialTransaction.date
-                };
-                const partials = l.partialSettlements ? [...l.partialSettlements, newPartial] : [newPartial];
-                return { ...l, partialSettlements: partials };
-            }
-            return l;
-        });
-        setLoans(updatedLoans);
-        setIsPartialModalOpen(false);
-        setSelectedLoan(null);
+        
+        const txId = await addTransaction(partialTransaction);
+        
+        if (txId) {
+            const newPartial = {
+                transactionId: txId,
+                amount: settleAmount,
+                date: settleDate
+            };
+            const partials = selectedLoan.partialSettlements ? [...selectedLoan.partialSettlements, newPartial] : [newPartial];
+            await updateLoan({ ...selectedLoan, partialSettlements: partials });
+            
+            setIsPartialModalOpen(false);
+            setSelectedLoan(null);
+        }
     };
 
     const calculateRemainingAmount = (loan: Loan) => {

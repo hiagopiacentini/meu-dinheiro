@@ -1,3 +1,4 @@
+
 import React from 'react';
 import XIcon from '../icons/XIcon';
 
@@ -7,9 +8,19 @@ interface SidebarProps {
   setActiveItem: (item: string) => void;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
+  userName?: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ menuItems, activeItem, setActiveItem, isOpen, setIsOpen }) => {
+const Sidebar: React.FC<SidebarProps> = ({ menuItems, activeItem, setActiveItem, isOpen, setIsOpen, userName }) => {
+  const formatName = (name: string) => {
+    if (!name) return '';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length <= 1) return name;
+    return `${parts[0]} ${parts[parts.length - 1]}`;
+  };
+
+  const displayName = formatName(userName || '');
+
   return (
     <>
       <div
@@ -19,15 +30,20 @@ const Sidebar: React.FC<SidebarProps> = ({ menuItems, activeItem, setActiveItem,
       ></div>
 
       <aside className={`fixed inset-y-0 left-0 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col w-64 transform transition-transform duration-300 ease-in-out z-40 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
-        <div className="relative flex items-center justify-center px-6 py-8">
+        <div className="relative flex flex-col items-center justify-center px-6 py-8">
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
             Sobra+
           </h1>
-          <button className="md:hidden p-1 text-slate-500 hover:text-slate-800 absolute right-6 top-1/2 -translate-y-1/2" onClick={() => setIsOpen(false)} aria-label="Close menu">
+          {displayName && (
+            <p className="text-sm font-medium text-slate-500 mt-1">
+              {displayName}
+            </p>
+          )}
+          <button className="md:hidden p-1 text-slate-500 hover:text-slate-800 absolute right-6 top-8" onClick={() => setIsOpen(false)} aria-label="Close menu">
             <XIcon className="w-6 h-6" />
           </button>
         </div>
-        <nav className="mt-6 flex-1 px-4">
+        <nav className="mt-2 flex-1 px-4">
           <ul className="space-y-2">
             {menuItems.map(item => (
               <li key={item.name}>

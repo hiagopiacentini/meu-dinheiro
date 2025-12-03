@@ -1,13 +1,13 @@
 
 import React, { useMemo } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Account, Transaction, TransactionType } from '../types';
+import { useTransactions, useAccounts } from '../hooks/useFirestore';
+import { TransactionType } from '../types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 const BalancesPage: React.FC = () => {
-    const [transactions] = useLocalStorage<Transaction[]>('transactions', []);
-    const [accounts] = useLocalStorage<Account[]>('accounts', []);
+    const { transactions } = useTransactions();
+    const { accounts } = useAccounts();
 
     const { accountBalances, totalBalance } = useMemo(() => {
         const activeAccounts = accounts.filter(a => a.isActive);

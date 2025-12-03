@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Transaction, TransactionType, AnnualGoals } from '../types';
+import { useGoals, useTransactions } from '../hooks/useFirestore';
+import { TransactionType } from '../types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -16,8 +16,8 @@ const ProgressBar: React.FC<{ value: number, color: string }> = ({ value, color 
 
 
 const GoalsPage: React.FC = () => {
-    const [goals, setGoals] = useLocalStorage<AnnualGoals>('goals', {});
-    const [transactions] = useLocalStorage<Transaction[]>('transactions', []);
+    const { goals, setGoals } = useGoals();
+    const { transactions } = useTransactions();
     
     const currentYear = new Date().getFullYear();
     const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -58,10 +58,10 @@ const GoalsPage: React.FC = () => {
         const newGoal = isNaN(value) || value < 0 ? 0 : value;
         
         if ((goals[selectedYear] || 0) !== newGoal) {
-            setGoals(prevGoals => ({
-                ...prevGoals,
+            setGoals({
+                ...goals,
                 [selectedYear]: newGoal
-            }));
+            });
         }
     };
     

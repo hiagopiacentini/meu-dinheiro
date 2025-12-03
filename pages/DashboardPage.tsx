@@ -1,13 +1,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Transaction, TransactionType, Category, Account, AnnualGoals } from '../types';
+import { useTransactions, useCategories, useAccounts, useGoals } from '../hooks/useFirestore';
+import { TransactionType, Transaction } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import CategoryChart from '../components/CategoryChart';
 import DateRangePickerModal from '../components/DateRangePickerModal';
 import UpArrowIcon from '../components/icons/UpArrowIcon';
 import DownArrowIcon from '../components/icons/DownArrowIcon';
-import { sampleCategories } from '../data/demoData';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const formatDate = (dateString: string) => {
@@ -101,10 +100,10 @@ const TopListItem: React.FC<{ index: number, description: string, percentage: st
 );
 
 const DashboardPage: React.FC = () => {
-  const [transactions] = useLocalStorage<Transaction[]>('transactions', []);
-  const [categories] = useLocalStorage<Category[]>('categories', sampleCategories);
-  const [accounts] = useLocalStorage<Account[]>('accounts', []);
-  const [goals] = useLocalStorage<AnnualGoals>('goals', {});
+  const { transactions } = useTransactions();
+  const { categories } = useCategories();
+  const { accounts } = useAccounts();
+  const { goals } = useGoals();
 
   const [activeFilter, setActiveFilter] = useState('Mês Atual');
   const [isPickerOpen, setIsPickerOpen] = useState(false);

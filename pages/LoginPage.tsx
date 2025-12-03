@@ -1,15 +1,20 @@
 
 import React, { useState } from 'react';
 import { sampleAccounts, sampleTransactions, sampleCategories, sampleLoans, sampleGoals } from '../data/demoData';
+import { auth } from '../services/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 
 interface LoginPageProps {
   onLogin: () => void;
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
 
   // Function to clean up demo data from LocalStorage without deleting user data
   const cleanupDemoData = () => {
@@ -28,17 +33,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         localStorage.setItem('transactions', JSON.stringify(userTransactions));
       }
 
-      // 3. Clean Categories (remove short ids like 'c1', 'sc1' which are demo data, UUIDs are long)
-      // We verify if it's the exact sample structure or user data. 
-      // If the user has NO categories (only demo), we might want to keep a basic structure, 
-      // but the user asked to remove demo data.
+      // 3. Clean Categories 
       const storedCategories = JSON.parse(localStorage.getItem('categories') || '[]');
       if (Array.isArray(storedCategories)) {
-        // Demo categories have simple IDs like 'c1', 'c2'. User categories use crypto.randomUUID (long strings)
         const userCategories = storedCategories.filter((c: any) => c.id.length > 10);
-        
-        // If user has 0 categories after cleanup, we might want to leave them empty or provide a clean slate
-        // For now, we save the filtered list.
         if (userCategories.length !== storedCategories.length) {
              localStorage.setItem('categories', JSON.stringify(userCategories));
         }
@@ -61,18 +59,55 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email === 'hiago.vha@gmail.com' && password === 'nbt1515') {
-      // Clean demo data before logging in to ensure user sees only their data
-      cleanupDemoData();
-      setError('');
-      onLogin();
-    } else if (email === 'alebarros.vha@gmail.com' && password === 'nbt1515') {
-      setError('');
+    setError('');
+    setLoading(true);
+
+    const trimmedEmail = email.trim();
+    const trimmedName = name.trim();
+
+    // Keep legacy local demo login if specifically used
+    if (!isSignUp && trimmedEmail === 'alebarros.vha@gmail.com' && password === 'nbt1515') {
       handleDemoLogin();
-    } else {
-      setError('Email ou senha inválidos.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      if (isSignUp) {
+        if (!trimmedName) {
+            setError('Por favor, informe seu nome.');
+            setLoading(false);
+            return;
+        }
+        const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+        await updateProfile(userCredential.user, {
+            displayName: trimmedName
+        });
+        // On successful creation, we also clean demo data to start fresh
+        cleanupDemoData();
+        onLogin();
+      } else {
+        await signInWithEmailAndPassword(auth, trimmedEmail, password);
+        cleanupDemoData(); // Ensure clean state for real users
+        onLogin();
+      }
+    } catch (err: any) {
+      console.warn("Login attempt failed:", err.code);
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setError('Email ou senha incorretos.');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError('Este email já está em uso.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('A senha deve ter pelo menos 6 caracteres.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('O email informado é inválido.');
+      } else {
+        setError(`Erro ao ${isSignUp ? 'criar conta' : 'realizar login'}. Tente novamente.`);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -81,10 +116,29 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       <div className="w-full max-w-md">
         <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
           <h1 className="text-4xl font-bold text-slate-900 tracking-tight text-center mb-2">
-            Sobra+
+            {isSignUp ? 'Criar Conta' : 'Sobra+'}
           </h1>
-          <p className="text-center text-slate-500 mb-8">Acesse sua conta para continuar.</p>
+          <p className="text-center text-slate-500 mb-8">
+            {isSignUp ? 'Preencha os dados abaixo para começar.' : 'Acesse sua conta para continuar.'}
+          </p>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {isSignUp && (
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">
+                    Nome
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="input-style"
+                    placeholder="Seu Nome"
+                    required={isSignUp}
+                    autoFocus={isSignUp}
+                  />
+                </div>
+            )}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
                 Email
@@ -97,7 +151,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 className="input-style"
                 placeholder="voce@exemplo.com"
                 required
-                autoFocus
+                autoFocus={!isSignUp}
               />
             </div>
             <div>
@@ -116,11 +170,25 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             </div>
             {error && <p className="text-red-500 text-sm text-center">{error}</p>}
             <div>
-              <button type="submit" className="btn-primary w-full py-3">
-                Entrar
+              <button type="submit" className="btn-primary w-full py-3" disabled={loading}>
+                {loading ? 'Carregando...' : (isSignUp ? 'Criar Conta' : 'Entrar')}
               </button>
             </div>
           </form>
+
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError('');
+                setName(''); // Reset name when toggling
+              }}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors focus:outline-none"
+            >
+              {isSignUp ? 'Já tem uma conta? Entre' : 'Não tem uma conta? Crie agora'}
+            </button>
+          </div>
+
         </div>
       </div>
     </div>

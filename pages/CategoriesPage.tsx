@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useCategories } from '../hooks/useFirestore';
 import { Category, Subcategory, CategoryItem, TransactionType } from '../types';
 import PlusIcon from '../components/icons/PlusIcon';
 import PencilIcon from '../components/icons/PencilIcon';
@@ -20,35 +20,10 @@ interface ModalConfig {
     data?: Category | Subcategory | CategoryItem | { parentId?: string; parentType?: TransactionType, categoryId?: string };
 }
 
-const sampleCategories: Category[] = [
-    {
-      id: 'cat-food', name: 'Alimentação', type: TransactionType.EXPENSE, color: '#ef4444',
-      subcategories: [
-        { id: 'sub-restaurants', name: 'Restaurantes', categoryId: 'cat-food', items: [
-          { id: 'item-lunch', name: 'Almoço', subcategoryId: 'sub-restaurants', categoryId: 'cat-food', includeInBalance: true },
-          { id: 'item-dinner', name: 'Jantar', subcategoryId: 'sub-restaurants', categoryId: 'cat-food', includeInBalance: true },
-        ]},
-        { id: 'sub-supermarket', name: 'Supermercado', categoryId: 'cat-food', items: [] },
-      ]
-    },
-    { id: 'cat-housing', name: 'Moradia', type: TransactionType.EXPENSE, color: '#3b82f6', subcategories: [] },
-    { id: 'cat-transport', name: 'Transporte', type: TransactionType.EXPENSE, color: '#8b5cf6', subcategories: [] },
-    { id: 'cat-salary', name: 'Salário', type: TransactionType.INCOME, color: '#22c55e', subcategories: [] },
-    { id: 'cat-freelance', name: 'Renda Extra', type: TransactionType.INCOME, color: '#16a34a', subcategories: [] },
-    {
-      id: 'cat-transfer', name: 'Movimentações', type: TransactionType.EXPENSE, color: '#64748b',
-      subcategories: [
-        { id: 'sub-transfer', name: 'Transferência entre contas', categoryId: 'cat-transfer', items: [
-          { id: 'item-transfer', name: 'Transferência', subcategoryId: 'sub-transfer', categoryId: 'cat-transfer', includeInBalance: false },
-        ]},
-      ]
-    },
-];
-
 const CategoryModal: React.FC<{
     config: ModalConfig;
     onClose: () => void;
-    onSave: (type: ModalType, names: string[], data?: any, color?: string, includeInBalance?: boolean) => void;
+    onSave: (type: ModalType, names: string[], data?: any, color?: string, includeInBalance?: boolean) => Promise<void>;
 }> = ({ config, onClose, onSave }) => {
     const [name, setName] = useState('');
     const [currentName, setCurrentName] = useState('');
@@ -105,7 +80,7 @@ const CategoryModal: React.FC<{
         setNamesList(namesList.filter(n => n !== nameToRemove));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
         if (config.action === 'add') {
@@ -115,16 +90,14 @@ const CategoryModal: React.FC<{
                 finalNames.push(trimmedCurrent);
             }
             if (finalNames.length > 0) {
-                onSave(config.type!, finalNames, config.data, selectedColor, includeInBalance);
+                await onSave(config.type!, finalNames, config.data, selectedColor, includeInBalance);
             }
         } else { // 'edit'
             const trimmedName = name.trim();
             if (trimmedName) {
-                onSave(config.type!, [trimmedName], config.data, selectedColor, includeInBalance);
+                await onSave(config.type!, [trimmedName], config.data, selectedColor, includeInBalance);
             }
         }
-        
-        onClose();
     };
 
 
@@ -237,7 +210,8 @@ const CategoryColorSquare: React.FC<{ color?: string }> = ({ color }) => {
 }
 
 const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryTrigger }) => {
-    const [categories, setCategories] = useLocalStorage<Category[]>('categories', sampleCategories);
+    const { categories, setCategories } = useCategories();
+    
     const [modalConfig, setModalConfig] = useState<ModalConfig>({ isOpen: false });
     const [activeTab, setActiveTab] = useState<TransactionType>(TransactionType.EXPENSE);
     const [searchTerm, setSearchTerm] = useState('');
@@ -269,7 +243,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
         return [...arr].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
     };
 
-    const handleSave = (type: ModalType, names: string[], data: any, color?: string, includeInBalance = true) => {
+    const handleSave = async (type: ModalType, names: string[], data: any, color?: string, includeInBalance = true) => {
         let newCategories = [...categories];
         
         if (modalConfig.action === 'add') {
@@ -322,11 +296,13 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                 }));
             }
         }
-        setCategories(sortByName(newCategories));
-        closeModal();
+        const success = await setCategories(sortByName(newCategories));
+        if (success) {
+            closeModal();
+        }
     };
 
-    const handleDelete = (type: ModalType, data: any) => {
+    const handleDelete = async (type: ModalType, data: any) => {
         const confirmationText = 'Tem certeza que deseja excluir? Esta ação não pode ser desfeita e removerá todos os sub-itens associados.';
         if (window.confirm(confirmationText)) {
             let updatedCategories: Category[];
@@ -350,7 +326,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                 updatedCategories = [...categories];
             }
     
-            setCategories(updatedCategories);
+            await setCategories(updatedCategories);
             closeModal();
         }
     };
