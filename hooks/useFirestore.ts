@@ -233,7 +233,24 @@ export const useCategories = () => {
     const docRef = doc(db, `users/${userId}/settings/categories`);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        setCategoriesState(docSnap.data().list as Category[]);
+        const data = docSnap.data();
+        const list = data?.list;
+        
+        // Deep sanitization to ensure structure is correct even if DB is corrupted
+        if (Array.isArray(list)) {
+          const sanitizedList = list.map((cat: any) => ({
+            ...cat,
+            subcategories: Array.isArray(cat.subcategories) 
+              ? cat.subcategories.map((sub: any) => ({
+                  ...sub,
+                  items: Array.isArray(sub.items) ? sub.items : []
+                })) 
+              : []
+          }));
+          setCategoriesState(sanitizedList);
+        } else {
+          setCategoriesState([]);
+        }
       } else {
         setDoc(docRef, { list: sampleCategories }).catch(err => console.error("Erro init categories", err.message));
       }

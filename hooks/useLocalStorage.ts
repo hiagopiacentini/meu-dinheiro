@@ -1,6 +1,19 @@
 import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 
-// Fix: Import Dispatch and SetStateAction types from React and update the function signature to use them directly, resolving the "Cannot find namespace 'React'" error.
+// Safe JSON stringify to handle circular references
+const safeStringify = (obj: any) => {
+  const seen = new WeakSet();
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === "object" && value !== null) {
+      if (seen.has(value)) {
+        return;
+      }
+      seen.add(value);
+    }
+    return value;
+  });
+};
+
 export function useLocalStorage<T>(key: string, initialValue: T): [T, Dispatch<SetStateAction<T>>] {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
@@ -14,13 +27,10 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, Dispatch<S
 
   useEffect(() => {
     try {
-      const valueToStore =
-        typeof storedValue === 'function'
-          ? storedValue(storedValue)
-          : storedValue;
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      // Use safeStringify to prevent crashes if storedValue contains circular references
+      window.localStorage.setItem(key, safeStringify(storedValue));
     } catch (error) {
-      console.error(error);
+      console.error("Error saving to localStorage:", error);
     }
   }, [key, storedValue]);
 

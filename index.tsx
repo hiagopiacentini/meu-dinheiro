@@ -1,7 +1,46 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
+  constructor(props: {children: React.ReactNode}) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("App Crash:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '20px', fontFamily: 'sans-serif', textAlign: 'center', marginTop: '50px' }}>
+          <h1 style={{color: '#ef4444'}}>Algo deu errado.</h1>
+          <p>Ocorreu um erro ao carregar a aplicação.</p>
+          <pre style={{ background: '#f1f5f9', padding: '15px', borderRadius: '8px', overflow: 'auto', textAlign: 'left', maxWidth: '800px', margin: '20px auto' }}>
+            {this.state.error?.toString()}
+          </pre>
+          <button 
+            onClick={() => {
+                localStorage.clear(); // Clear local storage as a drastic measure
+                window.location.reload();
+            }}
+            style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+          >
+            Limpar Dados Locais e Recarregar
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -11,6 +50,8 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+        <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );
