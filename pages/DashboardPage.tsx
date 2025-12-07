@@ -35,7 +35,7 @@ const StatCard: React.FC<{title: string, amount: number, percentage?: number, is
         {percentage !== undefined && isPositive !== undefined && (
             <div className="flex items-center text-sm">
                 {isPositive ? <UpArrowIcon className="w-4 h-4 text-green-500 mr-1" /> : <DownArrowIcon className="w-4 h-4 text-red-500 mr-1" />}
-                <span className={isPositive ? 'text-green-500' : 'text-red-500'}>{percentage.toFixed(1)}%</span>
+                <span className="text-green-500">{percentage.toFixed(1)}%</span>
             </div>
         )}
     </div>
@@ -111,7 +111,7 @@ const DashboardPage: React.FC = () => {
   const today = getNowGmtMinus4();
   const [dateRange, setDateRange] = useState<{start: Date | null, end: Date | null}>({ 
       start: new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1)), 
-      end: today 
+      end: new Date(Date.UTC(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999)) 
   });
 
   const itemBalanceMap = useMemo(() => {
@@ -122,18 +122,20 @@ const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     const now = getNowGmtMinus4();
-    const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
     let startUTC: Date;
+    let endUTC: Date;
 
     if (activeFilter === 'Mês Atual') {
       startUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+      endUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
     } else if (activeFilter === 'Este Ano') {
       startUTC = new Date(Date.UTC(now.getFullYear(), 0, 1));
+      endUTC = new Date(Date.UTC(now.getFullYear(), 11, 31, 23, 59, 59, 999));
     } else {
       return;
     }
     
-    setDateRange({ start: startUTC, end: todayUTC });
+    setDateRange({ start: startUTC, end: endUTC });
   }, [activeFilter]);
 
   const handleFilterClick = (filter: string) => {

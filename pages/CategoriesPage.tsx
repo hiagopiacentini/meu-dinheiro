@@ -8,6 +8,7 @@ import TrashIcon from '../components/icons/TrashIcon';
 import SearchIcon from '../components/icons/SearchIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
 import ChevronDownIcon from '../components/icons/ChevronDownIcon';
+import ArrowUturnLeftIcon from '../components/icons/ArrowUturnLeftIcon';
 
 
 type ModalType = 'category' | 'subcategory' | 'item';
@@ -18,6 +19,14 @@ interface ModalConfig {
     type?: ModalType;
     action?: ModalAction;
     data?: Category | Subcategory | CategoryItem | { parentId?: string; parentType?: TransactionType, categoryId?: string };
+}
+
+// Drag item type definition
+interface DragItem {
+    id: string;
+    type: ModalType;
+    parentId?: string; // For subcategories (categoryId) and items (subcategoryId)
+    grandParentId?: string; // For items (categoryId)
 }
 
 const CategoryModal: React.FC<{
@@ -217,6 +226,15 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const [expandedItems, setExpandedItems] = useState<{[key: string]: boolean}>({ 'cat-food': true, 'sub-restaurants': true });
+    
+    // Drag and Drop State
+    const [draggedItem, setDraggedItem] = useState<DragItem | null>(null);
+    const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+    // Undo State
+    const [undoBackup, setUndoBackup] = useState<Category[] | null>(null);
+    const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const addCategoryTriggerRef = useRef(addCategoryTrigger);
     const activeTabRef = useRef(activeTab);
     activeTabRef.current = activeTab;
@@ -227,6 +245,13 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
         }
         addCategoryTriggerRef.current = addCategoryTrigger;
     }, [addCategoryTrigger]);
+
+    // Clean up timer on unmount
+    useEffect(() => {
+        return () => {
+            if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+        };
+    }, []);
 
     const openModal = (type: ModalType, action: ModalAction, data: any) => {
         setModalConfig({ isOpen: true, type, action, data });
@@ -239,11 +264,25 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
         setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
     }
 
-    const sortByName = <T extends { name: string }>(arr: T[]): T[] => {
-        return [...arr].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+    const clearUndo = () => {
+        setUndoBackup(null);
+        if (undoTimeoutRef.current) {
+            clearTimeout(undoTimeoutRef.current);
+            undoTimeoutRef.current = null;
+        }
+    };
+
+    const handleUndo = async () => {
+        if (undoBackup) {
+            await setCategories(undoBackup);
+            clearUndo();
+        }
     };
 
     const handleSave = async (type: ModalType, names: string[], data: any, color?: string, includeInBalance = true) => {
+        // Clear undo history when a new action is performed to prevent data conflicts
+        clearUndo();
+
         let newCategories = [...categories];
         
         if (modalConfig.action === 'add') {
@@ -256,7 +295,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                     const newSub: Subcategory = { id: crypto.randomUUID(), name, items: [], categoryId: data.parentId };
                     newCategories = newCategories.map(cat => 
                         cat.id === data.parentId 
-                        ? { ...cat, subcategories: sortByName([...cat.subcategories, newSub]) } 
+                        ? { ...cat, subcategories: [...cat.subcategories, newSub] } 
                         : cat
                     );
                 }
@@ -266,7 +305,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                         if (cat.id === data.categoryId) {
                             const updatedSubcategories = cat.subcategories.map(sub => 
                                 sub.id === data.parentId 
-                                ? { ...sub, items: sortByName([...sub.items, newItem]) } 
+                                ? { ...sub, items: [...sub.items, newItem] } 
                                 : sub
                             );
                             return { ...cat, subcategories: updatedSubcategories };
@@ -283,7 +322,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
             if (type === 'subcategory') {
                 newCategories = newCategories.map(cat => ({
                      ...cat,
-                     subcategories: sortByName(cat.subcategories.map(sub => sub.id === data.id ? { ...sub, name } : sub))
+                     subcategories: cat.subcategories.map(sub => sub.id === data.id ? { ...sub, name } : sub)
                 }));
             }
             if (type === 'item') {
@@ -291,20 +330,24 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                     ...cat,
                     subcategories: cat.subcategories.map(sub => ({
                         ...sub,
-                        items: sortByName(sub.items.map(item => item.id === data.id ? { ...item, name, includeInBalance } : item))
+                        items: sub.items.map(item => item.id === data.id ? { ...item, name, includeInBalance } : item)
                     }))
                 }));
             }
         }
-        const success = await setCategories(sortByName(newCategories));
+        
+        const success = await setCategories(newCategories);
         if (success) {
             closeModal();
         }
     };
 
     const handleDelete = async (type: ModalType, data: any) => {
-        const confirmationText = 'Tem certeza que deseja excluir? Esta ação não pode ser desfeita e removerá todos os sub-itens associados.';
+        const confirmationText = 'Tem certeza que deseja excluir? Esta ação removerá todos os sub-itens associados.';
         if (window.confirm(confirmationText)) {
+            // Backup current state for Undo
+            const backupState = [...categories];
+            
             let updatedCategories: Category[];
     
             if (type === 'category') {
@@ -328,24 +371,137 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
     
             await setCategories(updatedCategories);
             closeModal();
+
+            // Setup Undo Notification
+            setUndoBackup(backupState);
+            if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+            undoTimeoutRef.current = setTimeout(() => {
+                setUndoBackup(null);
+            }, 6000); // 6 seconds to undo
         }
     };
     
+    // --- Drag and Drop Handlers ---
+
+    const handleDragStart = (e: React.DragEvent, item: DragItem) => {
+        e.stopPropagation();
+        setDraggedItem(item);
+        // Required for Firefox
+        e.dataTransfer.effectAllowed = 'move';
+        // Hide the default drag image slightly or keep it
+        e.dataTransfer.setData('text/plain', item.id); // Required
+    };
+
+    const handleDragOver = (e: React.DragEvent, id: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (draggedItem && draggedItem.id !== id) {
+            setDragOverId(id);
+        }
+    };
+
+    const handleDragEnd = () => {
+        setDraggedItem(null);
+        setDragOverId(null);
+    };
+
+    const handleDrop = async (e: React.DragEvent, targetId: string, targetType: ModalType, targetParentId?: string, targetGrandParentId?: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!draggedItem || draggedItem.id === targetId) {
+            handleDragEnd();
+            return;
+        }
+
+        // Ensure we are dropping into the same list (same parent)
+        if (draggedItem.type !== targetType) {
+             handleDragEnd();
+             return;
+        }
+        
+        if (draggedItem.type === 'subcategory' && draggedItem.parentId !== targetParentId) {
+             handleDragEnd();
+             return;
+        }
+
+        if (draggedItem.type === 'item' && draggedItem.parentId !== targetParentId) {
+             handleDragEnd();
+             return;
+        }
+        
+        // Clear undo when reordering
+        clearUndo();
+
+        // Logic to reorder
+        let newCategories = [...categories];
+
+        if (draggedItem.type === 'category') {
+            const oldIndex = newCategories.findIndex(c => c.id === draggedItem.id);
+            const newIndex = newCategories.findIndex(c => c.id === targetId);
+            if (oldIndex !== -1 && newIndex !== -1) {
+                const [moved] = newCategories.splice(oldIndex, 1);
+                newCategories.splice(newIndex, 0, moved);
+            }
+        } 
+        else if (draggedItem.type === 'subcategory') {
+            const catIndex = newCategories.findIndex(c => c.id === draggedItem.parentId);
+            if (catIndex !== -1) {
+                const category = { ...newCategories[catIndex] };
+                const subcategories = [...category.subcategories];
+                const oldIndex = subcategories.findIndex(s => s.id === draggedItem.id);
+                const newIndex = subcategories.findIndex(s => s.id === targetId);
+                
+                if (oldIndex !== -1 && newIndex !== -1) {
+                    const [moved] = subcategories.splice(oldIndex, 1);
+                    subcategories.splice(newIndex, 0, moved);
+                    category.subcategories = subcategories;
+                    newCategories[catIndex] = category;
+                }
+            }
+        }
+        else if (draggedItem.type === 'item') {
+            const catIndex = newCategories.findIndex(c => c.id === draggedItem.grandParentId);
+            if (catIndex !== -1) {
+                const category = { ...newCategories[catIndex] };
+                const subcategories = [...category.subcategories];
+                const subIndex = subcategories.findIndex(s => s.id === draggedItem.parentId);
+                
+                if (subIndex !== -1) {
+                    const subcategory = { ...subcategories[subIndex] };
+                    const items = [...subcategory.items];
+                    const oldIndex = items.findIndex(i => i.id === draggedItem.id);
+                    const newIndex = items.findIndex(i => i.id === targetId);
+                    
+                    if (oldIndex !== -1 && newIndex !== -1) {
+                        const [moved] = items.splice(oldIndex, 1);
+                        items.splice(newIndex, 0, moved);
+                        subcategory.items = items;
+                        subcategories[subIndex] = subcategory;
+                        category.subcategories = subcategories;
+                        newCategories[catIndex] = category;
+                    }
+                }
+            }
+        }
+
+        setCategories(newCategories);
+        handleDragEnd();
+    };
+
     const filteredCategories = useMemo(() => {
         const lowerSearch = searchTerm.toLowerCase();
         
-        const sorted = categories.map(cat => ({
-            ...cat,
-            subcategories: cat.subcategories.map(sub => ({
-                ...sub,
-                items: sortByName(sub.items)
-            })).sort((a,b) => a.name.localeCompare(b.name))
-        })).sort((a,b) => a.name.localeCompare(b.name));
+        // Removed sorting logic to preserve Drag & Drop order
+        // Only filtering logic remains
+        
+        if (!searchTerm) {
+            return categories.filter(c => c.type === activeTab);
+        }
 
-        return sorted
+        return categories
             .filter(c => c.type === activeTab)
             .filter(cat => {
-                if (!searchTerm) return true;
                 if (cat.name.toLowerCase().includes(lowerSearch)) return true;
                 return cat.subcategories.some(sub => {
                     if (sub.name.toLowerCase().includes(lowerSearch)) return true;
@@ -363,7 +519,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
     );
     
     return (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
                  <div className="p-1 bg-slate-100 rounded-lg flex space-x-1 self-start">
                     <button onClick={() => setActiveTab(TransactionType.EXPENSE)} className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${activeTab === TransactionType.EXPENSE ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Despesas</button>
@@ -381,16 +537,27 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                 </div>
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-2 mb-10">
                 {filteredCategories.map(category => (
-                    <div key={category.id}>
-                        <div className="group flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onClick={(e) => toggleExpand(e, category.id)}>
+                    <div 
+                        key={category.id} 
+                        draggable={!searchTerm} 
+                        onDragStart={(e) => handleDragStart(e, { id: category.id, type: 'category' })}
+                        onDragOver={(e) => handleDragOver(e, category.id)}
+                        onDragEnd={handleDragEnd}
+                        onDrop={(e) => handleDrop(e, category.id, 'category')}
+                        className={`transition-all duration-200 ${draggedItem?.id === category.id ? 'opacity-50' : ''}`}
+                    >
+                        <div 
+                            className={`group flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer ${dragOverId === category.id ? 'border-2 border-blue-400' : ''}`} 
+                            onClick={(e) => toggleExpand(e, category.id)}
+                        >
                              <div className="flex items-center space-x-3">
                                 <button className="p-1" onClick={(e) => toggleExpand(e, category.id)} aria-label={expandedItems[category.id] ? 'Recolher' : 'Expandir'}>
                                     {expandedItems[category.id] ? <ChevronDownIcon className="w-4 h-4 text-slate-400"/> : <ChevronRightIcon className="w-4 h-4 text-slate-400"/>}
                                 </button>
                                 <CategoryColorSquare color={category.color} />
-                                <span className="font-semibold text-slate-800">{category.name}</span>
+                                <span className="font-semibold text-slate-800 select-none">{category.name}</span>
                              </div>
                             <ActionButtons 
                                 onAdd={() => openModal('subcategory', 'add', { parentId: category.id })}
@@ -401,14 +568,25 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                         {expandedItems[category.id] && (
                             <div className="pl-12 space-y-1 mt-1">
                                 {category.subcategories.map(subcategory => (
-                                    <div key={subcategory.id}>
-                                        <div className="group flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onClick={(e) => toggleExpand(e, subcategory.id)}>
+                                    <div 
+                                        key={subcategory.id}
+                                        draggable={!searchTerm}
+                                        onDragStart={(e) => handleDragStart(e, { id: subcategory.id, type: 'subcategory', parentId: category.id })}
+                                        onDragOver={(e) => handleDragOver(e, subcategory.id)}
+                                        onDragEnd={handleDragEnd}
+                                        onDrop={(e) => handleDrop(e, subcategory.id, 'subcategory', category.id)}
+                                        className={`${draggedItem?.id === subcategory.id ? 'opacity-50' : ''}`}
+                                    >
+                                        <div 
+                                            className={`group flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 cursor-pointer ${dragOverId === subcategory.id ? 'border-2 border-blue-400 bg-blue-50' : ''}`} 
+                                            onClick={(e) => toggleExpand(e, subcategory.id)}
+                                        >
                                              <div className="flex items-center space-x-3">
                                                  <button className="p-1" onClick={(e) => toggleExpand(e, subcategory.id)} aria-label={expandedItems[subcategory.id] ? 'Recolher' : 'Expandir'}>
                                                     {subcategory.items.length > 0 && (expandedItems[subcategory.id] ? <ChevronDownIcon className="w-4 h-4 text-slate-400"/> : <ChevronRightIcon className="w-4 h-4 text-slate-400"/>)}
                                                     {subcategory.items.length === 0 && <div className="w-6"></div>}
                                                 </button>
-                                                <span className="font-medium text-sm text-slate-700">{subcategory.name}</span>
+                                                <span className="font-medium text-sm text-slate-700 select-none">{subcategory.name}</span>
                                              </div>
                                             <ActionButtons 
                                                 onAdd={() => openModal('item', 'add', { parentId: subcategory.id, categoryId: category.id })}
@@ -419,8 +597,16 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                          {expandedItems[subcategory.id] && (
                                              <div className="pl-12 space-y-1 mt-1">
                                                  {subcategory.items.map(item => (
-                                                     <div key={item.id} className="group flex items-center justify-between p-2 rounded-lg hover:bg-gray-50">
-                                                         <span className="text-sm text-slate-500">{item.name}</span>
+                                                     <div 
+                                                        key={item.id} 
+                                                        draggable={!searchTerm}
+                                                        onDragStart={(e) => handleDragStart(e, { id: item.id, type: 'item', parentId: subcategory.id, grandParentId: category.id })}
+                                                        onDragOver={(e) => handleDragOver(e, item.id)}
+                                                        onDragEnd={handleDragEnd}
+                                                        onDrop={(e) => handleDrop(e, item.id, 'item', subcategory.id, category.id)}
+                                                        className={`group flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 ${dragOverId === item.id ? 'border-2 border-blue-400 bg-blue-50' : ''} ${draggedItem?.id === item.id ? 'opacity-50' : ''}`}
+                                                     >
+                                                         <span className="text-sm text-slate-500 select-none">{item.name}</span>
                                                           <ActionButtons 
                                                             onEdit={() => openModal('item', 'edit', item)}
                                                             onDelete={() => handleDelete('item', item)}
@@ -436,6 +622,27 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                     </div>
                 ))}
             </div>
+
+            {/* Undo Toast Notification */}
+            {undoBackup && (
+                <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="bg-slate-800 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
+                        <span className="text-sm font-medium">Item excluído.</span>
+                        <button 
+                            onClick={handleUndo}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors text-sm font-semibold border border-slate-600"
+                        >
+                            <ArrowUturnLeftIcon className="w-4 h-4" />
+                            Desfazer
+                        </button>
+                        <button onClick={clearUndo} className="ml-1 text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700">
+                             <span className="sr-only">Fechar</span>
+                             &times;
+                        </button>
+                    </div>
+                </div>
+            )}
+
              <CategoryModal config={modalConfig} onClose={closeModal} onSave={handleSave} />
         </div>
     );

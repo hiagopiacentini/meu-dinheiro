@@ -248,6 +248,14 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              const startOfLastMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
              const endOfLastMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
              items = items.filter(t => { const tDate = getUTCDate(t.date); return tDate >= startOfLastMonth && tDate <= endOfLastMonth; });
+        } else if (dateFilter === 'Próximo Mês') {
+             const startOfNextMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 1));
+             const endOfNextMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59, 999));
+             items = items.filter(t => { const tDate = getUTCDate(t.date); return tDate >= startOfNextMonth && tDate <= endOfNextMonth; });
+        } else if (dateFilter === 'Este Ano') {
+             const startOfYear = new Date(Date.UTC(now.getFullYear(), 0, 1));
+             const endOfYear = new Date(Date.UTC(now.getFullYear(), 11, 31, 23, 59, 59, 999));
+             items = items.filter(t => { const tDate = getUTCDate(t.date); return tDate >= startOfYear && tDate <= endOfYear; });
         } else if (dateFilter === 'Personalizado' && customDateRange.start && customDateRange.end) {
             const start = new Date(customDateRange.start.getTime()); start.setUTCHours(0,0,0,0);
             const end = new Date(customDateRange.end.getTime()); end.setUTCHours(23,59,59,999);
@@ -306,7 +314,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         
         let success = false;
 
-        const isTransfer = itemBalanceMap.get(itemId) === false;
+        const categoryInfo = categoryMap.get(itemId);
+        // Exclude 'Repasse' from transfer logic even if it is not included in balance
+        const isTransfer = itemBalanceMap.get(itemId) === false && categoryInfo?.item !== 'Repasse';
         
         if (isTransfer) {
             if (!peerAccountId || !accountId || !amount) {
@@ -649,7 +659,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const maxDate = isInstallment ? undefined : new Date().toISOString().split('T')[0];
 
     const isEditing = !!(editingTransaction || editingInstallmentGroup);
-    const isTransfer = itemBalanceMap.get(itemId) === false;
+    const selectedCategoryInfo = categoryMap.get(itemId);
+    // Exclude 'Repasse' from transfer logic even if it is not included in balance
+    const isTransfer = itemBalanceMap.get(itemId) === false && selectedCategoryInfo?.item !== 'Repasse';
     
     return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -807,7 +819,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     </div>
                     <div className="md:col-span-2">
                         <FilterDropdown 
-                            options={['Este Mês', 'Mês Passado', 'Personalizado']}
+                            options={['Este Mês', 'Mês Passado', 'Próximo Mês', 'Este Ano', 'Personalizado']}
                             value={dateFilter}
                             onChange={handleDateFilterChange}
                         />
