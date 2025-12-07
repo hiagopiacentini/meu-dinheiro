@@ -672,7 +672,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         
                         <div className="p-1 bg-slate-100 rounded-lg flex space-x-1 mb-4">
                             <button type="button" onClick={() => { setType(TransactionType.EXPENSE); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.EXPENSE ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Saídas</button>
-                            <button type="button" onClick={() => { setType(TransactionType.INCOME); setIsInstallment(false); setIsSplit(false); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.INCOME ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Entradas</button>
+                            <button type="button" onClick={() => { setType(TransactionType.INCOME); setIsInstallment(false); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.INCOME ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Entradas</button>
                         </div>
 
                         <div className="space-y-4 max-h-[calc(100vh-22rem)] overflow-y-auto pr-2">
@@ -690,18 +690,20 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="input-style" max={maxDate} />
                                 </div>
                             </div>
-                            {type === TransactionType.EXPENSE && (
-                                <div className="flex space-x-6">
+                            
+                             <div className="flex space-x-6">
+                                {type === TransactionType.EXPENSE && (
                                     <div className="flex items-center">
                                         <input type="checkbox" id="installment-check" checked={isInstallment} onChange={e => setIsInstallment(e.target.checked)} disabled={!!editingInstallmentGroup} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
                                         <label htmlFor="installment-check" className="ml-2 block text-sm text-slate-800">Parcelar</label>
                                     </div>
-                                    <div className="flex items-center">
-                                        <input type="checkbox" id="split-check" checked={isSplit} onChange={e => setIsSplit(e.target.checked)} disabled={!!editingTransaction || !!editingInstallmentGroup} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
-                                        <label htmlFor="split-check" className="ml-2 block text-sm text-slate-800">Dividir</label>
-                                    </div>
+                                )}
+                                <div className="flex items-center">
+                                    <input type="checkbox" id="split-check" checked={isSplit} onChange={e => { setIsSplit(e.target.checked); if(e.target.checked) setIsChange(false); }} disabled={!!editingTransaction || !!editingInstallmentGroup || isChange} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+                                    <label htmlFor="split-check" className="ml-2 block text-sm text-slate-800">Dividir</label>
                                 </div>
-                            )}
+                            </div>
+
                             {isInstallment && type === TransactionType.EXPENSE && (
                                 <div>
                                     <label className="text-sm font-medium text-slate-600 mb-1 block">Número de Parcelas</label>
@@ -764,7 +766,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     </select>
                                 </div>
                             )}
-                             {type === TransactionType.INCOME && (
+                             {type === TransactionType.INCOME && !isSplit && (
                                 <div className="flex items-center pt-4 border-t border-slate-200 mt-4">
                                     <input type="checkbox" id="change-check" checked={isChange} onChange={e => setIsChange(e.target.checked)} disabled={isEditing} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
                                     <label htmlFor="change-check" className="ml-2 block text-sm text-slate-800">Devolver troco</label>
