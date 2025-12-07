@@ -315,13 +315,12 @@ const DashboardPage: React.FC = () => {
 
   const { annualSavingsToDate } = useMemo(() => {
     if (!dateRange.start) return { annualSavingsToDate: 0 };
-    const now = getNowGmtMinus4();
     const year = dateRange.start.getUTCFullYear();
     const startOfYear = new Date(Date.UTC(year, 0, 1));
     
-    const endOfPeriod = year === now.getFullYear() 
-        ? new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999))
-        : new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+    // Always consider the full year to include future transactions entered by the user,
+    // ensuring consistency with the Monthly view which includes the full month.
+    const endOfPeriod = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
 
     const savings = transactions.filter(t => {
         const tDate = getUTCDate(t.date);
