@@ -1,3 +1,4 @@
+
 export enum TransactionType {
   INCOME = 'income',
   EXPENSE = 'expense',
@@ -52,6 +53,7 @@ export interface Transaction {
   installmentGroupId?: string;
   currentInstallment?: number;
   totalInstallments?: number;
+  createdAt?: string; // Timestamp ISO string of when the record was created
 }
 
 export interface Loan {

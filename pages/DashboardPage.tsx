@@ -463,34 +463,42 @@ const DashboardPage: React.FC = () => {
     }, [categories]);
 
     const recentTransactionsForDashboard = useMemo(() => {
-        const now = getNowGmtMinus4();
-        const currentMonth = now.getMonth();
-        const currentYear = now.getFullYear();
+        // Use a set to track displayed installment groups to prevent flooding 'Recent Activity' 
+        // with multiple entries from the same installment creation batch.
+        const displayedInstallmentGroups = new Set<string>();
 
-        const singleTransactions = transactions.filter(t => !t.installmentGroupId && (t.type === TransactionType.INCOME || t.type === TransactionType.EXPENSE));
+        // Sort by createdAt to show what was *entered* most recently, not the transaction date.
+        // If createdAt is missing (legacy data), fallback to transaction date.
+        return [...transactions]
+            .sort((a, b) => {
+                const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
 
-        const installmentGroups = transactions.reduce<Record<string, Transaction[]>>((acc, t) => {
-            if (t.installmentGroupId) {
-                (acc[t.installmentGroupId] = acc[t.installmentGroupId] || []).push(t);
-            }
-            return acc;
-        }, {});
+                // If both have createdAt, prioritize newer creation
+                if (createdA > 0 && createdB > 0) {
+                    return createdB - createdA;
+                }
+                
+                // If one has createdAt, prioritize it
+                if (createdA > 0) return -1;
+                if (createdB > 0) return 1;
 
-        const relevantInstallments: Transaction[] = [];
-        for (const groupId in installmentGroups) {
-            const currentMonthInstallment = installmentGroups[groupId]
-                .sort((a, b) => getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime()) // most recent first
-                .find(t => {
-                    const tDate = getUTCDate(t.date);
-                    return tDate.getUTCMonth() === currentMonth && tDate.getUTCFullYear() === currentYear;
-                });
-            if (currentMonthInstallment) {
-                relevantInstallments.push(currentMonthInstallment);
-            }
-        }
-        
-        return [...singleTransactions, ...relevantInstallments]
-            .sort((a, b) => getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime())
+                // Fallback for legacy data
+                return getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime();
+            })
+            .filter(t => {
+                // Only show Income and Expense in recent activity
+                if (t.type !== TransactionType.INCOME && t.type !== TransactionType.EXPENSE) return false;
+
+                // If it's an installment, only show the first one encountered (which is the most relevant due to sort)
+                if (t.installmentGroupId) {
+                    if (displayedInstallmentGroups.has(t.installmentGroupId)) {
+                        return false;
+                    }
+                    displayedInstallmentGroups.add(t.installmentGroupId);
+                }
+                return true;
+            })
             .slice(0, 4)
             .map(t => {
                 const categoryInfo = itemToCategoryMap.get(t.itemId || '');

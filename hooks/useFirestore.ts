@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { 
   collection, 
@@ -133,7 +134,11 @@ export const useTransactions = () => {
         return null;
     }
     try {
-        const docRef = await addDoc(collection(db, `users/${currentUid}/transactions`), transaction);
+        const dataToSave = {
+          ...transaction,
+          createdAt: new Date().toISOString()
+        };
+        const docRef = await addDoc(collection(db, `users/${currentUid}/transactions`), dataToSave);
         return docRef.id;
     } catch (error: any) {
         console.error("Erro ao adicionar transação:", error.message);
@@ -149,7 +154,8 @@ export const useTransactions = () => {
           return false;
       }
       try {
-          const batchPromises = newTransactions.map(t => addDoc(collection(db, `users/${currentUid}/transactions`), t));
+          const timestamp = new Date().toISOString();
+          const batchPromises = newTransactions.map(t => addDoc(collection(db, `users/${currentUid}/transactions`), { ...t, createdAt: timestamp }));
           await Promise.all(batchPromises);
           return true;
       } catch (error: any) {
