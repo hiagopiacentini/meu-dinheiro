@@ -125,7 +125,7 @@ const AccountModal: React.FC<{
 const BankLogo: React.FC<{ account: Account, size?: 'sm' | 'lg'}> = ({ account, size = 'sm' }) => {
     const { bank: bankName = '', imageUrl } = account;
     const name = bankName.toLowerCase();
-    const sizeClasses = size === 'sm' ? 'w-10 h-10 rounded-lg' : 'w-14 h-14 rounded-xl';
+    const sizeClasses = size === 'sm' ? 'w-10 h-10 rounded-lg flex-shrink-0' : 'w-14 h-14 rounded-xl flex-shrink-0';
     
     if (imageUrl) {
         return <img src={imageUrl} alt={account.name} className={`${sizeClasses} object-cover`} />;
@@ -156,7 +156,7 @@ const categoryColors: { [key: string]: string } = {
 const defaultCategoryColor = 'bg-slate-100 text-slate-800';
 
 const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigger }) => {
-    const { accounts, addAccount, updateAccount, deleteAccount } = useAccounts();
+    const { accounts, addAccount, updateAccount, deleteAccount, reorderAccounts } = useAccounts();
     const { transactions } = useTransactions();
     const { categories } = useCategories();
     // Loans hook not strictly needed for display here but kept for consistency if extended
@@ -336,18 +336,38 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
         e.stopPropagation();
     };
     
-    const handleDragStart = (index: number) => {
+    const handleAccountDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
         setDraggedItemIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
     };
 
-    const handleDragEnter = (index: number) => {
+    const handleAccountDragEnter = (index: number) => {
         setDragOverItemIndex(index);
     };
 
-    const handleDragEnd = () => {
-        // Drag and drop reordering in Firestore would require an 'order' field. 
-        // For now, this visual reordering won't persist to DB unless we add that field.
-        // We'll skip implementation of persistence for reordering to keep it simple or strictly local.
+    const handleAccountDragEnd = () => {
+        setDraggedItemIndex(null);
+        setDragOverItemIndex(null);
+    };
+    
+    const handleAccountDrop = async (e: React.DragEvent<HTMLDivElement>, targetIndex: number) => {
+        e.preventDefault();
+        if (draggedItemIndex === null || draggedItemIndex === targetIndex) return;
+
+        const newAccounts = [...accounts];
+        const [movedItem] = newAccounts.splice(draggedItemIndex, 1);
+        newAccounts.splice(targetIndex, 0, movedItem);
+        
+        // Prepare the payload for batch update: only need ID and new Order index
+        const updates = newAccounts.map((acc, index) => ({
+            id: acc.id,
+            order: index
+        }));
+        
+        // Optimistically update logic could go here, but reorderAccounts will trigger a snapshot update soon.
+        // We call the persist function
+        await reorderAccounts(updates);
+
         setDraggedItemIndex(null);
         setDragOverItemIndex(null);
     };
@@ -380,25 +400,26 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                         <div 
                             key={acc.id} 
                             draggable
-                            onDragStart={() => handleDragStart(index)}
-                            onDragEnter={() => handleDragEnter(index)}
-                            onDragEnd={handleDragEnd}
+                            onDragStart={(e) => handleAccountDragStart(e, index)}
+                            onDragEnter={() => handleAccountDragEnter(index)}
+                            onDragEnd={handleAccountDragEnd}
                             onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => handleAccountDrop(e, index)}
                             onClick={() => setSelectedAccountId(acc.id)} 
-                            className={`w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-grab ${draggedItemIndex === index ? '' : ''} ${isDragOver ? 'border-blue-500' : ''} ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}
+                            className={`w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-grab active:cursor-grabbing ${draggedItemIndex === index ? 'opacity-50' : ''} ${isDragOver ? 'border-blue-500 bg-blue-50' : ''} ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}
                          >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-4">
+                            <div className="flex items-center justify-between pointer-events-none gap-4">
+                                <div className="flex items-center space-x-4 min-w-0">
                                     <BankLogo account={acc} />
-                                    <div>
+                                    <div className="min-w-0">
                                         <div className="flex items-center space-x-2">
-                                            <p className="font-bold text-slate-800">{acc.name}</p>
-                                            {!acc.isActive && <span className="text-xs bg-gray-200 text-gray-600 font-semibold px-2 py-0.5 rounded-full">Inativa</span>}
+                                            <p className="font-bold text-slate-800 truncate" title={acc.name}>{acc.name}</p>
+                                            {!acc.isActive && <span className="text-xs bg-gray-200 text-gray-600 font-semibold px-2 py-0.5 rounded-full flex-shrink-0">Inativa</span>}
                                         </div>
-                                        <p className="text-sm text-slate-500">Saldo Atual</p>
+                                        <p className="text-sm text-slate-500 truncate">Saldo Atual</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center space-x-1">
+                                <div className="flex items-center space-x-1 pointer-events-auto flex-shrink-0">
                                     <p className="font-bold text-lg text-slate-800 whitespace-nowrap">{formatCurrency(accountBalances.get(acc.id) || 0)}</p>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleOpenModal(acc); }} 

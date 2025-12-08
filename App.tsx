@@ -9,6 +9,7 @@ import LoansPage from './pages/LoansPage';
 import BalancesPage from './pages/BalancesPage';
 import GoalsPage from './pages/GoalsPage';
 import ReportsPage from './pages/ReportsPage';
+import InvestmentsPage from './pages/InvestmentsPage';
 import LoginPage from './pages/LoginPage';
 import { auth } from './services/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
@@ -23,6 +24,7 @@ import GoalsIcon from './components/icons/GoalsIcon';
 import ReportsIcon from './components/icons/ReportsIcon';
 import MenuIcon from './components/icons/MenuIcon';
 import PlusIcon from './components/icons/PlusIcon';
+import InvestmentsIcon from './components/icons/InvestmentsIcon';
 
 
 const App: React.FC = () => {
@@ -98,6 +100,8 @@ const App: React.FC = () => {
         return <CategoriesPage addCategoryTrigger={addCategoryTrigger}/>;
       case 'Lançamentos':
         return <TransactionsPage addTransactionTrigger={addTransactionTrigger} />;
+      case 'Investimentos':
+        return <InvestmentsPage />;
       case 'Empréstimos':
         return <LoansPage />;
       case 'Saldos':
@@ -116,6 +120,7 @@ const App: React.FC = () => {
     { name: 'Contas', icon: AccountsIcon },
     { name: 'Categorias', icon: CategoriesIcon },
     { name: 'Lançamentos', icon: TransactionsIcon },
+    { name: 'Investimentos', icon: InvestmentsIcon },
     { name: 'Empréstimos', icon: LoansIcon },
     { name: 'Saldos', icon: BalancesIcon },
     { name: 'Relatórios', icon: ReportsIcon },
@@ -127,6 +132,7 @@ const App: React.FC = () => {
       'Contas': 'Visualize todas as suas contas bancárias e carteiras digitais.',
       'Categorias': 'Organize suas receitas e despesas com categorias e subcategorias.',
       'Lançamentos': 'Adicione, edite e visualize todas as suas transações.',
+      'Investimentos': 'Gerencie seus contratos de CDB e acompanhe rendimentos.',
   }
 
   if (isLoading) {

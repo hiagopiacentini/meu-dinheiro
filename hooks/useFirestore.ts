@@ -8,11 +8,12 @@ import {
   setDoc, 
   deleteDoc, 
   addDoc, 
-  updateDoc
+  updateDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { Account, Transaction, Category, Loan, AnnualGoals } from '../types';
+import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract } from '../types';
 import { sampleCategories } from '../data/demoData';
 
 // --- ACCOUNTS HOOK ---
@@ -36,6 +37,8 @@ export const useAccounts = () => {
     const q = query(collection(db, `users/${userId}/accounts`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Account));
+      // Sort accounts by order field
+      data.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       setAccounts(data);
     }, (error) => {
       console.error("Error fetching accounts:", error.message);
@@ -51,7 +54,9 @@ export const useAccounts = () => {
         return null;
     }
     try {
-        const docRef = await addDoc(collection(db, `users/${currentUid}/accounts`), account);
+        // Assign a default order (last in list)
+        const newOrder = accounts.length > 0 ? (Math.max(...accounts.map(a => a.order || 0)) + 1) : 0;
+        const docRef = await addDoc(collection(db, `users/${currentUid}/accounts`), { ...account, order: newOrder });
         return docRef.id;
     } catch (error: any) {
         console.error("Erro ao adicionar conta:", error.message);
@@ -77,6 +82,24 @@ export const useAccounts = () => {
     }
   };
 
+  const reorderAccounts = async (updatedOrderAccounts: { id: string, order: number }[]) => {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return false;
+
+    try {
+        const batch = writeBatch(db);
+        updatedOrderAccounts.forEach((acc) => {
+            const ref = doc(db, `users/${currentUid}/accounts`, acc.id);
+            batch.update(ref, { order: acc.order });
+        });
+        await batch.commit();
+        return true;
+    } catch (error: any) {
+        console.error("Erro ao reordenar contas:", error.message);
+        return false;
+    }
+  };
+
   const deleteAccount = async (id: string) => {
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) {
@@ -95,7 +118,7 @@ export const useAccounts = () => {
     }
   };
 
-  return { accounts, addAccount, updateAccount, deleteAccount };
+  return { accounts, addAccount, updateAccount, reorderAccounts, deleteAccount };
 };
 
 // --- TRANSACTIONS HOOK ---
@@ -400,4 +423,76 @@ export const useGoals = () => {
   };
 
   return { goals, setGoals };
+};
+
+// --- CDB INVESTMENTS HOOK ---
+export const useCDBs = () => {
+  const [cdbs, setCdbs] = useState<CDBContract[]>([]);
+  const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setUserId(user ? user.uid : null);
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setCdbs([]);
+      return;
+    }
+
+    const q = query(collection(db, `users/${userId}/cdb_contracts`));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CDBContract));
+      setCdbs(data);
+    }, (error) => {
+      console.error("Error fetching CDBs:", error.message);
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+
+  const addCDB = async (cdb: Omit<CDBContract, 'id'>) => {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return null;
+    try {
+        const docRef = await addDoc(collection(db, `users/${currentUid}/cdb_contracts`), cdb);
+        return docRef.id;
+    } catch (error: any) {
+        console.error("Erro ao adicionar CDB:", error.message);
+        alert(`Erro ao salvar CDB: ${error.message}`);
+        return null;
+    }
+  };
+
+  const updateCDB = async (cdb: CDBContract) => {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return false;
+    try {
+        const { id, ...data } = cdb;
+        await updateDoc(doc(db, `users/${currentUid}/cdb_contracts`, id), data);
+        return true;
+    } catch (error: any) {
+        console.error("Erro ao atualizar CDB:", error.message);
+        alert(`Erro ao atualizar CDB: ${error.message}`);
+        return false;
+    }
+  };
+
+  const deleteCDB = async (id: string) => {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return false;
+    try {
+        await deleteDoc(doc(db, `users/${currentUid}/cdb_contracts`, id));
+        return true;
+    } catch (error: any) {
+        console.error("Erro ao excluir CDB:", error.message);
+        alert(`Erro ao excluir CDB: ${error.message}`);
+        return false;
+    }
+  };
+
+  return { cdbs, addCDB, updateCDB, deleteCDB };
 };

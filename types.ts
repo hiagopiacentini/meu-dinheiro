@@ -14,6 +14,7 @@ export interface Account {
   accountNumber?: string;
   isActive: boolean;
   imageUrl?: string;
+  order?: number; // Field to control the display order
 }
 
 // For the 3-level categories
@@ -72,4 +73,16 @@ export interface Loan {
 // Add AnnualGoals type to be shared across components.
 export interface AnnualGoals {
   [year: string]: number;
+}
+
+export interface CDBContract {
+  id: string;
+  name: string; // nome_cdb
+  bank: string; // banco_corretora
+  applicationDate: string; // data_aplicacao
+  principalAmount: number; // valor_aplicado_principal
+  rateDescription: string; // taxa_rendimento
+  maturityDate?: string; // data_vencimento
+  currentGrossBalance: number; // saldo_bruto_atual
+  isActive: boolean;
 }

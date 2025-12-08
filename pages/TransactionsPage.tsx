@@ -235,9 +235,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     };
 
     const filteredTransactions = useMemo(() => {
-        // First reverse the transactions so newer ones (by insertion order) are first.
-        // This effectively ensures LIFO for transactions on the same day when sorted by date.
-        let items = [...transactions].reverse();
+        // Use explicit copy of array
+        let items = [...transactions];
         
         const now = getNowGmtMinus4();
         if (dateFilter === 'Este Mês') {
@@ -288,8 +287,22 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             );
         }
 
-        // Sort by date. Stable sort + reversed input ensures newer items first for same date.
-        return items.sort((a, b) => getUTCDate(b.date).getTime() - getUTCDate(a.date).getTime());
+        // Sort by date descending, then by creation time descending (LIFO for same day)
+        return items.sort((a, b) => {
+            const dateA = getUTCDate(a.date).getTime();
+            const dateB = getUTCDate(b.date).getTime();
+
+            // 1. Primary Sort: Transaction Date
+            if (dateA !== dateB) {
+                return dateB - dateA; // Newer business dates first
+            }
+
+            // 2. Secondary Sort: Creation Time (Newest created first)
+            const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            
+            return createdB - createdA;
+        });
     }, [transactions, searchTerm, dateFilter, typeFilter, accountFilter, installmentFilter, customDateRange, itemBalanceMap]);
     
     const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);

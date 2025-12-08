@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useGoals, useTransactions } from '../hooks/useFirestore';
+import { useGoals, useTransactions, useCategories } from '../hooks/useFirestore';
 import { TransactionType } from '../types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -18,6 +18,7 @@ const ProgressBar: React.FC<{ value: number, color: string }> = ({ value, color 
 const GoalsPage: React.FC = () => {
     const { goals, setGoals } = useGoals();
     const { transactions } = useTransactions();
+    const { categories } = useCategories();
     
     const currentYear = new Date().getFullYear();
     const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -28,30 +29,36 @@ const GoalsPage: React.FC = () => {
         setAnnualInput(String(goals[selectedYear] || ''));
     }, [selectedYear, goals]);
 
+    const itemBalanceMap = useMemo(() => {
+        const map = new Map<string, boolean>();
+        categories.forEach(cat => cat.subcategories.forEach(sub => sub.items.forEach(item => map.set(item.id, item.includeInBalance))));
+        return map;
+    }, [categories]);
 
     const { annualSavings } = useMemo(() => {
         const startOfYear = new Date(Date.UTC(selectedYear, 0, 1));
         
-        const now = new Date();
-        const isCurrentYear = selectedYear === now.getFullYear();
-        const endOfPeriod = isCurrentYear 
-            ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999))
-            : new Date(Date.UTC(selectedYear, 11, 31, 23, 59, 59, 999));
+        // Always consider the full year to include future transactions entered by the user
+        const endOfPeriod = new Date(Date.UTC(selectedYear, 11, 31, 23, 59, 59, 999));
 
         const yearTrans = transactions.filter(t => {
             const date = new Date(t.date);
             const tDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-            return tDate >= startOfYear && tDate <= endOfPeriod && t.type !== TransactionType.TRANSFER;
+            return tDate >= startOfYear && tDate <= endOfPeriod;
         });
 
         const totalSavings = yearTrans.reduce((acc, t) => {
-            if (t.type === TransactionType.INCOME) return acc + t.amount;
-            if (t.type === TransactionType.EXPENSE) return acc - t.amount;
+            const shouldInclude = !t.itemId || itemBalanceMap.get(t.itemId) !== false;
+            
+            if (shouldInclude) {
+                if (t.type === TransactionType.INCOME) return acc + t.amount;
+                if (t.type === TransactionType.EXPENSE) return acc - t.amount;
+            }
             return acc;
         }, 0);
 
         return { annualSavings: totalSavings };
-    }, [transactions, selectedYear]);
+    }, [transactions, selectedYear, itemBalanceMap]);
     
     const handleInputBlur = () => {
         const value = parseFloat(annualInput);
