@@ -12,8 +12,13 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Explicitly declare state and props to fix TS errors
+  public state: ErrorBoundaryState;
+  public props: ErrorBoundaryProps;
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    this.props = props;
     this.state = { hasError: false, error: null };
   }
 
@@ -29,6 +34,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     if (this.state.hasError) {
       let errorMessage = "Erro desconhecido";
       try {
+          // Robustly get error message
           errorMessage = this.state.error instanceof Error ? this.state.error.toString() : String(this.state.error);
       } catch (e) {
           errorMessage = "Erro crítico (não foi possível converter o erro para string)";

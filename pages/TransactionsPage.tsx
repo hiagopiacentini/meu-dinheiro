@@ -125,6 +125,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         type: TransactionType.EXPENSE,
     });
 
+    // Filter State (Defined early to be used in handleClearForm)
+    const [accountFilter, setAccountFilter] = useState('Todos');
+
     // Form State
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [editingInstallmentGroup, setEditingInstallmentGroup] = useState<Transaction | null>(null);
@@ -145,12 +148,11 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [peerAccountId, setPeerAccountId] = useState('');
 
 
-    // Filter State
+    // Other Filter State
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const [dateFilter, setDateFilter] = useState('Este Mês');
     const [typeFilter, setTypeFilter] = useState('Todos');
-    const [accountFilter, setAccountFilter] = useState('Todos');
     const [installmentFilter, setInstallmentFilter] = useState(false);
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [customDateRange, setCustomDateRange] = useState<{start: Date | null, end: Date | null}>({ start: null, end: null });
@@ -173,7 +175,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setDescription('');
         setAmount('');
         setDate(new Date().toISOString().split('T')[0]);
-        setAccountId(lastUsedDetails.accountId || (activeAccounts.length > 0 ? activeAccounts[0].id : ''));
+        // Logic update: If a specific account is filtered, default to it. Otherwise fall back to last used or first active.
+        setAccountId(accountFilter !== 'Todos' ? accountFilter : (lastUsedDetails.accountId || (activeAccounts.length > 0 ? activeAccounts[0].id : '')));
         setItemId('');
         setIsInstallment(false);
         setInstallmentsCount('2');
@@ -184,13 +187,20 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setChangeAccountId('');
         setChangeItemId('');
         setPeerAccountId('');
-    }, [activeAccounts, lastUsedDetails]);
+    }, [activeAccounts, lastUsedDetails, accountFilter]);
 
     useEffect(() => {
         if (addTransactionTrigger > 0) {
             handleClearForm();
         }
     }, [addTransactionTrigger, handleClearForm]);
+
+    // New Effect: Update form account when filter changes (only if not editing)
+    useEffect(() => {
+        if (!editingTransaction && !editingInstallmentGroup && accountFilter !== 'Todos') {
+            setAccountId(accountFilter);
+        }
+    }, [accountFilter, editingTransaction, editingInstallmentGroup]);
 
     useEffect(() => {
         if (!editingTransaction && activeAccounts.length > 0 && !accountId) {
@@ -884,7 +894,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                         return (
                                         <tr key={t.id} className="hover:bg-gray-50">
                                             <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(t.date)}</td>
-                                            <td className="px-4 py-3 text-slate-800 font-medium truncate">{t.description}</td>
+                                            <td className="px-4 py-3 text-slate-800 font-medium truncate" title={t.description}>{t.description}</td>
                                             <td className="px-4 py-3 text-slate-600 whitespace-nowrap truncate">{accountMap.get(t.accountId)}</td>
                                             <td className="px-4 py-3 text-center align-middle">
                                                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${categoryInfo ? (categoryColors[categoryInfo.cat] || defaultCategoryColor) : defaultCategoryColor}`}>

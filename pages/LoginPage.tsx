@@ -8,6 +8,20 @@ interface LoginPageProps {
   onLogin: () => void;
 }
 
+// Safe JSON stringify helper
+const safeStringify = (obj: any) => {
+  const seen = new WeakSet();
+  return JSON.stringify(obj, (key, value) => {
+    if (typeof value === "object" && value !== null) {
+      if (seen.has(value)) {
+        return;
+      }
+      seen.add(value);
+    }
+    return value;
+  });
+};
+
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -23,14 +37,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       const storedAccounts = JSON.parse(localStorage.getItem('accounts') || '[]');
       if (Array.isArray(storedAccounts)) {
         const userAccounts = storedAccounts.filter((acc: any) => !acc.id.includes('-demo'));
-        localStorage.setItem('accounts', JSON.stringify(userAccounts));
+        localStorage.setItem('accounts', safeStringify(userAccounts));
       }
 
       // 2. Clean Transactions (remove ids starting with 't-demo')
       const storedTransactions = JSON.parse(localStorage.getItem('transactions') || '[]');
       if (Array.isArray(storedTransactions)) {
         const userTransactions = storedTransactions.filter((t: any) => !String(t.id).startsWith('t-demo'));
-        localStorage.setItem('transactions', JSON.stringify(userTransactions));
+        localStorage.setItem('transactions', safeStringify(userTransactions));
       }
 
       // 3. Clean Categories 
@@ -38,7 +52,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       if (Array.isArray(storedCategories)) {
         const userCategories = storedCategories.filter((c: any) => c.id.length > 10);
         if (userCategories.length !== storedCategories.length) {
-             localStorage.setItem('categories', JSON.stringify(userCategories));
+             localStorage.setItem('categories', safeStringify(userCategories));
         }
       }
 
@@ -49,13 +63,18 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
   const handleDemoLogin = () => {
     if (window.confirm("Atenção: Entrar no modo Demonstração irá substituir os dados atuais do navegador pelos dados de exemplo. Deseja continuar?")) {
-      // Clear existing data and set demo data
-      localStorage.setItem('accounts', JSON.stringify(sampleAccounts));
-      localStorage.setItem('transactions', JSON.stringify(sampleTransactions));
-      localStorage.setItem('categories', JSON.stringify(sampleCategories));
-      localStorage.setItem('loans', JSON.stringify(sampleLoans));
-      localStorage.setItem('goals', JSON.stringify(sampleGoals));
-      onLogin();
+      try {
+        // Clear existing data and set demo data using safeStringify
+        localStorage.setItem('accounts', safeStringify(sampleAccounts));
+        localStorage.setItem('transactions', safeStringify(sampleTransactions));
+        localStorage.setItem('categories', safeStringify(sampleCategories));
+        localStorage.setItem('loans', safeStringify(sampleLoans));
+        localStorage.setItem('goals', safeStringify(sampleGoals));
+        onLogin();
+      } catch (e) {
+        console.error("Error setting demo data:", e);
+        alert("Erro ao carregar dados de demonstração.");
+      }
     }
   };
 
