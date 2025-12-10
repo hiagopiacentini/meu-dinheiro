@@ -54,6 +54,9 @@ export interface Transaction {
   installmentGroupId?: string;
   currentInstallment?: number;
   totalInstallments?: number;
+  
+  splitGroupId?: string; // ID to link split transactions together
+  
   createdAt?: string; // Timestamp ISO string of when the record was created
 }
 

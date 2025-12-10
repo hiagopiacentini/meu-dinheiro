@@ -131,6 +131,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     // Form State
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [editingInstallmentGroup, setEditingInstallmentGroup] = useState<Transaction | null>(null);
+    const [editingSplitGroupId, setEditingSplitGroupId] = useState<string | null>(null); // New state for editing split groups
+
     const [type, setType] = useState<TransactionType>(lastUsedDetails.type);
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
@@ -171,6 +173,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const handleClearForm = useCallback(() => {
         setEditingTransaction(null);
         setEditingInstallmentGroup(null);
+        setEditingSplitGroupId(null);
         setType(lastUsedDetails.type);
         setDescription('');
         setAmount('');
@@ -197,10 +200,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     // New Effect: Update form account when filter changes (only if not editing)
     useEffect(() => {
-        if (!editingTransaction && !editingInstallmentGroup && accountFilter !== 'Todos') {
+        if (!editingTransaction && !editingInstallmentGroup && !editingSplitGroupId && accountFilter !== 'Todos') {
             setAccountId(accountFilter);
         }
-    }, [accountFilter, editingTransaction, editingInstallmentGroup]);
+    }, [accountFilter, editingTransaction, editingInstallmentGroup, editingSplitGroupId]);
 
     useEffect(() => {
         if (!editingTransaction && activeAccounts.length > 0 && !accountId) {
@@ -504,10 +507,28 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             if(splitItems.some(i => !i.itemId || !i.amount)) {
                 alert('Todos os itens divididos devem ter um item e um valor.'); return;
             }
+            
+            // If editing a split group, delete the old ones first
+            if (editingSplitGroupId) {
+                const idsToRemove = transactions.filter(t => t.splitGroupId === editingSplitGroupId).map(t => t.id);
+                const delSuccess = await deleteTransactions(idsToRemove);
+                if (!delSuccess) {
+                    alert('Erro ao atualizar transação dividida.');
+                    return;
+                }
+            }
+
+            // Create new group ID (either keep existing or new, creating new ensures clean slate)
+            const finalSplitGroupId = editingSplitGroupId || crypto.randomUUID();
+
             const newTransactions: Omit<Transaction, 'id'>[] = splitItems.map(item => ({
-                 ...commonData, amount: parseFloat(item.amount), itemId: item.itemId,
-                description: `${description} - ${categoryMap.get(item.itemId)?.item}`
+                 ...commonData, 
+                 amount: parseFloat(item.amount), 
+                 itemId: item.itemId,
+                 description: `${description} - ${categoryMap.get(item.itemId)?.item}`,
+                 splitGroupId: finalSplitGroupId // Link them together
             }));
+            
             success = await addTransactions(newTransactions);
 
         } else if (isInstallment && type === TransactionType.EXPENSE) {
@@ -549,6 +570,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             const firstInstallment = groupTransactions[0];
             setEditingTransaction(null);
             setEditingInstallmentGroup(firstInstallment);
+            setEditingSplitGroupId(null);
             setType(firstInstallment.type);
             setDescription(firstInstallment.description.replace(/\s\(\d+\/\d+\)$/, ''));
             setAmount(String(firstInstallment.amount));
@@ -558,8 +580,43 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             setIsInstallment(true);
             setInstallmentsCount(String(firstInstallment.totalInstallments));
             setIsSplit(false);
+        } else if (transaction.splitGroupId) {
+            // Edit Split Transaction Group
+            const groupTransactions = transactions.filter(t => t.splitGroupId === transaction.splitGroupId);
+            // We use the first transaction to get common data (date, account, etc)
+            const first = groupTransactions[0];
+            
+            setEditingTransaction(null);
+            setEditingInstallmentGroup(null);
+            setEditingSplitGroupId(transaction.splitGroupId);
+            
+            setType(first.type);
+            setAccountId(first.accountId);
+            setDate(first.date);
+            
+            // Reconstruct total amount
+            const totalAmount = groupTransactions.reduce((acc, t) => acc + t.amount, 0);
+            setAmount(totalAmount.toFixed(2));
+            
+            // Reconstruct Description: try to remove the suffix " - ItemName" from the first item
+            const firstItemName = categoryMap.get(first.itemId || '')?.item || '';
+            const suffix = ` - ${firstItemName}`;
+            const baseDesc = first.description.endsWith(suffix) ? first.description.slice(0, -suffix.length) : first.description;
+            setDescription(baseDesc);
+
+            // Populate split items
+            setSplitItems(groupTransactions.map((t, index) => ({
+                id: index,
+                itemId: t.itemId || '',
+                amount: t.amount.toString()
+            })));
+            
+            setIsInstallment(false);
+            setIsSplit(true);
+            setIsChange(false);
         } else {
             setEditingInstallmentGroup(null);
+            setEditingSplitGroupId(null);
             setEditingTransaction(transaction);
             setType(transaction.type);
             setDescription(transaction.description);
@@ -593,6 +650,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
         if (txToDelete.installmentGroupId) {
             setDeleteModalState({ isOpen: true, transaction: txToDelete });
+        } else if (txToDelete.splitGroupId) {
+            if (window.confirm('Esta transação faz parte de um lançamento dividido. Deseja excluir todo o grupo de divisões?')) {
+                const idsToDelete = transactions
+                    .filter(t => t.splitGroupId === txToDelete.splitGroupId)
+                    .map(t => t.id);
+                await deleteTransactions(idsToDelete);
+            }
         } else {
             if (window.confirm('Tem certeza que deseja excluir este lançamento?')) {
                 const relatedLoan = loans.find(l => l.initialTransactionId === id || l.settlementTransactionId === id || l.partialSettlements?.some(p => p.transactionId === id));
@@ -681,7 +745,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const maxDate = isInstallment ? undefined : new Date().toISOString().split('T')[0];
 
-    const isEditing = !!(editingTransaction || editingInstallmentGroup);
+    const isEditing = !!(editingTransaction || editingInstallmentGroup || editingSplitGroupId);
     const selectedCategoryInfo = categoryMap.get(itemId);
     // Exclude 'Repasse' from transfer logic even if it is not included in balance
     const isTransfer = itemBalanceMap.get(itemId) === false && selectedCategoryInfo?.item !== 'Repasse';
@@ -717,7 +781,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                              <div className="flex space-x-6">
                                 {type === TransactionType.EXPENSE && (
                                     <div className="flex items-center">
-                                        <input type="checkbox" id="installment-check" checked={isInstallment} onChange={e => setIsInstallment(e.target.checked)} disabled={!!editingInstallmentGroup} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+                                        <input type="checkbox" id="installment-check" checked={isInstallment} onChange={e => setIsInstallment(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
                                         <label htmlFor="installment-check" className="ml-2 block text-sm text-slate-800">Parcelar</label>
                                     </div>
                                 )}
