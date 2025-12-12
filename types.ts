@@ -81,6 +81,13 @@ export interface AnnualGoals {
   [year: string]: number;
 }
 
+export interface YieldEntry {
+  id: string;
+  date: string;
+  amount: number;
+  transactionId?: string; // Para poder editar/excluir a transação financeira associada
+}
+
 export interface CDBContract {
   id: string;
   name: string; // nome_cdb
@@ -91,4 +98,6 @@ export interface CDBContract {
   maturityDate?: string; // data_vencimento
   currentGrossBalance: number; // saldo_bruto_atual
   isActive: boolean;
+  initialTransactionId?: string; // ID da transação que criou o investimento
+  yieldHistory?: YieldEntry[]; // Histórico de rendimentos lançados
 }
