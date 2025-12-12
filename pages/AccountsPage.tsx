@@ -9,6 +9,10 @@ import MoneyIcon from '../components/icons/MoneyIcon';
 import UploadIcon from '../components/icons/UploadIcon';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
+import CheckIcon from '../components/icons/CheckIcon';
+import CreditCardIcon from '../components/icons/CreditCardIcon';
+import PlusIcon from '../components/icons/PlusIcon';
+import XIcon from '../components/icons/XIcon';
 
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -32,6 +36,11 @@ const AccountModal: React.FC<{
     const [agency, setAgency] = useState('');
     const [accountNumber, setAccountNumber] = useState('');
     const [isActive, setIsActive] = useState(true);
+    const [isCreditCard, setIsCreditCard] = useState(false);
+    
+    // Cards State
+    const [cards, setCards] = useState<{id: string, name: string}[]>([]);
+    const [newCardName, setNewCardName] = useState('');
 
     React.useEffect(() => {
         if (account) {
@@ -41,6 +50,8 @@ const AccountModal: React.FC<{
             setAgency(account.agency || '');
             setAccountNumber(account.accountNumber || '');
             setIsActive(account.isActive);
+            setIsCreditCard(!!account.isCreditCard);
+            setCards(account.cards || []);
         } else {
             setName('');
             setInitialBalance('');
@@ -48,10 +59,24 @@ const AccountModal: React.FC<{
             setAgency('');
             setAccountNumber('');
             setIsActive(true);
+            setIsCreditCard(false);
+            setCards([]);
         }
+        setNewCardName('');
     }, [account, isOpen]);
 
     if (!isOpen) return null;
+
+    const handleAddCard = () => {
+        if (newCardName.trim()) {
+            setCards([...cards, { id: crypto.randomUUID(), name: newCardName.trim() }]);
+            setNewCardName('');
+        }
+    };
+
+    const handleRemoveCard = (cardId: string) => {
+        setCards(cards.filter(c => c.id !== cardId));
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -67,6 +92,8 @@ const AccountModal: React.FC<{
             agency,
             accountNumber,
             isActive,
+            isCreditCard,
+            cards
         };
 
         if(account) {
@@ -78,7 +105,7 @@ const AccountModal: React.FC<{
     
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
           <h2 className="text-2xl font-bold mb-6 text-slate-800">{account ? 'Editar Conta' : 'Nova Conta'}</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
              <div>
@@ -103,10 +130,51 @@ const AccountModal: React.FC<{
                     <input type="text" id="acc-number" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} className="mt-1 block w-full input-style" />
                 </div>
             </div>
-             <div className="flex items-center">
-                <input type="checkbox" id="acc-active" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
-                <label htmlFor="acc-active" className="ml-2 block text-sm text-slate-800">Conta Ativa</label>
+            
+            <div className="space-y-2 pt-2">
+                 <div className="flex items-center">
+                    <input type="checkbox" id="acc-credit-card" checked={isCreditCard} onChange={e => setIsCreditCard(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+                    <label htmlFor="acc-credit-card" className="ml-2 block text-sm font-medium text-slate-800">É Cartão de Crédito</label>
+                </div>
+                 <div className="flex items-center">
+                    <input type="checkbox" id="acc-active" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+                    <label htmlFor="acc-active" className="ml-2 block text-sm text-slate-500">Conta Ativa</label>
+                </div>
             </div>
+
+            {/* Manage Cards Section */}
+            <div className="pt-4 border-t border-slate-100">
+                <label className="block text-sm font-medium text-slate-700 mb-2">Cartões Vinculados</label>
+                <div className="flex gap-2 mb-2">
+                    <input 
+                        type="text" 
+                        value={newCardName} 
+                        onChange={e => setNewCardName(e.target.value)} 
+                        placeholder="Nome (ex: Virtual, Adicional)" 
+                        className="input-style text-sm py-1"
+                        onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddCard(); }}}
+                    />
+                    <button type="button" onClick={handleAddCard} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200">
+                        <PlusIcon className="w-5 h-5" />
+                    </button>
+                </div>
+                {cards.length > 0 && (
+                    <ul className="space-y-1 max-h-32 overflow-y-auto">
+                        {cards.map(card => (
+                            <li key={card.id} className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded text-sm">
+                                <span className="text-slate-700 flex items-center gap-2">
+                                    <CreditCardIcon className="w-3 h-3 text-slate-400"/>
+                                    {card.name}
+                                </span>
+                                <button type="button" onClick={() => handleRemoveCard(card.id)} className="text-slate-400 hover:text-red-500">
+                                    <XIcon className="w-4 h-4" />
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+
             <div className="flex justify-between items-center pt-4">
                 <div>
                     {account && <button type="button" onClick={() => onDelete(account.id)} className="text-sm font-semibold text-red-600 hover:text-red-800 transition-colors">Excluir Conta</button>}
@@ -121,6 +189,98 @@ const AccountModal: React.FC<{
       </div>
     );
 };
+
+const PayInvoiceModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    targetAccount: Account;
+    accounts: Account[];
+    currentBalance: number;
+    onPay: (sourceAccountId: string, amount: number, date: string) => Promise<void>;
+}> = ({ isOpen, onClose, targetAccount, accounts, currentBalance, onPay }) => {
+    const [sourceAccountId, setSourceAccountId] = useState('');
+    // Suggest paying the full negative balance if it is negative
+    const [amount, setAmount] = useState(currentBalance < 0 ? String(Math.abs(currentBalance)) : '');
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+    // Update amount if targetAccount changes and has negative balance
+    useEffect(() => {
+        if (isOpen) {
+            setAmount(currentBalance < 0 ? String(Math.abs(currentBalance).toFixed(2)) : '');
+        }
+    }, [isOpen, currentBalance]);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!sourceAccountId || !amount || !date) {
+            alert('Preencha todos os campos.');
+            return;
+        }
+        await onPay(sourceAccountId, parseFloat(amount), date);
+    };
+
+    const activeSourceAccounts = accounts.filter(a => a.isActive && a.id !== targetAccount.id);
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
+                <h2 className="text-xl font-bold mb-4 text-slate-800">Pagar Fatura / Zerar Saldo</h2>
+                <p className="text-sm text-slate-600 mb-4">
+                    Isso criará uma <b>transferência</b> para a conta <span className="font-semibold">{targetAccount.name}</span>. 
+                    Transferências não são consideradas despesas nos relatórios.
+                </p>
+                
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Pagar com (Origem)</label>
+                        <select 
+                            value={sourceAccountId} 
+                            onChange={e => setSourceAccountId(e.target.value)} 
+                            required 
+                            className="input-style"
+                        >
+                            <option value="" disabled>Selecione a conta de origem...</option>
+                            {activeSourceAccounts.map(acc => (
+                                <option key={acc.id} value={acc.id}>{acc.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Valor do Pagamento</label>
+                        <input 
+                            type="number" 
+                            value={amount} 
+                            onChange={e => setAmount(e.target.value)} 
+                            step="0.01" 
+                            min="0" 
+                            required 
+                            className="input-style" 
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Data do Pagamento</label>
+                        <input 
+                            type="date" 
+                            value={date} 
+                            onChange={e => setDate(e.target.value)} 
+                            required 
+                            className="input-style" 
+                        />
+                    </div>
+                    
+                    <div className="flex justify-end space-x-3 pt-4">
+                        <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
+                        <button type="submit" className="btn-primary bg-green-600 hover:bg-green-700 border-none">
+                            Confirmar Pagamento
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
 
 const BankLogo: React.FC<{ account: Account, size?: 'sm' | 'lg'}> = ({ account, size = 'sm' }) => {
     const { bank: bankName = '', imageUrl } = account;
@@ -142,7 +302,11 @@ const BankLogo: React.FC<{ account: Account, size?: 'sm' | 'lg'}> = ({ account, 
     
     return (
         <div className={`${sizeClasses} bg-slate-200 flex items-center justify-center`}>
-            <MoneyIcon className="w-6 h-6 text-slate-500" />
+            {account.isCreditCard ? (
+                <CreditCardIcon className="w-6 h-6 text-slate-500" />
+            ) : (
+                <MoneyIcon className="w-6 h-6 text-slate-500" />
+            )}
         </div>
     );
 };
@@ -157,12 +321,13 @@ const defaultCategoryColor = 'bg-slate-100 text-slate-800';
 
 const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigger }) => {
     const { accounts, addAccount, updateAccount, deleteAccount, reorderAccounts } = useAccounts();
-    const { transactions } = useTransactions();
+    const { transactions, addTransactions } = useTransactions();
     const { categories } = useCategories();
     // Loans hook not strictly needed for display here but kept for consistency if extended
     const { loans } = useLoans(); 
 
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isPayModalOpen, setIsPayModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
     const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -275,6 +440,12 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
         setIsModalOpen(false);
         setEditingAccount(null);
     };
+    
+    const handlePayBillClick = () => {
+        if (selectedAccount) {
+            setIsPayModalOpen(true);
+        }
+    };
 
     const handleSaveAccount = async (accountData: Omit<Account, 'id'> | Account) => {
         let success = false;
@@ -300,6 +471,28 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                 }
                 handleCloseModal();
             }
+        }
+    };
+    
+    const handlePayInvoice = async (sourceAccountId: string, amount: number, date: string) => {
+        if (!selectedAccount) return;
+
+        // Create a Transfer Transaction
+        // Source: The account paying (Debit)
+        // Destination: The Credit Card account (Credit - increasing its balance from negative towards zero)
+        
+        const transferTransaction: Omit<Transaction, 'id'> = {
+            description: `Pagamento Fatura: ${selectedAccount.name}`,
+            amount: amount,
+            date: date,
+            type: TransactionType.TRANSFER,
+            accountId: sourceAccountId,
+            destinationAccountId: selectedAccount.id,
+        };
+
+        const success = await addTransactions([transferTransaction]);
+        if (success) {
+            setIsPayModalOpen(false);
         }
     };
 
@@ -389,6 +582,8 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
         }
         return { sign: '', color: 'text-slate-800' };
     };
+    
+    const selectedAccountBalance = selectedAccount ? (accountBalances.get(selectedAccount.id) || 0) : 0;
 
     return (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -414,6 +609,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                     <div className="min-w-0">
                                         <div className="flex items-center space-x-2">
                                             <p className="font-bold text-slate-800 truncate" title={acc.name}>{acc.name}</p>
+                                            {acc.isCreditCard && <div title="Cartão de Crédito"><CreditCardIcon className="w-4 h-4 text-slate-400" /></div>}
                                             {!acc.isActive && <span className="text-xs bg-gray-200 text-gray-600 font-semibold px-2 py-0.5 rounded-full flex-shrink-0">Inativa</span>}
                                         </div>
                                         <p className="text-sm text-slate-500 truncate">Saldo Atual</p>
@@ -438,27 +634,42 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
             <div className="xl:col-span-8 space-y-6">
                 {selectedAccount && (
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        <div className="flex items-center space-x-4">
-                           <div
-                                onDrop={handleDrop}
-                                onDragOver={handleDragOver}
-                                className="relative group cursor-pointer"
-                            >
-                                <BankLogo account={selectedAccount} size="lg"/>
-                                <div className="absolute inset-0 bg-black/60 rounded-xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                    <UploadIcon className="w-6 h-6 text-white mb-1"/>
-                                    <span className="text-white text-xs font-semibold">Alterar</span>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div className="flex items-center space-x-4">
+                               <div
+                                    onDrop={handleDrop}
+                                    onDragOver={handleDragOver}
+                                    className="relative group cursor-pointer"
+                                >
+                                    <BankLogo account={selectedAccount} size="lg"/>
+                                    <div className="absolute inset-0 bg-black/60 rounded-xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                        <UploadIcon className="w-6 h-6 text-white mb-1"/>
+                                        <span className="text-white text-xs font-semibold">Alterar</span>
+                                    </div>
+                                    <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileSelect} />
                                 </div>
-                                <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileSelect} />
+                                <div>
+                                    <h2 className="text-2xl font-bold text-slate-800">{selectedAccount.name}</h2>
+                                    <div className="flex flex-col">
+                                        <span className="text-sm text-slate-500">Saldo Atual</span>
+                                        <span className={`text-3xl font-bold ${selectedAccountBalance < 0 ? 'text-red-500' : 'text-slate-900'}`}>{formatCurrency(selectedAccountBalance)}</span>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <h2 className="text-2xl font-bold text-slate-800">{selectedAccount.name}</h2>
-                                <p className="text-slate-500">Detalhes da conta selecionada</p>
+                            
+                            {/* Action Buttons for Account */}
+                            <div className="flex items-center gap-3">
+                                {selectedAccount.isCreditCard && (
+                                    <button 
+                                        onClick={handlePayBillClick} 
+                                        className="btn-primary bg-green-600 hover:bg-green-700 border-none flex items-center gap-2"
+                                        title="Realizar transferência para cobrir saldo negativo"
+                                    >
+                                        <CheckIcon className="w-5 h-5"/>
+                                        Pagar Fatura / Zerar
+                                    </button>
+                                )}
                             </div>
-                        </div>
-                        <div className="mt-4">
-                            <p className="text-sm text-slate-500">Saldo Atual</p>
-                            <p className="text-4xl font-bold text-slate-900">{formatCurrency(accountBalances.get(selectedAccount.id) || 0)}</p>
                         </div>
                     </div>
                 )}
@@ -539,6 +750,17 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                 onDelete={handleDeleteAccount}
                 account={editingAccount}
             />
+
+            {selectedAccount && (
+                <PayInvoiceModal
+                    isOpen={isPayModalOpen}
+                    onClose={() => setIsPayModalOpen(false)}
+                    targetAccount={selectedAccount}
+                    accounts={accounts}
+                    currentBalance={accountBalances.get(selectedAccount.id) || 0}
+                    onPay={handlePayInvoice}
+                />
+            )}
         </div>
     );
 };

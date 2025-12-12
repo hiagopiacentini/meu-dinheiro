@@ -331,6 +331,15 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         }, { periodIncome: 0, periodExpenses: 0 });
     }, [filteredTransactions, itemBalanceMap]);
 
+    // Calculations for Split Validation
+    const splitSum = useMemo(() => {
+        return splitItems.reduce((acc, item) => acc + (parseFloat(item.amount) || 0), 0);
+    }, [splitItems]);
+
+    const totalAmountValue = parseFloat(amount) || 0;
+    const splitDiff = Math.abs(totalAmountValue - splitSum);
+    const isSplitValid = isSplit ? splitDiff < 0.01 : true;
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -474,9 +483,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             const allNewTransactions: Omit<Transaction, 'id'>[] = [];
             const perInstallmentAmount = parseFloat(amount);
 
-            const totalSplitAmount = splitItems.reduce((sum, item) => sum + parseFloat(item.amount || '0'), 0);
-            if (Math.abs(totalSplitAmount - perInstallmentAmount) > 0.001) {
-                alert(`A soma dos valores divididos (${formatCurrency(totalSplitAmount)}) deve ser igual ao valor da parcela (${formatCurrency(perInstallmentAmount)}).`);
+            if (!isSplitValid) {
+                alert(`A soma dos valores divididos deve ser igual ao valor da parcela.`);
                 return;
             }
 
@@ -500,9 +508,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             success = await addTransactions(allNewTransactions);
 
         } else if (isSplit) {
-            const totalSplitAmount = splitItems.reduce((sum, item) => sum + parseFloat(item.amount || '0'), 0);
-            if(Math.abs(totalSplitAmount - parseFloat(amount)) > 0.001) {
-                alert('A soma dos valores divididos deve ser igual ao valor total.'); return;
+            if (!isSplitValid) {
+                alert('A soma dos valores divididos deve ser igual ao valor total.'); 
+                return;
             }
             if(splitItems.some(i => !i.itemId || !i.amount)) {
                 alert('Todos os itens divididos devem ter um item e um valor.'); return;
@@ -598,7 +606,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             const totalAmount = groupTransactions.reduce((acc, t) => acc + t.amount, 0);
             setAmount(totalAmount.toFixed(2));
             
-            // Reconstruct Description: try to remove the suffix " - ItemName" from the first item
+            // Reconstruct Description: Try to remove suffix.
+            // Assuming format "Desc - ItemName"
+            // We take the description of the *first* item and try to strip the suffix.
+            // If the description is just "Desc", stripping " - ItemName" works.
             const firstItemName = categoryMap.get(first.itemId || '')?.item || '';
             const suffix = ` - ${firstItemName}`;
             const baseDesc = first.description.endsWith(suffix) ? first.description.slice(0, -suffix.length) : first.description;
@@ -606,9 +617,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
             // Populate split items
             setSplitItems(groupTransactions.map((t, index) => ({
-                id: index,
+                id: Date.now() + index, // Better than just index for React keys
                 itemId: t.itemId || '',
-                amount: t.amount.toString()
+                amount: t.amount.toFixed(2)
             })));
             
             setIsInstallment(false);
@@ -825,6 +836,17 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                         </div>
                                     ))}
                                     <button type="button" onClick={addSplitItem} className="btn-secondary text-xs py-1 px-3 flex items-center gap-1"><PlusIcon className="w-4 h-4"/> Adicionar Item</button>
+                                    
+                                    <div className={`mt-3 p-2 rounded-lg text-sm border flex justify-between items-center ${isSplitValid ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                                        <div>
+                                            <span className="font-semibold block">Total Declarado: {formatCurrency(totalAmountValue)}</span>
+                                            <span className="block text-xs mt-0.5">Soma dos Itens: {formatCurrency(splitSum)}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="font-bold block">{isSplitValid ? 'OK' : formatCurrency(Math.abs(splitDiff))}</span>
+                                            <span className="text-xs block">{isSplitValid ? 'Igual' : (splitSum > totalAmountValue ? 'Passou' : 'Falta')}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             ) : (
                                 <div>
@@ -887,7 +909,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         </div>
                         <div className="flex items-center space-x-3 mt-6">
                             <button type="button" onClick={handleClearForm} className="btn-secondary w-full">Cancelar</button>
-                            <button type="submit" className="btn-primary w-full">{isEditing ? 'Salvar Alterações' : 'Salvar'}</button>
+                            <button type="submit" disabled={isSplit && !isSplitValid} className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">{isEditing ? 'Salvar Alterações' : 'Salvar'}</button>
                         </div>
                     </form>
                 </div>

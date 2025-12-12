@@ -7,6 +7,7 @@ import PlusIcon from '../components/icons/PlusIcon';
 import ArrowUturnLeftIcon from '../components/icons/ArrowUturnLeftIcon';
 import PencilIcon from '../components/icons/PencilIcon';
 import TrashIcon from '../components/icons/TrashIcon';
+import UpArrowIcon from '../components/icons/UpArrowIcon';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const formatDate = (dateString?: string) => {
@@ -84,46 +85,137 @@ const UpdateBalanceModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
     cdb: CDBContract;
-    onUpdate: (newBalance: number) => Promise<void>;
+    onUpdate: (amount: number, date: string, mode: 'yield' | 'total') => Promise<void>;
 }> = ({ isOpen, onClose, cdb, onUpdate }) => {
-    const [balance, setBalance] = useState(String(cdb.currentGrossBalance));
+    const [mode, setMode] = useState<'yield' | 'total'>('yield');
+    const [value, setValue] = useState('');
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [isSaving, setIsSaving] = useState(false);
 
     if (!isOpen) return null;
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const newBalance = parseFloat(balance);
-        if (isNaN(newBalance) || newBalance < 0) {
+    const handleSave = async (closeAfter: boolean) => {
+        const numValue = parseFloat(value);
+        if (isNaN(numValue) || numValue < 0) {
             alert('Valor inválido.');
             return;
         }
-        await onUpdate(newBalance);
-        onClose();
+        
+        setIsSaving(true);
+        await onUpdate(numValue, date, mode);
+        setIsSaving(false);
+        
+        if (closeAfter) {
+            onClose();
+        } else {
+            // Reset for next entry
+            setValue('');
+            // Optional: Advance date automatically? keeping it manual for safety
+             const nextDate = new Date(date);
+             nextDate.setDate(nextDate.getDate() + 1);
+             setDate(nextDate.toISOString().split('T')[0]);
+        }
     };
+
+    const newEstimatedBalance = mode === 'yield' 
+        ? cdb.currentGrossBalance + (parseFloat(value) || 0)
+        : (parseFloat(value) || 0);
+    
+    const diff = newEstimatedBalance - cdb.currentGrossBalance;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl font-bold mb-4 text-slate-800">Atualizar Saldo Bruto</h2>
-                <p className="text-sm text-slate-500 mb-4">Atualize o valor atual do investimento conforme extrato da corretora.</p>
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <h2 className="text-xl font-bold mb-4 text-slate-800">Atualizar Investimento</h2>
+                
+                {/* Tabs */}
+                <div className="flex p-1 bg-slate-100 rounded-lg mb-6">
+                    <button 
+                        onClick={() => { setMode('yield'); setValue(''); }} 
+                        className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'yield' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}
+                    >
+                        Rendimento Diário
+                    </button>
+                    <button 
+                        onClick={() => { setMode('total'); setValue(''); }} 
+                        className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'total' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}
+                    >
+                        Correção de Saldo
+                    </button>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                        <p className="text-xs text-slate-500 uppercase font-semibold">Saldo Atual</p>
+                        <p className="text-lg font-bold text-slate-700">{formatCurrency(cdb.currentGrossBalance)}</p>
+                    </div>
+
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Novo Saldo Atual</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            {mode === 'yield' ? 'Valor do Rendimento (+)' : 'Novo Saldo Total (=)'}
+                        </label>
                         <input
                             type="number"
-                            value={balance}
-                            onChange={e => setBalance(e.target.value)}
-                            className="input-style"
+                            value={value}
+                            onChange={e => setValue(e.target.value)}
+                            className="input-style text-lg"
                             step="0.01"
+                            placeholder="0,00"
                             required
                             autoFocus
                         />
                     </div>
-                    <div className="flex justify-end space-x-3 pt-4">
-                        <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
-                        <button type="submit" className="btn-primary">Salvar</button>
+                    
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Data de Referência</label>
+                        <input
+                            type="date"
+                            value={date}
+                            onChange={e => setDate(e.target.value)}
+                            className="input-style"
+                            required
+                        />
+                        {mode === 'yield' && <p className="text-xs text-slate-400 mt-1">Dica: Use "Salvar e Adicionar Outro" para lançar vários dias.</p>}
                     </div>
-                </form>
+
+                    {value && (
+                        <div className="flex justify-between items-center text-sm px-2">
+                             <span className="text-slate-500">Novo Saldo Estimado:</span>
+                             <div className="text-right">
+                                <span className="font-bold text-slate-800 block">{formatCurrency(newEstimatedBalance)}</span>
+                                {mode === 'total' && (
+                                    <span className={`text-xs ${diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                        ({diff >= 0 ? '+' : ''}{formatCurrency(diff)})
+                                    </span>
+                                )}
+                             </div>
+                        </div>
+                    )}
+
+                    <div className="flex flex-col gap-2 pt-4">
+                        {mode === 'yield' && (
+                            <button 
+                                type="button" 
+                                onClick={() => handleSave(false)} 
+                                disabled={isSaving || !value}
+                                className="w-full py-2 bg-blue-100 text-blue-700 font-semibold rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50"
+                            >
+                                Salvar e Adicionar Outro
+                            </button>
+                        )}
+                        <div className="flex gap-2">
+                            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
+                            <button 
+                                type="button" 
+                                onClick={() => handleSave(true)} 
+                                disabled={isSaving || !value}
+                                className="btn-primary flex-1"
+                            >
+                                Salvar e Fechar
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -286,13 +378,55 @@ const InvestmentsPage: React.FC = () => {
         }
     };
 
-    const handleUpdateBalance = async (newBalance: number) => {
+    const handleUpdateBalance = async (value: number, txDate: string, mode: 'yield' | 'total') => {
         if (!updateBalanceCdb) return;
-        await updateCDB({
+
+        let diff = 0;
+        let newGrossBalance = 0;
+
+        if (mode === 'yield') {
+            diff = value;
+            newGrossBalance = updateBalanceCdb.currentGrossBalance + value;
+        } else {
+            diff = value - updateBalanceCdb.currentGrossBalance;
+            newGrossBalance = value;
+        }
+
+        // 1. Create Transaction (if profit/loss)
+        // We record the transaction to track history of gains
+        if (Math.abs(diff) > 0.00) {
+             const transaction: Omit<Transaction, 'id'> = {
+                description: mode === 'yield' 
+                    ? `Rendimento Diário: ${updateBalanceCdb.name}` 
+                    : `Correção Saldo CDB: ${updateBalanceCdb.name}`,
+                amount: Math.abs(diff),
+                date: txDate,
+                type: diff > 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
+                accountId: accounts.find(a => a.isActive)?.id || '', // Assign to default account or virtual account to keep track of Income
+                itemId: '' // TODO: Link to "Rendimentos" category
+            };
+            
+            // Note: In a double-entry system, "Accrued Interest" usually doesn't hit a bank account immediately.
+            // However, to show up in "Reports > Income", we need it as a Transaction.
+            // For now, we assign it to the first active account but users might prefer a "Virtual Investment Account".
+            // To avoid messing up Bank Balances, advanced users would create a "Corretora" account.
+            
+            await addTransactions([transaction]);
+        }
+
+        // 2. Update CDB Balance
+        // Even if we are adding a yield for a PAST date, the "Current Gross Balance" 
+        // effectively increases by that amount relative to what it is now.
+        const updatedCDB: CDBContract = {
             ...updateBalanceCdb,
-            currentGrossBalance: newBalance
-        });
-        setUpdateBalanceCdb(null);
+            currentGrossBalance: newGrossBalance
+        };
+        
+        await updateCDB(updatedCDB);
+        
+        // Update local state references if needed, though hook handles it
+        // If "Save & Add Another" is used, we need to update the base reference for next calculation
+        setUpdateBalanceCdb(updatedCDB);
     };
 
     const handleDelete = async (id: string) => {
@@ -439,10 +573,10 @@ const InvestmentsPage: React.FC = () => {
                                                     <span className="font-bold text-slate-800">{formatCurrency(cdb.currentGrossBalance)}</span>
                                                     <button 
                                                         onClick={() => setUpdateBalanceCdb(cdb)} 
-                                                        className="p-1 text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                        title="Atualizar saldo"
+                                                        className="p-1 text-slate-300 hover:text-green-600 transition-colors"
+                                                        title="Atualizar rendimento"
                                                     >
-                                                        <PencilIcon className="w-3 h-3"/>
+                                                        <UpArrowIcon className="w-4 h-4"/>
                                                     </button>
                                                 </div>
                                             </td>

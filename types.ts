@@ -13,8 +13,10 @@ export interface Account {
   agency?: string;
   accountNumber?: string;
   isActive: boolean;
+  isCreditCard?: boolean; // New flag to identify credit card accounts
   imageUrl?: string;
   order?: number; // Field to control the display order
+  cards?: { id: string; name: string }[];
 }
 
 // For the 3-level categories
@@ -58,6 +60,7 @@ export interface Transaction {
   splitGroupId?: string; // ID to link split transactions together
   
   createdAt?: string; // Timestamp ISO string of when the record was created
+  cardId?: string;
 }
 
 export interface Loan {
