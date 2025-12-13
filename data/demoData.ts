@@ -18,39 +18,39 @@ export const sampleCategories: Category[] = [
     ]},
     { id: 'c2', name: 'Moradia', type: TransactionType.EXPENSE, color: '#f97316', subcategories: [
         { id: 'sc2', name: 'Contas', categoryId: 'c2', items: [
-            { id: 'i4', name: 'Aluguel', subcategoryId: 'sc2', categoryId: 'c2', includeInBalance: true },
-            { id: 'i5', name: 'Condomínio', subcategoryId: 'sc2', categoryId: 'c2', includeInBalance: true },
-            { id: 'i6', name: 'Luz', subcategoryId: 'sc2', categoryId: 'c2', includeInBalance: true },
-            { id: 'i7', name: 'Água', subcategoryId: 'sc2', categoryId: 'c2', includeInBalance: true },
-            { id: 'i8', name: 'Gás', subcategoryId: 'sc2', categoryId: 'c2', includeInBalance: true },
-            { id: 'i9', name: 'Internet', subcategoryId: 'sc2', categoryId: 'c2', includeInBalance: true },
+            { id: 'i4', name: 'Aluguel', subcategoryId: 'sc2', categoryId: 'c2', includeInBalance: true, isFixed: true },
+            { id: 'i5', name: 'Condomínio', subcategoryId: 'sc2', categoryId: 'c2', includeInBalance: true, isFixed: true },
+            { id: 'i6', name: 'Luz', subcategoryId: 'sc2', categoryId: 'c2', includeInBalance: true, isFixed: true },
+            { id: 'i7', name: 'Água', subcategoryId: 'sc2', categoryId: 'c2', includeInBalance: true, isFixed: true },
+            { id: 'i8', name: 'Gás', subcategoryId: 'sc2', categoryId: 'c2', includeInBalance: true, isFixed: true },
+            { id: 'i9', name: 'Internet', subcategoryId: 'sc2', categoryId: 'c2', includeInBalance: true, isFixed: true },
         ]}
     ]},
     { id: 'c3', name: 'Alimentação', type: TransactionType.EXPENSE, color: '#ef4444', subcategories: [
         { id: 'sc3', name: 'Dia a dia', categoryId: 'c3', items: [
-            { id: 'i10', name: 'Supermercado', subcategoryId: 'sc3', categoryId: 'c3', includeInBalance: true },
-            { id: 'i11', name: 'Restaurante', subcategoryId: 'sc3', categoryId: 'c3', includeInBalance: true },
-            { id: 'i12', name: 'Delivery / iFood', subcategoryId: 'sc3', categoryId: 'c3', includeInBalance: true },
+            { id: 'i10', name: 'Supermercado', subcategoryId: 'sc3', categoryId: 'c3', includeInBalance: true, isFixed: false },
+            { id: 'i11', name: 'Restaurante', subcategoryId: 'sc3', categoryId: 'c3', includeInBalance: true, isFixed: false },
+            { id: 'i12', name: 'Delivery / iFood', subcategoryId: 'sc3', categoryId: 'c3', includeInBalance: true, isFixed: false },
         ]}
     ]},
     { id: 'c4', name: 'Transporte', type: TransactionType.EXPENSE, color: '#8b5cf6', subcategories: [
         { id: 'sc4', name: 'Veículo', categoryId: 'c4', items: [
-            { id: 'i13', name: 'Combustível', subcategoryId: 'sc4', categoryId: 'c4', includeInBalance: true },
-            { id: 'i14', name: 'Manutenção', subcategoryId: 'sc4', categoryId: 'c4', includeInBalance: true },
+            { id: 'i13', name: 'Combustível', subcategoryId: 'sc4', categoryId: 'c4', includeInBalance: true, isFixed: false },
+            { id: 'i14', name: 'Manutenção', subcategoryId: 'sc4', categoryId: 'c4', includeInBalance: true, isFixed: false },
         ]},
         { id: 'sc5', name: 'Público', categoryId: 'c4', items: [
-            { id: 'i15', name: 'Uber / 99', subcategoryId: 'sc5', categoryId: 'c4', includeInBalance: true },
-            { id: 'i16', name: 'Ônibus / Metrô', subcategoryId: 'sc5', categoryId: 'c4', includeInBalance: true },
+            { id: 'i15', name: 'Uber / 99', subcategoryId: 'sc5', categoryId: 'c4', includeInBalance: true, isFixed: false },
+            { id: 'i16', name: 'Ônibus / Metrô', subcategoryId: 'sc5', categoryId: 'c4', includeInBalance: true, isFixed: false },
         ]}
     ]},
     { id: 'c5', name: 'Lazer', type: TransactionType.EXPENSE, color: '#ec4899', subcategories: [
         { id: 'sc6', name: 'Serviços', categoryId: 'c5', items: [
-            { id: 'i17', name: 'Streaming (Netflix, etc)', subcategoryId: 'sc6', categoryId: 'c5', includeInBalance: true },
-            { id: 'i18', name: 'Cinema / Shows', subcategoryId: 'sc6', categoryId: 'c5', includeInBalance: true },
+            { id: 'i17', name: 'Streaming (Netflix, etc)', subcategoryId: 'sc6', categoryId: 'c5', includeInBalance: true, isFixed: true },
+            { id: 'i18', name: 'Cinema / Shows', subcategoryId: 'sc6', categoryId: 'c5', includeInBalance: true, isFixed: false },
         ]},
         { id: 'sc7', name: 'Compras', categoryId: 'c5', items: [
-            { id: 'i19', name: 'Roupas e Acessórios', subcategoryId: 'sc7', categoryId: 'c5', includeInBalance: true },
-            { id: 'i20', name: 'Eletrônicos', subcategoryId: 'sc7', categoryId: 'c5', includeInBalance: true },
+            { id: 'i19', name: 'Roupas e Acessórios', subcategoryId: 'sc7', categoryId: 'c5', includeInBalance: true, isFixed: false },
+            { id: 'i20', name: 'Eletrônicos', subcategoryId: 'sc7', categoryId: 'c5', includeInBalance: true, isFixed: false },
         ]}
     ]},
     { id: 'c6', name: 'Movimentações', type: TransactionType.EXPENSE, color: '#64748b', subcategories: [

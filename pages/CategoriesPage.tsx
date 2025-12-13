@@ -32,13 +32,14 @@ interface DragItem {
 const CategoryModal: React.FC<{
     config: ModalConfig;
     onClose: () => void;
-    onSave: (type: ModalType, names: string[], data?: any, color?: string, includeInBalance?: boolean) => Promise<void>;
+    onSave: (type: ModalType, names: string[], data?: any, color?: string, includeInBalance?: boolean, isFixed?: boolean) => Promise<void>;
 }> = ({ config, onClose, onSave }) => {
     const [name, setName] = useState('');
     const [currentName, setCurrentName] = useState('');
     const [namesList, setNamesList] = useState<string[]>([]);
     const [selectedColor, setSelectedColor] = useState<string>('#3b82f6');
     const [includeInBalance, setIncludeInBalance] = useState(true);
+    const [isFixed, setIsFixed] = useState(false);
     
     const predefinedColors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899'];
 
@@ -50,14 +51,22 @@ const CategoryModal: React.FC<{
             if (config.action === 'edit' && config.data) {
                 if('name' in config.data) setName(config.data.name);
                 if('color' in config.data && config.data.color) setSelectedColor(config.data.color);
+                
                 if('includeInBalance' in config.data) {
                     setIncludeInBalance(config.data.includeInBalance);
                 } else {
                     setIncludeInBalance(true);
                 }
+
+                if ('isFixed' in config.data) {
+                    setIsFixed(!!config.data.isFixed);
+                } else {
+                    setIsFixed(false);
+                }
             } else {
                 setSelectedColor(predefinedColors[5]); // Default to blue
                 setIncludeInBalance(true);
+                setIsFixed(false);
             }
         }
     }, [config]);
@@ -99,12 +108,12 @@ const CategoryModal: React.FC<{
                 finalNames.push(trimmedCurrent);
             }
             if (finalNames.length > 0) {
-                await onSave(config.type!, finalNames, config.data, selectedColor, includeInBalance);
+                await onSave(config.type!, finalNames, config.data, selectedColor, includeInBalance, isFixed);
             }
         } else { // 'edit'
             const trimmedName = name.trim();
             if (trimmedName) {
-                await onSave(config.type!, [trimmedName], config.data, selectedColor, includeInBalance);
+                await onSave(config.type!, [trimmedName], config.data, selectedColor, includeInBalance, isFixed);
             }
         }
     };
@@ -193,9 +202,15 @@ const CategoryModal: React.FC<{
                         </div>
                     )}
                      {config.type === 'item' && (
-                        <div className="flex items-center mt-4 pt-4 border-t border-slate-200">
-                            <input type="checkbox" id="cat-balance" checked={includeInBalance} onChange={e => setIncludeInBalance(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
-                            <label htmlFor="cat-balance" className="ml-2 block text-sm text-slate-800">Incluir no balanço (receitas/despesas)</label>
+                        <div className="space-y-3 mt-4 pt-4 border-t border-slate-200">
+                            <div className="flex items-center">
+                                <input type="checkbox" id="cat-balance" checked={includeInBalance} onChange={e => setIncludeInBalance(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+                                <label htmlFor="cat-balance" className="ml-2 block text-sm text-slate-800">Incluir no balanço (receitas/despesas)</label>
+                            </div>
+                            <div className="flex items-center">
+                                <input type="checkbox" id="cat-fixed" checked={isFixed} onChange={e => setIsFixed(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
+                                <label htmlFor="cat-fixed" className="ml-2 block text-sm text-slate-800">É um Gasto Fixo?</label>
+                            </div>
                         </div>
                     )}
                     <div className="flex justify-end space-x-3 pt-6">
@@ -279,7 +294,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
         }
     };
 
-    const handleSave = async (type: ModalType, names: string[], data: any, color?: string, includeInBalance = true) => {
+    const handleSave = async (type: ModalType, names: string[], data: any, color?: string, includeInBalance = true, isFixed = false) => {
         // Clear undo history when a new action is performed to prevent data conflicts
         clearUndo();
 
@@ -300,7 +315,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                     );
                 }
                 if (type === 'item') {
-                    const newItem: CategoryItem = { id: crypto.randomUUID(), name, subcategoryId: data.parentId, categoryId: data.categoryId, includeInBalance };
+                    const newItem: CategoryItem = { id: crypto.randomUUID(), name, subcategoryId: data.parentId, categoryId: data.categoryId, includeInBalance, isFixed };
                     newCategories = newCategories.map(cat => {
                         if (cat.id === data.categoryId) {
                             const updatedSubcategories = cat.subcategories.map(sub => 
@@ -330,7 +345,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                     ...cat,
                     subcategories: cat.subcategories.map(sub => ({
                         ...sub,
-                        items: sub.items.map(item => item.id === data.id ? { ...item, name, includeInBalance } : item)
+                        items: sub.items.map(item => item.id === data.id ? { ...item, name, includeInBalance, isFixed } : item)
                     }))
                 }));
             }
@@ -606,7 +621,10 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                                         onDrop={(e) => handleDrop(e, item.id, 'item', subcategory.id, category.id)}
                                                         className={`group flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 ${dragOverId === item.id ? 'border-2 border-blue-400 bg-blue-50' : ''} ${draggedItem?.id === item.id ? 'opacity-50' : ''}`}
                                                      >
-                                                         <span className="text-sm text-slate-500 select-none">{item.name}</span>
+                                                         <div className="flex items-center space-x-2">
+                                                            <span className="text-sm text-slate-500 select-none">{item.name}</span>
+                                                            {item.isFixed && <span className="bg-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded font-medium">FIXO</span>}
+                                                         </div>
                                                           <ActionButtons 
                                                             onEdit={() => openModal('item', 'edit', item)}
                                                             onDelete={() => handleDelete('item', item)}

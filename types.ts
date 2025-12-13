@@ -26,6 +26,7 @@ export interface CategoryItem {
   subcategoryId: string;
   categoryId: string;
   includeInBalance: boolean;
+  isFixed?: boolean; // New flag to mark expense as Fixed or Variable
 }
 
 export interface Subcategory {

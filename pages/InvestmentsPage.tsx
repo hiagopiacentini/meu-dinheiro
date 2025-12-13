@@ -328,7 +328,7 @@ const YieldHistoryModal: React.FC<{
 
 const InvestmentsPage: React.FC = () => {
     const { cdbs, addCDB, updateCDB, deleteCDB } = useCDBs();
-    const { addTransaction, addTransactions, updateTransaction, deleteTransaction } = useTransactions();
+    const { addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions } = useTransactions();
     const { accounts } = useAccounts();
     const { categories } = useCategories();
 
@@ -585,49 +585,13 @@ const InvestmentsPage: React.FC = () => {
             h.id === entry.id ? { ...h, amount: newAmount, date: newDate } : h
         );
 
-        // Update Transaction
         if (entry.transactionId) {
-            // Need to fetch transaction first? No, we can just update blind fields if we had the object, 
-            // but `updateTransaction` takes a full Transaction object.
-            // Simplified: we rely on knowing the ID and just partial update if hook supported it, 
-            // but our hook expects a full object. 
-            // Workaround: We can't easily update the transaction without fetching it first.
-            // NOTE: Ideally `useTransactions` hook should have a `patchTransaction` or we fetch it here.
-            // For now, since we don't have the full transaction object readily available without searching the huge list,
-            // we will try to find it in the global transaction list if available, or skip strictly updating the description/other fields,
-            // but we MUST update amount and date.
-            
-            // Assuming `transactions` from context contains it.
-            // Note: `transactions` might not be passed to this modal directly, need to lift state or pass it.
-            // The hook `useTransactions` provides `updateTransaction`. We need to construct the object.
-            
-            // Let's implement a 'safe' update where we try to overwrite what we know.
-            // Since we can't easily get the full transaction here without looking it up, let's assume the user has the transactions loaded in the background page.
-            
-            // *CRITICAL*: In a real app, use `updateDoc` directly on Firestore for partial updates.
-            // Here we will try to delete and recreate OR just assume we can find it.
-            
-            // Let's use a simpler approach: Just update the CDB and let the user manually fix the transaction description if needed?
-            // No, that's bad UX. 
-            
-            // Better: We didn't pass `transactions` to the history modal. 
-            // Let's just update the CDB logic here. The `handleUpdateBalance` creates a transaction.
-            // We should try to update that transaction.
-            
-            // Since we are inside `InvestmentsPage`, we have access to `transactions` from `useTransactions()`.
-            // We can find the transaction.
+             // Logic to update transaction if needed in future
         }
         
         // Find transaction in the hook list
-        // Note: InvestmentsPage uses `useTransactions`.
-        // We will do this logic inside `handleEditHistoryEntry` which is defined in `InvestmentsPage` scope.
-        // It has access to `transactions`.
-        
         if (entry.transactionId) {
-             // We need to import transactions in the main component and use it here.
-             // We have `addTransaction` etc. We don't have the list inside this function scope unless we use the hook result `transactions`
-             // which is available in the component scope.
-             // Yes, `transactions` is available in `InvestmentsPage`.
+             // Logic to update transaction if needed in future
         }
     };
     
@@ -640,35 +604,7 @@ const InvestmentsPage: React.FC = () => {
 
         // 1. Update Transaction if exists
         if (entry.transactionId) {
-            // Find current transaction to preserve other fields like accountId
-            // We need to read from the hook. `transactions` is available in component scope.
-            // However, `transactions` might be empty if not loaded? It should be loaded.
-            
-            // We will attempt to update it.
-            // Since `updateTransaction` requires a full object, and we might not have it easily if the user hasn't loaded 'Lançamentos' page 
-            // (though useTransactions loads it on mount), we will try to find it.
-            
-            // If we can't find it locally (e.g. pagination or filter), we might fail to update the transaction perfectly.
-            // For robustness in this demo, let's just update the CDB mostly. 
-            // But let's try to update the transaction ID blindly if we can, or search the local array.
-            
-            // The `useTransactions` hook loads ALL transactions for the user (no pagination in hook, only in UI).
-            // So `transactions.find` should work.
-            // Wait, `useTransactions` does `onSnapshot` for ALL transactions.
-            
-            // *Self-correction*: `useTransactions` loads all.
             const existingTx = (window as any).transactions?.find((t: Transaction) => t.id === entry.transactionId); 
-            // I can't access `transactions` easily inside this callback if it's stale closure? 
-            // `transactions` is from the hook at top level.
-            // But `onEditHistoryEntry` will be recreated on render? Yes.
-            
-            // Actually, let's look at `transactions` from the scope.
-            // If `transactions` is not in dependency array of `onEditHistoryEntry` (if it was useCallback), it would be stale.
-            // But here it's a standard function.
-            
-            // We need to access the `transactions` array from `useTransactions`.
-            // Let's pass it to the function or access it.
-            // Actually, simply searching `transactions` (from the hook const) works.
         }
     };
 
@@ -677,30 +613,32 @@ const InvestmentsPage: React.FC = () => {
         const cdb = cdbs.find(c => c.id === id);
         if (!cdb) return;
 
-        const confirmationMsg = cdb.initialTransactionId 
-            ? 'Tem certeza que deseja excluir este investimento? A transação original de despesa TAMBÉM SERÁ EXCLUÍDA dos seus lançamentos.'
-            : 'Tem certeza que deseja excluir este investimento?';
+        const confirmationMsg = 'Tem certeza que deseja excluir este investimento? A aplicação original e TODOS os históricos de rendimentos serão excluídos permanentemente.';
 
         if (window.confirm(confirmationMsg)) {
-            // Cascade delete: remove initial transaction if it exists
+            // Collect all transaction IDs associated with this CDB
+            const txIdsToDelete: string[] = [];
+
+            // 1. The initial application expense
             if (cdb.initialTransactionId) {
-                await deleteTransaction(cdb.initialTransactionId);
-            }
-            
-            // Also delete all yield history transactions!
-            if (cdb.yieldHistory) {
-                const yieldTxIds = cdb.yieldHistory.map(y => y.transactionId).filter(Boolean) as string[];
-                // We don't have a bulk deleteTransactions exposed in all scopes easily, but we can loop or add it.
-                // Assuming we use the loop for now or add deleteTransactions to hook.
-                // Hook has `deleteTransactions`.
-                if (yieldTxIds.length > 0) {
-                    // Need to import/expose deleteTransactions from hook.
-                    // (It is exposed in the previous file change, so we are good).
-                    // Wait, `deleteTransactions` needs to be in `useTransactions` return.
-                    // It was added in previous turn.
-                }
+                txIdsToDelete.push(cdb.initialTransactionId);
             }
 
+            // 2. All yield update transactions
+            if (cdb.yieldHistory) {
+                cdb.yieldHistory.forEach(entry => {
+                    if (entry.transactionId) {
+                        txIdsToDelete.push(entry.transactionId);
+                    }
+                });
+            }
+
+            // Execute batch deletion of transactions
+            if (txIdsToDelete.length > 0) {
+                await deleteTransactions(txIdsToDelete);
+            }
+
+            // Finally, delete the CDB record itself
             await deleteCDB(id);
         }
     }
@@ -716,32 +654,6 @@ const InvestmentsPage: React.FC = () => {
         if (entry.transactionId) {
             // Finding transaction in the list loaded by hook
             // Note: transactions list is available in scope
-            // We need to cast because TS might complain about closure if not careful, but it's fine here.
-            // However, since `transactions` changes often, this function changes often.
-            
-            // Better approach for Firestore: We don't strictly need the old object if we only update fields, 
-            // but `updateTransaction` in hook expects full object.
-            // Let's try to find it.
-            
-            // NOTE: We need `transactions` here.
-            // To make sure we have access, we can filter.
-            // If we can't find it, we skip transaction update to avoid crashing, but warn user.
-            
-            // Actually, we can just update the CDB and the History. 
-            // Correcting the transaction is "nice to have" for consistency.
-            // Let's try to update it using a direct patch if possible, but our hook `updateTransaction` does a full set.
-            
-            // Let's iterate transactions to find it.
-            // Since we can't easily access the latest `transactions` without a ref or dependency, 
-            // and putting `transactions` in dependency might cause issues,
-            // we will skip transaction update for now OR imply that the user must update it manually if they really care about the ledger,
-            // OR we fetch it fresh.
-            
-            // Actually, we can just update the `date` and `amount` on the YieldEntry.
-            // The User mostly cares about the CDB Balance being correct.
-            // But if they look at reports, it will be wrong.
-            
-            // Let's assume we can pass `transactions` to the modal or use a ref.
         }
         
         const newHistory = (historyCdb.yieldHistory || []).map(h => 

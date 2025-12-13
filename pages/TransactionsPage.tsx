@@ -71,8 +71,13 @@ const DeleteConfirmationModal: React.FC<{
     );
 };
 
+interface FilterOption {
+    label: string;
+    value: string;
+}
+
 const FilterDropdown: React.FC<{
-    options: string[];
+    options: FilterOption[];
     value: string;
     onChange: (value: string) => void;
 }> = ({ options, value, onChange }) => {
@@ -89,21 +94,24 @@ const FilterDropdown: React.FC<{
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [ref]);
 
-    const handleSelect = (option: string) => {
-        onChange(option);
+    const handleSelect = (optionValue: string) => {
+        onChange(optionValue);
         setIsOpen(false);
     };
 
+    const selectedLabel = options.find(o => o.value === value)?.label || value;
+
     return (
         <div className="relative h-full" ref={ref}>
-            <button onClick={() => setIsOpen(prev => !prev)} className="btn-secondary w-full flex justify-center items-center px-3 py-2 h-full">
-                <span>{value}</span>
+            <button onClick={() => setIsOpen(prev => !prev)} className="btn-secondary w-full flex justify-between items-center px-3 py-2 h-full text-left bg-white">
+                <span className="truncate mr-2 text-sm">{selectedLabel}</span>
+                <ChevronDownIcon className="w-4 h-4 text-slate-400 flex-shrink-0" />
             </button>
             {isOpen && (
-                <div className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-10">
+                <div className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
                     {options.map(option => (
-                        <button key={option} onClick={() => handleSelect(option)} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg">
-                            {option}
+                        <button key={option.value} onClick={() => handleSelect(option.value)} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-gray-100 first:rounded-t-lg last:rounded-b-lg truncate">
+                            {option.label}
                         </button>
                     ))}
                 </div>
@@ -111,6 +119,34 @@ const FilterDropdown: React.FC<{
         </div>
     );
 };
+
+// SVG Checkmark for custom checkbox
+const checkmarkSvg = `data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e`;
+
+const CustomCheckbox: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => (
+    <input 
+        type="checkbox" 
+        className="
+            appearance-none 
+            h-5 w-5 
+            border-2 border-slate-300 
+            rounded 
+            bg-white 
+            checked:bg-blue-600 checked:border-blue-600 
+            focus:ring-2 focus:ring-blue-500 focus:outline-none 
+            cursor-pointer 
+            transition-all 
+            relative
+        "
+        style={{
+            backgroundImage: props.checked ? `url("${checkmarkSvg}")` : 'none',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: '100%'
+        }}
+        {...props}
+    />
+);
 
 
 const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTransactionTrigger }) => {
@@ -122,6 +158,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     // State to remember last used form fields
     const [lastUsedDetails, setLastUsedDetails] = useState({
         accountId: '',
+        cardId: '',
         type: TransactionType.EXPENSE,
     });
 
@@ -138,6 +175,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [amount, setAmount] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [accountId, setAccountId] = useState(lastUsedDetails.accountId);
+    const [cardId, setCardId] = useState(lastUsedDetails.cardId || '');
     const [itemId, setItemId] = useState('');
     const [isInstallment, setIsInstallment] = useState(false);
     const [installmentsCount, setInstallmentsCount] = useState('2');
@@ -148,7 +186,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [changeAccountId, setChangeAccountId] = useState('');
     const [changeItemId, setChangeItemId] = useState('');
     const [peerAccountId, setPeerAccountId] = useState('');
-
 
     // Other Filter State
     const [searchTerm, setSearchTerm] = useState('');
@@ -170,6 +207,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const activeAccounts = useMemo(() => accounts.filter(a => a.isActive), [accounts]);
 
+    const isEditing = !!editingTransaction || !!editingInstallmentGroup || !!editingSplitGroupId;
+    const maxDate = '9999-12-31';
+
     const handleClearForm = useCallback(() => {
         setEditingTransaction(null);
         setEditingInstallmentGroup(null);
@@ -179,7 +219,20 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setAmount('');
         setDate(new Date().toISOString().split('T')[0]);
         // Logic update: If a specific account is filtered, default to it. Otherwise fall back to last used or first active.
-        setAccountId(accountFilter !== 'Todos' ? accountFilter : (lastUsedDetails.accountId || (activeAccounts.length > 0 ? activeAccounts[0].id : '')));
+        if (accountFilter !== 'Todos') {
+            if (accountFilter.includes('|')) {
+                const [accId, cId] = accountFilter.split('|');
+                setAccountId(accId);
+                setCardId(cId);
+            } else {
+                setAccountId(accountFilter);
+                setCardId('');
+            }
+        } else {
+            setAccountId(lastUsedDetails.accountId || (activeAccounts.length > 0 ? activeAccounts[0].id : ''));
+            setCardId(lastUsedDetails.cardId || '');
+        }
+        
         setItemId('');
         setIsInstallment(false);
         setInstallmentsCount('2');
@@ -201,13 +254,21 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     // New Effect: Update form account when filter changes (only if not editing)
     useEffect(() => {
         if (!editingTransaction && !editingInstallmentGroup && !editingSplitGroupId && accountFilter !== 'Todos') {
-            setAccountId(accountFilter);
+            if (accountFilter.includes('|')) {
+                const [accId, cId] = accountFilter.split('|');
+                setAccountId(accId);
+                setCardId(cId);
+            } else {
+                setAccountId(accountFilter);
+                setCardId('');
+            }
         }
     }, [accountFilter, editingTransaction, editingInstallmentGroup, editingSplitGroupId]);
 
     useEffect(() => {
         if (!editingTransaction && activeAccounts.length > 0 && !accountId) {
              setAccountId(lastUsedDetails.accountId || activeAccounts[0].id);
+             setCardId(lastUsedDetails.cardId || '');
              setType(lastUsedDetails.type);
         }
     }, [editingTransaction, activeAccounts, accountId, lastUsedDetails]);
@@ -235,6 +296,75 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     }, [categories]);
 
     const accountMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.name])), [accounts]);
+    const cardMap = useMemo(() => {
+        const map = new Map<string, string>();
+        accounts.forEach(acc => {
+            acc.cards?.forEach(card => map.set(card.id, card.name));
+        });
+        return map;
+    }, [accounts]);
+
+    const categoryOptions = useMemo(() => {
+        const options: { id: string, name: string, subName: string, catName: string }[] = [];
+        categories.filter(c => c.type === type).forEach(cat => {
+            cat.subcategories.forEach(sub => {
+                sub.items.forEach(item => {
+                    options.push({
+                        id: item.id,
+                        name: item.name,
+                        subName: sub.name,
+                        catName: cat.name
+                    });
+                });
+            });
+        });
+        return options.sort((a,b) => a.catName.localeCompare(b.catName) || a.subName.localeCompare(b.subName) || a.name.localeCompare(b.name));
+    }, [categories, type]);
+
+    const expenseCategoryOptions = useMemo(() => {
+         const options: { id: string, name: string, subName: string, catName: string }[] = [];
+         categories.filter(c => c.type === TransactionType.EXPENSE).forEach(cat => {
+            cat.subcategories.forEach(sub => {
+                sub.items.forEach(item => {
+                     options.push({ id: item.id, name: item.name, subName: sub.name, catName: cat.name });
+                });
+            });
+         });
+         return options.sort((a,b) => a.catName.localeCompare(b.catName) || a.subName.localeCompare(b.subName) || a.name.localeCompare(b.name));
+    }, [categories]);
+
+    const isTransfer = useMemo(() => {
+        if (!itemId) return false;
+        const balanceInclude = itemBalanceMap.get(itemId);
+        const catInfo = categoryMap.get(itemId);
+        return balanceInclude === false && catInfo?.item !== 'Repasse';
+    }, [itemId, itemBalanceMap, categoryMap]);
+
+    const handleSplitItemChange = (id: number, field: keyof SplitItem, value: string) => {
+        setSplitItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+    };
+
+    const addSplitItem = () => {
+        setSplitItems(prev => [...prev, { id: Date.now(), itemId: '', amount: '' }]);
+    };
+
+    const removeSplitItem = (id: number) => {
+        setSplitItems(prev => prev.filter(item => item.id !== id));
+    };
+
+    const handleDateFilterChange = (value: string) => {
+        setDateFilter(value);
+        if (value === 'Personalizado') {
+            setIsPickerOpen(true);
+        }
+    };
+    
+    const handleCustomDateChange = (range: { start: Date | null, end: Date | null }) => {
+        setCustomDateRange(range);
+        if (range.start && range.end) {
+             // Already handled
+        }
+    };
     
     const handleDescriptionBlur = () => {
         if (!description.trim() || isSplit) return;
@@ -284,7 +414,19 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         // For 'Todos', no type filter is applied, showing all items.
         
         if (accountFilter !== 'Todos') {
-            items = items.filter(t => t.accountId === accountFilter);
+            if (accountFilter.includes('|')) {
+                // Filter by specific Card: AccountId AND CardId match
+                const [accId, cId] = accountFilter.split('|');
+                items = items.filter(t => t.accountId === accId && t.cardId === cId);
+            } else {
+                // Filter by Account: AccountId matches. 
+                // NOTE: Should we show card transactions here? 
+                // Usually "Account" filter implies everything under that account. 
+                // If user wants ONLY account (no cards), they'd need a specific filter, but usually in a list view, filtering by account shows all activity.
+                // However, based on the AccountsPage request ("separar o que é cartão"), maybe user expects strict separation here too?
+                // Let's keep it simple: Filter by Account ID shows all (Account + Cards). Filter by Card shows only Card.
+                items = items.filter(t => t.accountId === accountFilter);
+            }
         }
 
         if (installmentFilter) {
@@ -340,18 +482,17 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const splitDiff = Math.abs(totalAmountValue - splitSum);
     const isSplitValid = isSplit ? splitDiff < 0.01 : true;
 
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
         // Update last used details before clearing form
-        setLastUsedDetails({ accountId, type });
+        setLastUsedDetails({ accountId, cardId, type });
         
         let success = false;
 
         const categoryInfo = categoryMap.get(itemId);
         // Exclude 'Repasse' from transfer logic even if it is not included in balance
-        const isTransfer = itemBalanceMap.get(itemId) === false && categoryInfo?.item !== 'Repasse';
+        // isTransfer calculated above is better
         
         if (isTransfer) {
             if (!peerAccountId || !accountId || !amount) {
@@ -365,7 +506,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             const expenseTx: Omit<Transaction, 'id'> = {
                 description: `Transferência para ${accountMap.get(destAccId)}`,
                 amount: transferAmount, date, type: TransactionType.EXPENSE,
-                accountId: sourceAccId, itemId
+                accountId: sourceAccId, itemId, cardId: type === TransactionType.EXPENSE ? cardId : undefined
             };
             const incomeTx: Omit<Transaction, 'id'> = {
                 description: `Transferência de ${accountMap.get(sourceAccId)}`,
@@ -443,7 +584,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         }
 
 
-        const commonData = { description, date, accountId, type };
+        const commonData = { description, date, accountId, type, cardId: cardId || undefined };
 
         if (editingInstallmentGroup) {
             const groupId = editingInstallmentGroup.installmentGroupId!;
@@ -570,197 +711,106 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             handleClearForm();
         }
     };
-
-    const handleEdit = (transaction: Transaction) => {
-        window.scrollTo(0, 0);
-        if (transaction.installmentGroupId) {
-            const groupTransactions = transactions.filter(t => t.installmentGroupId === transaction.installmentGroupId).sort((a,b) => a.currentInstallment! - b.currentInstallment!);
-            const firstInstallment = groupTransactions[0];
-            setEditingTransaction(null);
-            setEditingInstallmentGroup(firstInstallment);
-            setEditingSplitGroupId(null);
-            setType(firstInstallment.type);
-            setDescription(firstInstallment.description.replace(/\s\(\d+\/\d+\)$/, ''));
-            setAmount(String(firstInstallment.amount));
-            setDate(firstInstallment.date);
-            setAccountId(firstInstallment.accountId);
-            setItemId(firstInstallment.itemId || '');
-            setIsInstallment(true);
-            setInstallmentsCount(String(firstInstallment.totalInstallments));
-            setIsSplit(false);
-        } else if (transaction.splitGroupId) {
-            // Edit Split Transaction Group
-            const groupTransactions = transactions.filter(t => t.splitGroupId === transaction.splitGroupId);
-            // We use the first transaction to get common data (date, account, etc)
-            const first = groupTransactions[0];
-            
-            setEditingTransaction(null);
-            setEditingInstallmentGroup(null);
-            setEditingSplitGroupId(transaction.splitGroupId);
-            
-            setType(first.type);
-            setAccountId(first.accountId);
-            setDate(first.date);
-            
-            // Reconstruct total amount
-            const totalAmount = groupTransactions.reduce((acc, t) => acc + t.amount, 0);
-            setAmount(totalAmount.toFixed(2));
-            
-            // Reconstruct Description: Try to remove suffix.
-            // Assuming format "Desc - ItemName"
-            // We take the description of the *first* item and try to strip the suffix.
-            // If the description is just "Desc", stripping " - ItemName" works.
-            const firstItemName = categoryMap.get(first.itemId || '')?.item || '';
-            const suffix = ` - ${firstItemName}`;
-            const baseDesc = first.description.endsWith(suffix) ? first.description.slice(0, -suffix.length) : first.description;
-            setDescription(baseDesc);
-
-            // Populate split items
-            setSplitItems(groupTransactions.map((t, index) => ({
-                id: Date.now() + index, // Better than just index for React keys
-                itemId: t.itemId || '',
-                amount: t.amount.toFixed(2)
-            })));
-            
-            setIsInstallment(false);
-            setIsSplit(true);
-            setIsChange(false);
-        } else {
-            setEditingInstallmentGroup(null);
-            setEditingSplitGroupId(null);
-            setEditingTransaction(transaction);
-            setType(transaction.type);
-            setDescription(transaction.description);
-            setAmount(String(transaction.amount));
-            setDate(transaction.date);
-            setAccountId(transaction.accountId);
-            setItemId(transaction.itemId || '');
-            setIsInstallment(false);
-            setIsSplit(false);
-
-            // Check if it's a transfer and try to find the partner account
-            // Also rely on itemBalanceMap to ensure isTransfer logic works
-            if (transaction.itemId && itemBalanceMap.get(transaction.itemId) === false) {
-                const partner = transactions.find(t => 
-                     t.id !== transaction.id &&
-                     t.date === transaction.date &&
-                     t.amount === transaction.amount &&
-                     t.itemId === transaction.itemId &&
-                     t.type !== transaction.type
-                );
-                if (partner) {
-                    setPeerAccountId(partner.accountId);
-                }
-            }
-        }
-    };
-
-    const handleDelete = async (id: string) => {
-        const txToDelete = transactions.find(t => t.id === id);
-        if (!txToDelete) return;
-
-        if (txToDelete.installmentGroupId) {
-            setDeleteModalState({ isOpen: true, transaction: txToDelete });
-        } else if (txToDelete.splitGroupId) {
-            if (window.confirm('Esta transação faz parte de um lançamento dividido. Deseja excluir todo o grupo de divisões?')) {
-                const idsToDelete = transactions
-                    .filter(t => t.splitGroupId === txToDelete.splitGroupId)
-                    .map(t => t.id);
-                await deleteTransactions(idsToDelete);
-            }
-        } else {
-            if (window.confirm('Tem certeza que deseja excluir este lançamento?')) {
-                const relatedLoan = loans.find(l => l.initialTransactionId === id || l.settlementTransactionId === id || l.partialSettlements?.some(p => p.transactionId === id));
-                if (relatedLoan) {
-                   alert('Este lançamento está associado a um empréstimo e não pode ser excluído diretamente.');
-                   return;
-                }
-
-                // Check if it's a transfer and delete the partner transaction as well
-                const isTransfer = txToDelete.itemId && itemBalanceMap.get(txToDelete.itemId) === false;
-                if (isTransfer) {
-                    const partner = transactions.find(t => 
-                        t.id !== txToDelete.id &&
-                        t.date === txToDelete.date &&
-                        t.amount === txToDelete.amount &&
-                        t.itemId === txToDelete.itemId &&
-                        t.type !== txToDelete.type
-                   );
-                   
-                   if (partner) {
-                       await deleteTransactions([id, partner.id]);
-                       return;
-                   }
-                }
-
-                await deleteTransaction(id);
-            }
-        }
-    };
     
     const handleConfirmDelete = async (option: 'single' | 'future') => {
-        const tx = deleteModalState.transaction;
-        if (!tx) return;
-
-        let success = false;
+        const t = deleteModalState.transaction;
+        if (!t) return;
+        
         if (option === 'single') {
-            success = await deleteTransaction(tx.id);
-        } else if (option === 'future') {
-             const idsToRemove = transactions.filter(t => 
-                t.installmentGroupId === tx.installmentGroupId && 
-                (t.currentInstallment! >= tx.currentInstallment!)
-            ).map(t => t.id);
-            success = await deleteTransactions(idsToRemove);
+            await deleteTransaction(t.id);
+        } else {
+            // Future includes current
+            const group = transactions.filter(tx => tx.installmentGroupId === t.installmentGroupId);
+            const toDelete = group.filter(tx => (tx.currentInstallment || 0) >= (t.currentInstallment || 0)).map(tx => tx.id);
+            await deleteTransactions(toDelete);
         }
-        if (success) {
-             setDeleteModalState({ isOpen: false, transaction: null });
+        setDeleteModalState({ isOpen: false, transaction: null });
+    };
+
+    const handleDelete = (id: string) => {
+        const t = transactions.find(tx => tx.id === id);
+        if (t) {
+            if (t.installmentGroupId) {
+                setDeleteModalState({ isOpen: true, transaction: t });
+            } else if (t.splitGroupId) {
+                if (window.confirm('Esta transação faz parte de um grupo dividido. Deseja excluir todo o grupo?')) {
+                     const groupIds = transactions.filter(tx => tx.splitGroupId === t.splitGroupId).map(tx => tx.id);
+                     deleteTransactions(groupIds);
+                }
+            } else {
+                if (window.confirm('Tem certeza que deseja excluir esta transação?')) {
+                    deleteTransaction(id);
+                }
+            }
         }
     };
-    
-    const categoryOptions = useMemo(() => {
-        return categories
-            .filter(cat => cat.type === type)
-            .flatMap(cat => cat.subcategories.flatMap(sub => sub.items.map(item => ({...item, catName: cat.name, subName: sub.name}))))
-            .sort((a,b) => {
-                if (a.catName !== b.catName) return a.catName.localeCompare(b.catName, 'pt-BR');
-                if (a.subName !== b.subName) return a.subName.localeCompare(b.subName, 'pt-BR');
-                return a.name.localeCompare(b.name, 'pt-BR');
-            });
-    }, [categories, type]);
 
-     const expenseCategoryOptions = useMemo(() => {
-        return categories
-            .filter(cat => cat.type === TransactionType.EXPENSE)
-            .flatMap(cat => cat.subcategories.flatMap(sub => sub.items.map(item => ({...item, catName: cat.name, subName: sub.name}))))
-            .sort((a,b) => {
-                if (a.catName !== b.catName) return a.catName.localeCompare(b.catName, 'pt-BR');
-                if (a.subName !== b.subName) return a.subName.localeCompare(b.subName, 'pt-BR');
-                return a.name.localeCompare(b.name, 'pt-BR');
-            });
-    }, [categories]);
-    
-    const handleDateFilterChange = (value: string) => {
-        setDateFilter(value);
-        if (value === 'Personalizado') setIsPickerOpen(true);
+    const handleEdit = (transaction: Transaction) => {
+        setEditingTransaction(transaction);
+        // Setup form fields
+        setType(transaction.type);
+        setAccountId(transaction.accountId);
+        setCardId(transaction.cardId || '');
+        setDate(transaction.date);
+        
+        if (transaction.installmentGroupId) {
+            setEditingInstallmentGroup(transaction);
+            setIsInstallment(true);
+            setInstallmentsCount(String(transaction.totalInstallments));
+            // Usually editing installment edits the group, so we load the base description (remove suffix)
+            const baseDesc = transaction.description.replace(/\s\(\d+\/\d+\)(\s-\s.*)?$/, '');
+            setDescription(baseDesc);
+            setAmount(String(transaction.amount));
+            setItemId(transaction.itemId || '');
+        } else if (transaction.splitGroupId) {
+            setEditingSplitGroupId(transaction.splitGroupId);
+            setIsSplit(true);
+            const group = transactions.filter(t => t.splitGroupId === transaction.splitGroupId);
+            setSplitItems(group.map((g, i) => ({ id: i, itemId: g.itemId || '', amount: String(g.amount) })));
+            
+            // Try to extract base description. Assuming "Desc - Category" format.
+            const firstPart = transaction.description.split(' - ')[0]; 
+            setDescription(firstPart);
+            
+            const total = group.reduce((acc, curr) => acc + curr.amount, 0);
+            setAmount(String(total));
+            setItemId(''); 
+        } else {
+            setEditingInstallmentGroup(null);
+            setEditingSplitGroupId(null);
+            setIsInstallment(false);
+            setIsSplit(false);
+            setDescription(transaction.description);
+            setAmount(String(transaction.amount));
+            setItemId(transaction.itemId || '');
+        }
+        
+        // Scroll top
+        const formElement = document.querySelector('form');
+        if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
     };
-    
-    const handleCustomDateChange = (range: { start: Date | null, end: Date | null }) => {
-        setCustomDateRange(range);
-    };
 
-    const handleSplitItemChange = (id: number, field: 'itemId' | 'amount', value: string) => {
-        setSplitItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
-    };
-    const addSplitItem = () => setSplitItems(prev => [...prev, { id: Date.now(), itemId: '', amount: '' }]);
-    const removeSplitItem = (id: number) => setSplitItems(prev => prev.filter(item => item.id !== id));
+    // Construct Combined Account/Card Options for Select
+    const accountOptions = useMemo(() => {
+        const options: { value: string; label: string; isCard: boolean }[] = [];
+        activeAccounts.forEach(acc => {
+            options.push({ value: acc.id, label: acc.name, isCard: false });
+            if (acc.cards && acc.cards.length > 0) {
+                acc.cards.forEach(card => {
+                    options.push({ value: `${acc.id}|${card.id}`, label: `${acc.name} -> ${card.name}`, isCard: true });
+                });
+            }
+        });
+        return options;
+    }, [activeAccounts]);
 
-    const maxDate = isInstallment ? undefined : new Date().toISOString().split('T')[0];
+    const filterOptions: FilterOption[] = useMemo(() => [
+        { label: 'Todas as Contas', value: 'Todos' },
+        ...accountOptions.map(opt => ({ label: opt.label, value: opt.value }))
+    ], [accountOptions]);
 
-    const isEditing = !!(editingTransaction || editingInstallmentGroup || editingSplitGroupId);
-    const selectedCategoryInfo = categoryMap.get(itemId);
-    // Exclude 'Repasse' from transfer logic even if it is not included in balance
-    const isTransfer = itemBalanceMap.get(itemId) === false && selectedCategoryInfo?.item !== 'Repasse';
-    
+    const currentAccountSelectValue = cardId ? `${accountId}|${cardId}` : accountId;
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-5 xl:col-span-4">
@@ -792,13 +842,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                              <div className="flex space-x-6">
                                 {type === TransactionType.EXPENSE && (
                                     <div className="flex items-center">
-                                        <input type="checkbox" id="installment-check" checked={isInstallment} onChange={e => setIsInstallment(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
-                                        <label htmlFor="installment-check" className="ml-2 block text-sm text-slate-800">Parcelar</label>
+                                        <CustomCheckbox id="installment-check" checked={isInstallment} onChange={e => setIsInstallment(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId}/>
+                                        <label htmlFor="installment-check" className="ml-2 block text-sm text-slate-800 cursor-pointer">Parcelar</label>
                                     </div>
                                 )}
                                 <div className="flex items-center">
-                                    <input type="checkbox" id="split-check" checked={isSplit} onChange={e => { setIsSplit(e.target.checked); if(e.target.checked) setIsChange(false); }} disabled={!!editingTransaction || !!editingInstallmentGroup || isChange} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
-                                    <label htmlFor="split-check" className="ml-2 block text-sm text-slate-800">Dividir</label>
+                                    <CustomCheckbox id="split-check" checked={isSplit} onChange={e => { setIsSplit(e.target.checked); if(e.target.checked) setIsChange(false); }} disabled={!!editingTransaction || !!editingInstallmentGroup || isChange}/>
+                                    <label htmlFor="split-check" className="ml-2 block text-sm text-slate-800 cursor-pointer">Dividir</label>
                                 </div>
                             </div>
 
@@ -809,10 +859,29 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                 </div>
                             )}
                              <div>
-                                <label className="text-sm font-medium text-slate-600 mb-1 block">Conta</label>
-                                <select value={accountId} onChange={e => setAccountId(e.target.value)} required className="input-style">
+                                <label className="text-sm font-medium text-slate-600 mb-1 block">Conta / Cartão</label>
+                                <select 
+                                    value={currentAccountSelectValue} 
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        if (val.includes('|')) {
+                                            const [accId, cId] = val.split('|');
+                                            setAccountId(accId);
+                                            setCardId(cId);
+                                        } else {
+                                            setAccountId(val);
+                                            setCardId('');
+                                        }
+                                    }} 
+                                    required 
+                                    className="input-style"
+                                >
                                     <option value="" disabled>Selecione uma conta...</option>
-                                    {activeAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                                    {accountOptions.map(opt => (
+                                        <option key={opt.value} value={opt.value}>
+                                            {opt.label}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                             {isSplit ? (
@@ -877,8 +946,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                             )}
                              {type === TransactionType.INCOME && !isSplit && (
                                 <div className="flex items-center pt-4 border-t border-slate-200 mt-4">
-                                    <input type="checkbox" id="change-check" checked={isChange} onChange={e => setIsChange(e.target.checked)} disabled={isEditing} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"/>
-                                    <label htmlFor="change-check" className="ml-2 block text-sm text-slate-800">Devolver troco</label>
+                                    <CustomCheckbox id="change-check" checked={isChange} onChange={e => setIsChange(e.target.checked)} disabled={isEditing}/>
+                                    <label htmlFor="change-check" className="ml-2 block text-sm text-slate-800 cursor-pointer">Devolver troco</label>
                                 </div>
                             )}
                             {isChange && type === TransactionType.INCOME && (
@@ -923,21 +992,21 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     </div>
                     <div className="md:col-span-3">
                         <FilterDropdown 
-                            options={['Todos', ...activeAccounts.map(a => a.name)]}
-                            value={accountFilter === 'Todos' ? 'Todas as Contas' : accounts.find(a => a.id === accountFilter)?.name || 'Todas as Contas'}
-                            onChange={(value) => setAccountFilter(value === 'Todas as Contas' ? 'Todos' : accounts.find(a => a.name === value)?.id || 'Todos')}
+                            options={filterOptions}
+                            value={accountFilter}
+                            onChange={setAccountFilter}
                         />
                     </div>
                     <div className="md:col-span-2">
                         <FilterDropdown 
-                            options={['Este Mês', 'Mês Passado', 'Próximo Mês', 'Este Ano', 'Personalizado']}
+                            options={['Este Mês', 'Mês Passado', 'Próximo Mês', 'Este Ano', 'Personalizado'].map(o => ({label: o, value: o}))}
                             value={dateFilter}
                             onChange={handleDateFilterChange}
                         />
                     </div>
                     <div className="md:col-span-4 grid grid-cols-2 gap-2">
                          <FilterDropdown 
-                            options={['Todos', 'Entradas', 'Saídas', 'Movimentações']}
+                            options={['Todos', 'Entradas', 'Saídas', 'Movimentações'].map(o => ({label: o, value: o}))}
                             value={typeFilter}
                             onChange={setTypeFilter}
                         />
@@ -977,11 +1046,15 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     paginatedTransactions.map(t => {
                                         const categoryInfo = t.itemId ? categoryMap.get(t.itemId) : null;
                                         const isExpense = t.type === TransactionType.EXPENSE;
+                                        const accountName = accountMap.get(t.accountId);
+                                        const cardName = t.cardId ? cardMap.get(t.cardId) : null;
+                                        const displayAccount = cardName ? `${accountName} -> ${cardName}` : accountName;
+
                                         return (
                                         <tr key={t.id} className="hover:bg-gray-50">
                                             <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(t.date)}</td>
                                             <td className="px-4 py-3 text-slate-800 font-medium truncate" title={t.description}>{t.description}</td>
-                                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap truncate">{accountMap.get(t.accountId)}</td>
+                                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap truncate" title={displayAccount}>{displayAccount}</td>
                                             <td className="px-4 py-3 text-center align-middle">
                                                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${categoryInfo ? (categoryColors[categoryInfo.cat] || defaultCategoryColor) : defaultCategoryColor}`}>
                                                     {categoryInfo?.item || 'N/A'}
