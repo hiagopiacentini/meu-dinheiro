@@ -259,13 +259,15 @@ const PayInvoiceModal: React.FC<{
     targetAccount: Account;
     targetCardId: string | null;
     accounts: Account[];
+    categories: Category[];
     currentBalance: number;
-    onPay: (sourceAccountId: string, amount: number, date: string) => Promise<void>;
-}> = ({ isOpen, onClose, targetAccount, targetCardId, accounts, currentBalance, onPay }) => {
+    onPay: (sourceAccountId: string, amount: number, date: string, itemId: string) => Promise<void>;
+}> = ({ isOpen, onClose, targetAccount, targetCardId, accounts, categories, currentBalance, onPay }) => {
     const [sourceAccountId, setSourceAccountId] = useState('');
     // Suggest paying the full negative balance if it is negative
     const [amount, setAmount] = useState(currentBalance < 0 ? String(Math.abs(currentBalance)) : '');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [itemId, setItemId] = useState('');
 
     // Update amount if targetAccount changes and has negative balance
     useEffect(() => {
@@ -274,15 +276,27 @@ const PayInvoiceModal: React.FC<{
         }
     }, [isOpen, currentBalance]);
 
+    const expenseCategoryOptions = useMemo(() => {
+         const options: { id: string, name: string, subName: string, catName: string }[] = [];
+         categories.filter(c => c.type === TransactionType.EXPENSE).forEach(cat => {
+            cat.subcategories.forEach(sub => {
+                sub.items.forEach(item => {
+                     options.push({ id: item.id, name: item.name, subName: sub.name, catName: cat.name });
+                });
+            });
+         });
+         return options.sort((a,b) => a.catName.localeCompare(b.catName) || a.subName.localeCompare(b.subName) || a.name.localeCompare(b.name));
+    }, [categories]);
+
     if (!isOpen) return null;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!sourceAccountId || !amount || !date) {
+        if (!sourceAccountId || !amount || !date || !itemId) {
             alert('Preencha todos os campos.');
             return;
         }
-        await onPay(sourceAccountId, parseFloat(amount), date);
+        await onPay(sourceAccountId, parseFloat(amount), date, itemId);
     };
 
     const activeSourceAccounts = accounts.filter(a => a.isActive && a.id !== targetAccount.id);
@@ -324,6 +338,13 @@ const PayInvoiceModal: React.FC<{
                             required 
                             className="input-style" 
                         />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Categoria (Despesa)</label>
+                        <select value={itemId} onChange={e => setItemId(e.target.value)} required className="input-style">
+                            <option value="" disabled>Selecione uma categoria...</option>
+                            {expenseCategoryOptions.map(opt => <option key={opt.id} value={opt.id}>{`${opt.catName} > ${opt.subName} > ${opt.name}`}</option>)}
+                        </select>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Data do Pagamento</label>
@@ -436,54 +457,88 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     }, [selectedAccountId]);
 
 
-    const accountBalances = useMemo(() => {
-        const balances = new Map<string, number>();
-        accounts.forEach(acc => balances.set(acc.id, acc.initialBalance));
+    const { accountBalances, cardBalances } = useMemo(() => {
+        const accBalances = new Map<string, number>();
+        const crdBalances = new Map<string, number>();
+
+        // Init Balances
+        accounts.forEach(acc => {
+            accBalances.set(acc.id, acc.initialBalance);
+            acc.cards?.forEach(c => crdBalances.set(c.id, 0));
+        });
+
         transactions.forEach(t => {
-            const updateBalance = (id: string, amount: number) => { if(balances.has(id)) balances.set(id, balances.get(id)! + amount); };
-            if (t.type === TransactionType.INCOME) updateBalance(t.accountId, t.amount);
-            else if (t.type === TransactionType.EXPENSE) updateBalance(t.accountId, -t.amount);
-            else if (t.type === TransactionType.TRANSFER) {
-                updateBalance(t.accountId, -t.amount);
-                if(t.destinationAccountId) updateBalance(t.destinationAccountId, t.amount);
+            // Helper to update account balance (Available Cash)
+            const updateAcc = (id: string, val: number) => {
+                accBalances.set(id, (accBalances.get(id) || 0) + val);
+            };
+            // Helper to update card balance (Invoice Debt)
+            const updateCard = (id: string, val: number) => {
+                crdBalances.set(id, (crdBalances.get(id) || 0) + val);
+            };
+
+            // 1. Credit Card Transactions (Do NOT affect Account Balance directly)
+            if (t.cardId) {
+                if (t.type === TransactionType.EXPENSE) {
+                    updateCard(t.cardId, -t.amount); // Expense increases debt (negative balance)
+                } else if (t.type === TransactionType.INCOME) {
+                    updateCard(t.cardId, t.amount); // Refund/Income decreases debt
+                } else if (t.type === TransactionType.TRANSFER) {
+                    // Transfer INTO a card means paying the bill (Credit the card)
+                    if (t.destinationAccountId && t.cardId) {
+                        updateCard(t.cardId, t.amount);
+                    }
+                }
+            } 
+            // 2. Regular Transactions (Debit/Account)
+            else {
+                if (t.type === TransactionType.INCOME) {
+                    updateAcc(t.accountId, t.amount);
+                } else if (t.type === TransactionType.EXPENSE) {
+                    updateAcc(t.accountId, -t.amount);
+                }
+            }
+
+            // 3. Transfers Logic (Source always loses funds)
+            if (t.type === TransactionType.TRANSFER) {
+                // Source Account always decreases (Money leaves to pay bill or transfer)
+                updateAcc(t.accountId, -t.amount);
+
+                // Handle Destination
+                if (t.destinationAccountId) {
+                    // If destination is NOT a card (regular transfer), increase Dest Account
+                    if (!t.cardId) {
+                        updateAcc(t.destinationAccountId, t.amount);
+                    }
+                    // If destination IS a card, we handled it in step 1 (updateCard)
+                }
             }
         });
-        return balances;
+
+        return { accountBalances: accBalances, cardBalances: crdBalances };
     }, [accounts, transactions]);
 
     const currentViewBalance = useMemo(() => {
         if (!selectedAccountId) return 0;
         
-        // If a specific card is selected, calculate only its balance (usually negative for credit cards)
         if (selectedCardId) {
-            return transactions.reduce((acc, t) => {
-                let change = 0;
-                // Only consider transactions for this account/card combination
-                if ((t.accountId === selectedAccountId || t.destinationAccountId === selectedAccountId) && 
-                    (t.cardId === selectedCardId)) {
-                    
-                    if (t.accountId === selectedAccountId) {
-                        if (t.type === TransactionType.INCOME) change = t.amount;
-                        else if (t.type === TransactionType.EXPENSE) change = -t.amount;
-                        else if (t.type === TransactionType.TRANSFER) change = -t.amount;
-                    }
-                    if (t.destinationAccountId === selectedAccountId) {
-                        // Incoming transfer (like paying the bill)
-                        change = t.amount;
-                    }
-                }
-                return acc + change;
-            }, 0);
+            // Show only specific card balance
+            return cardBalances.get(selectedCardId) || 0;
         }
 
-        // Default: Return the overall account balance
-        // NOTE: Does this include the negative balance of credit cards? Typically yes in accounting.
+        // Show Account Balance (Cash Available)
         return accountBalances.get(selectedAccountId) || 0;
-    }, [accountBalances, transactions, selectedAccountId, selectedCardId]);
+    }, [accountBalances, cardBalances, selectedAccountId, selectedCardId]);
 
     const selectedAccount = useMemo(() => {
         return accounts.find(acc => acc.id === selectedAccountId) || null;
     }, [accounts, selectedAccountId]);
+    
+    // Calculate total credit card debt for the selected account (summary view)
+    const currentAccountTotalCardDebt = useMemo(() => {
+        if (!selectedAccount || !selectedAccount.cards) return 0;
+        return selectedAccount.cards.reduce((acc, card) => acc + (cardBalances.get(card.id) || 0), 0);
+    }, [selectedAccount, cardBalances]);
 
     const filteredTransactions = useMemo(() => {
         if (!selectedAccountId) return [];
@@ -584,7 +639,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
         }
     };
     
-    const handlePayInvoice = async (sourceAccountId: string, amount: number, date: string) => {
+    const handlePayInvoice = async (sourceAccountId: string, amount: number, date: string, itemId: string) => {
         if (!selectedAccount) return;
 
         // Create a Transfer Transaction
@@ -599,7 +654,8 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
             type: TransactionType.TRANSFER,
             accountId: sourceAccountId,
             destinationAccountId: selectedAccount.id,
-            cardId: selectedCardId || undefined
+            cardId: selectedCardId || undefined,
+            itemId: itemId 
         };
 
         const success = await addTransactions([transferTransaction]);
@@ -696,6 +752,14 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     };
     
     const hasLinkedCards = selectedAccount && selectedAccount.cards && selectedAccount.cards.length > 0;
+    
+    // Determine debt based on view:
+    // If specific card selected: use its balance.
+    // If account summary (no card selected): use the sum of all card debts.
+    const debtToCheck = selectedCardId ? (cardBalances.get(selectedCardId) || 0) : currentAccountTotalCardDebt;
+    
+    // If debtToCheck is negative, it means we owe money.
+    const hasDebt = debtToCheck < 0;
 
     return (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -724,7 +788,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                             {acc.isCreditCard && <div title="Cartão de Crédito"><CreditCardIcon className="w-4 h-4 text-slate-400" /></div>}
                                             {!acc.isActive && <span className="text-xs bg-gray-200 text-gray-600 font-semibold px-2 py-0.5 rounded-full flex-shrink-0">Inativa</span>}
                                         </div>
-                                        <p className="text-sm text-slate-500 truncate">Saldo Atual</p>
+                                        <p className="text-sm text-slate-500 truncate">Saldo Disponível</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-1 pointer-events-auto flex-shrink-0">
@@ -773,18 +837,23 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                     </div>
                                     <div className="flex flex-col mt-1">
                                         <span className="text-sm text-slate-500">
-                                            {selectedCardId ? 'Saldo do Cartão' : 'Saldo Total (Conta)'}
+                                            {selectedCardId ? 'Saldo do Cartão' : 'Saldo Disponível (Conta)'}
                                         </span>
                                         <span className={`text-3xl font-bold ${currentViewBalance < 0 ? 'text-red-500' : 'text-slate-900'}`}>
                                             {formatCurrency(currentViewBalance)}
                                         </span>
+                                        {!selectedCardId && hasLinkedCards && (
+                                            <span className="text-sm text-red-500 font-medium mt-1">
+                                                Fatura Cartões: {formatCurrency(currentAccountTotalCardDebt)}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                             
                             {/* Action Buttons for Account */}
                             <div className="flex items-center gap-3">
-                                {(selectedAccount.isCreditCard || selectedCardId) && (
+                                {((selectedAccount.isCreditCard && hasDebt) || (selectedCardId && hasDebt)) && (
                                     <button 
                                         onClick={handlePayBillClick} 
                                         className="btn-primary bg-green-600 hover:bg-green-700 border-none flex items-center gap-2"
@@ -885,7 +954,8 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                     targetAccount={selectedAccount}
                     targetCardId={selectedCardId}
                     accounts={accounts}
-                    currentBalance={currentViewBalance}
+                    categories={categories}
+                    currentBalance={selectedCardId ? currentViewBalance : currentAccountTotalCardDebt}
                     onPay={handlePayInvoice}
                 />
             )}

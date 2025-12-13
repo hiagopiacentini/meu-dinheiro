@@ -506,7 +506,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             const expenseTx: Omit<Transaction, 'id'> = {
                 description: `Transferência para ${accountMap.get(destAccId)}`,
                 amount: transferAmount, date, type: TransactionType.EXPENSE,
-                accountId: sourceAccId, itemId, cardId: type === TransactionType.EXPENSE ? cardId : undefined
+                accountId: sourceAccId, itemId, 
+                ...(type === TransactionType.EXPENSE && cardId ? { cardId } : {})
             };
             const incomeTx: Omit<Transaction, 'id'> = {
                 description: `Transferência de ${accountMap.get(sourceAccId)}`,
@@ -584,7 +585,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         }
 
 
-        const commonData = { description, date, accountId, type, cardId: cardId || undefined };
+        const commonData = { 
+            description, 
+            date, 
+            accountId, 
+            type, 
+            ...(cardId ? { cardId } : {}) // Only add cardId if it exists to prevent 'undefined' error in Firestore
+        };
 
         if (editingInstallmentGroup) {
             const groupId = editingInstallmentGroup.installmentGroupId!;
