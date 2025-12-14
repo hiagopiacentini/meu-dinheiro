@@ -14,6 +14,7 @@ import CreditCardIcon from '../components/icons/CreditCardIcon';
 import PlusIcon from '../components/icons/PlusIcon';
 import XIcon from '../components/icons/XIcon';
 import ChevronDownIcon from '../components/icons/ChevronDownIcon';
+import TicketIcon from '../components/icons/TicketIcon';
 
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -21,6 +22,74 @@ const formatDate = (dateString: string) => new Date(dateString).toLocaleDateStri
 const getUTCDate = (dateString: string) => {
     const date = new Date(dateString);
     return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+};
+
+const InvoiceHistoryModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    accountName: string;
+    cardName: string;
+    transactions: Transaction[];
+    accountId: string;
+    cardId: string;
+    accounts: Account[];
+}> = ({ isOpen, onClose, accountName, cardName, transactions, accountId, cardId, accounts }) => {
+    if (!isOpen) return null;
+
+    const accountMap = new Map(accounts.map(acc => [acc.id, acc.name]));
+
+    // Filter transactions that are payments TO this card
+    const history = transactions.filter(t => 
+        t.type === TransactionType.TRANSFER &&
+        t.destinationAccountId === accountId && 
+        t.cardId === cardId
+    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg m-4 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">Histórico de Faturas</h2>
+                        <p className="text-sm text-slate-500">{accountName} - {cardName}</p>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100"><XIcon className="w-5 h-5 text-slate-500"/></button>
+                </div>
+
+                <div className="overflow-y-auto flex-1 pr-2">
+                    {history.length === 0 ? (
+                        <p className="text-center text-slate-500 py-8">Nenhum pagamento de fatura encontrado.</p>
+                    ) : (
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-50 text-slate-500 sticky top-0">
+                                <tr>
+                                    <th className="px-3 py-2 text-left">Data</th>
+                                    <th className="px-3 py-2 text-left">Origem</th>
+                                    <th className="px-3 py-2 text-right">Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {history.map(t => (
+                                    <tr key={t.id}>
+                                        <td className="px-3 py-2 text-slate-600">{formatDate(t.date)}</td>
+                                        <td className="px-3 py-2 text-slate-600 truncate max-w-[150px]">
+                                            {accountMap.get(t.accountId) || 'Conta Excluída'}
+                                        </td>
+                                        <td className="px-3 py-2 text-right font-medium text-green-600">
+                                            {formatCurrency(t.amount)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+                <div className="flex justify-end pt-4 border-t border-slate-100 mt-4">
+                    <button type="button" onClick={onClose} className="btn-secondary">Fechar</button>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 const CardFilterDropdown: React.FC<{
@@ -299,7 +368,8 @@ const PayInvoiceModal: React.FC<{
         await onPay(sourceAccountId, parseFloat(amount), date, itemId);
     };
 
-    const activeSourceAccounts = accounts.filter(a => a.isActive && a.id !== targetAccount.id);
+    // Permitir pagar com a própria conta (ex: pagar NuCard com NuConta)
+    const activeSourceAccounts = accounts.filter(a => a.isActive);
     const cardName = targetCardId ? targetAccount.cards?.find(c => c.id === targetCardId)?.name : null;
     const titleContext = cardName ? ` - ${cardName}` : '';
 
@@ -314,7 +384,25 @@ const PayInvoiceModal: React.FC<{
                 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Pagar com (Origem)</label>
+                        {/* Auto-select own account helper */}
+                        {activeSourceAccounts.some(a => a.id === targetAccount.id) && (
+                            <div 
+                                onClick={() => setSourceAccountId(targetAccount.id)}
+                                className="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors" 
+                            >
+                                <div className="flex items-center">
+                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center mr-2 flex-shrink-0 ${sourceAccountId === targetAccount.id ? 'border-blue-600 bg-blue-600' : 'border-slate-400 bg-white'}`}>
+                                        {sourceAccountId === targetAccount.id && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-semibold text-blue-800">Pagar com saldo da própria conta</p>
+                                        <p className="text-xs text-blue-600">Use os rendimentos/depósitos desta conta para abater a fatura.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Conta de Origem do Pagamento</label>
                         <select 
                             value={sourceAccountId} 
                             onChange={e => setSourceAccountId(e.target.value)} 
@@ -415,6 +503,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+    const [isInvoiceHistoryOpen, setIsInvoiceHistoryOpen] = useState(false); // Novo estado
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
     const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
     const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -548,16 +637,34 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
             .filter(t => t.accountId === selectedAccountId || t.destinationAccountId === selectedAccountId)
             .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
         
-        // STRICT SEPARATION:
-        // If Card Selected: Show ONLY transactions for that card.
-        // If NO Card Selected (Account View): Show ONLY transactions NOT linked to any card.
-        
         if (selectedCardId) {
-            accountTransactions = accountTransactions.filter(t => t.cardId === selectedCardId);
+            // Se estiver vendo um cartão, mostre apenas despesas e estornos dele.
+            // Oculte as transferências de pagamento de fatura da lista principal (elas estarão no Histórico de Faturas)
+            accountTransactions = accountTransactions.filter(t => 
+                t.cardId === selectedCardId && 
+                t.type !== TransactionType.TRANSFER // Hide invoice payments from main list
+            );
         } else {
-            // Filter out transactions that have ANY cardId (linked to any card of this account)
-            // We assume if it has a cardId, it belongs to one of the cards of this account.
-            accountTransactions = accountTransactions.filter(t => !t.cardId);
+            // Se estiver vendo a Conta Corrente (Cash View)
+            accountTransactions = accountTransactions.filter(t => {
+                const isSource = t.accountId === selectedAccountId;
+                const isDest = t.destinationAccountId === selectedAccountId;
+
+                // Se sou a origem (Gastei, Transferi pra fora, Paguei conta), mostra.
+                if (isSource) return true;
+
+                // Se sou o destino:
+                if (isDest) {
+                    // Se a transferência entrou para pagar um cartão, NÃO mostre na visão de dinheiro (Conta).
+                    // Pois o dinheiro não entrou no saldo da conta, foi abater a dívida do cartão.
+                    if (t.cardId) return false;
+                    
+                    // Se entrou como dinheiro (Depósito, PIX recebido), mostre.
+                    return true;
+                }
+                
+                return false;
+            });
         }
             
         let finalTransactions: Transaction[];
@@ -853,6 +960,16 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                             
                             {/* Action Buttons for Account */}
                             <div className="flex items-center gap-3">
+                                {selectedCardId && (
+                                    <button
+                                        onClick={() => setIsInvoiceHistoryOpen(true)}
+                                        className="btn-secondary flex items-center gap-2 text-sm"
+                                        title="Ver histórico de pagamentos de fatura"
+                                    >
+                                        <TicketIcon className="w-4 h-4 text-slate-500"/>
+                                        Histórico
+                                    </button>
+                                )}
                                 {((selectedAccount.isCreditCard && hasDebt) || (selectedCardId && hasDebt)) && (
                                     <button 
                                         onClick={handlePayBillClick} 
@@ -957,6 +1074,19 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                     categories={categories}
                     currentBalance={selectedCardId ? currentViewBalance : currentAccountTotalCardDebt}
                     onPay={handlePayInvoice}
+                />
+            )}
+
+            {selectedAccount && selectedCardId && (
+                <InvoiceHistoryModal
+                    isOpen={isInvoiceHistoryOpen}
+                    onClose={() => setIsInvoiceHistoryOpen(false)}
+                    accountName={selectedAccount.name}
+                    cardName={selectedAccount.cards?.find(c => c.id === selectedCardId)?.name || ''}
+                    transactions={transactions}
+                    accountId={selectedAccount.id}
+                    cardId={selectedCardId}
+                    accounts={accounts}
                 />
             )}
         </div>

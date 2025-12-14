@@ -114,9 +114,19 @@ const DashboardPage: React.FC = () => {
       end: new Date(Date.UTC(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999)) 
   });
 
-  const itemBalanceMap = useMemo(() => {
-    const map = new Map<string, boolean>();
-    categories.forEach(cat => cat.subcategories.forEach(sub => sub.items.forEach(item => map.set(item.id, item.includeInBalance))));
+  // Map to get Item Name and Balance Flag for each Item
+  const itemInfoMap = useMemo(() => {
+    const map = new Map<string, { itemName: string, includeInBalance: boolean }>();
+    categories.forEach(cat => {
+        cat.subcategories.forEach(sub => {
+            sub.items.forEach(item => {
+                map.set(item.id, { 
+                    itemName: item.name, 
+                    includeInBalance: item.includeInBalance 
+                });
+            });
+        });
+    });
     return map;
   }, [categories]);
 
@@ -168,7 +178,9 @@ const DashboardPage: React.FC = () => {
       let income = 0;
       let expense = 0;
       filtered.forEach(t => {
-        const shouldInclude = !t.itemId || itemBalanceMap.get(t.itemId) !== false;
+        const itemInfo = itemInfoMap.get(t.itemId || '');
+        const shouldInclude = !t.itemId || (itemInfo ? itemInfo.includeInBalance : true);
+        
         if (shouldInclude) {
             if (t.type === TransactionType.INCOME) income += t.amount;
             else if (t.type === TransactionType.EXPENSE) expense += t.amount;
@@ -182,7 +194,7 @@ const DashboardPage: React.FC = () => {
           periodSavings: income - expense,
       };
   
-  }, [transactions, dateRange, itemBalanceMap]);
+  }, [transactions, dateRange, itemInfoMap]);
 
   const { goalUntilNow, showGoalUntilNow } = useMemo(() => {
     const now = getNowGmtMinus4();
@@ -326,7 +338,8 @@ const DashboardPage: React.FC = () => {
         const tDate = getUTCDate(t.date);
         return tDate >= startOfYear && tDate <= endOfPeriod;
     }).reduce((acc, t) => {
-        const shouldInclude = !t.itemId || itemBalanceMap.get(t.itemId) !== false;
+        const itemInfo = itemInfoMap.get(t.itemId || '');
+        const shouldInclude = !t.itemId || (itemInfo ? itemInfo.includeInBalance : true);
         if(shouldInclude){
             if (t.type === TransactionType.INCOME) return acc + t.amount;
             if (t.type === TransactionType.EXPENSE) return acc - t.amount;
@@ -335,7 +348,7 @@ const DashboardPage: React.FC = () => {
     }, 0);
     
     return { annualSavingsToDate: savings };
-  }, [transactions, dateRange.start, itemBalanceMap]);
+  }, [transactions, dateRange.start, itemInfoMap]);
   
   const { annualPeriodGoal, annualPeriodLabel } = useMemo(() => {
     if (!dateRange.start || !dateRange.end) return { annualPeriodGoal: 0, annualPeriodLabel: 'Meta do Período' };
@@ -381,7 +394,8 @@ const DashboardPage: React.FC = () => {
       });
 
       filteredTransactions.forEach(t => {
-          const shouldInclude = !t.itemId || itemBalanceMap.get(t.itemId) !== false;
+          const itemInfo = itemInfoMap.get(t.itemId || '');
+          const shouldInclude = !t.itemId || (itemInfo ? itemInfo.includeInBalance : true);
           if (!shouldInclude) return;
 
           const tDate = getUTCDate(t.date);
@@ -401,7 +415,7 @@ const DashboardPage: React.FC = () => {
           .map(([name, values]) => ({ name, ...values }))
           .sort((a, b) => a.monthIndex - b.monthIndex) 
           .filter(d => (dateRange.end?.getUTCFullYear() || 0) > (dateRange.start?.getUTCFullYear() || 1) || d.Receitas > 0 || d.Despesas > 0); 
-  }, [filteredTransactions, dateRange, itemBalanceMap]);
+  }, [filteredTransactions, dateRange, itemInfoMap]);
 
 
   const accountBalances = useMemo(() => {
@@ -409,39 +423,78 @@ const DashboardPage: React.FC = () => {
     accounts.forEach(acc => balances.set(acc.id, acc.initialBalance));
     transactions.forEach(t => {
         const updateBalance = (id: string, amount: number) => { if(balances.has(id)) balances.set(id, balances.get(id)! + amount); };
-        if (t.type === TransactionType.INCOME) updateBalance(t.accountId, t.amount);
-        else if (t.type === TransactionType.EXPENSE) updateBalance(t.accountId, -t.amount);
-        else if (t.type === TransactionType.TRANSFER) {
-            updateBalance(t.accountId, -t.amount);
-            if(t.destinationAccountId) updateBalance(t.destinationAccountId, t.amount);
+        
+        // Logic for Card vs Account Balances
+        if (t.cardId) {
+             // Card transactions (Income or Expense) affect the Card balance (usually tracked separately in AccountsPage),
+             // but here we are just showing "My Accounts" which typically refers to Cash/Checking accounts.
+             // If a transaction is on a card, it doesn't change the checking account balance directly.
+             // UNLESS it's a Transfer to pay the card.
+             if (t.type === TransactionType.TRANSFER && t.destinationAccountId && t.cardId) {
+                 // Paying a card: Source Account loses money.
+                 updateBalance(t.accountId, -t.amount);
+             }
+        } else {
+            // Standard Account Transactions
+            if (t.type === TransactionType.INCOME) updateBalance(t.accountId, t.amount);
+            else if (t.type === TransactionType.EXPENSE) updateBalance(t.accountId, -t.amount);
+            else if (t.type === TransactionType.TRANSFER) {
+                updateBalance(t.accountId, -t.amount);
+                if(t.destinationAccountId) updateBalance(t.destinationAccountId, t.amount);
+            }
         }
     });
     return balances;
   }, [accounts, transactions]);
 
+  // Aggregation Logic for Item Names (Top Expenses/Incomes)
   const topExpenses = useMemo(() => {
-    const expenseTransactions = filteredTransactions.filter(t => 
-        t.type === TransactionType.EXPENSE && 
-        (!t.itemId || itemBalanceMap.get(t.itemId) !== false)
-    );
-    const total = expenseTransactions.reduce((sum, t) => sum + t.amount, 0);
-    return expenseTransactions
+    const groupedExpenses = new Map<string, number>();
+    let total = 0;
+
+    filteredTransactions.forEach(t => {
+        if (t.type !== TransactionType.EXPENSE) return;
+        
+        const itemInfo = itemInfoMap.get(t.itemId || '');
+        if (itemInfo && itemInfo.includeInBalance === false) return;
+
+        // Group by Item Name (aggregate items with same name)
+        const name = itemInfo ? itemInfo.itemName : 'Outros';
+        
+        groupedExpenses.set(name, (groupedExpenses.get(name) || 0) + t.amount);
+        total += t.amount;
+    });
+
+    return Array.from(groupedExpenses.entries())
+        .map(([name, amount]) => ({ description: name, amount }))
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 4)
         .map(t => ({...t, percentage: total > 0 ? ((t.amount / total) * 100).toFixed(1) + '% do total' : '0% do total' }));
-  }, [filteredTransactions, itemBalanceMap]);
+  }, [filteredTransactions, itemInfoMap]);
   
   const topIncomes = useMemo(() => {
-    const incomeTransactions = filteredTransactions.filter(t => 
-        t.type === TransactionType.INCOME && 
-        (!t.itemId || itemBalanceMap.get(t.itemId) !== false)
-    );
-    const total = incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
-    return incomeTransactions
+    const groupedIncomes = new Map<string, number>();
+    let total = 0;
+
+    filteredTransactions.forEach(t => {
+        if (t.type !== TransactionType.INCOME) return;
+        
+        const itemInfo = itemInfoMap.get(t.itemId || '');
+        if (itemInfo && itemInfo.includeInBalance === false) return;
+
+        // Group by Item Name
+        const name = itemInfo ? itemInfo.itemName : 'Outros';
+        
+        groupedIncomes.set(name, (groupedIncomes.get(name) || 0) + t.amount);
+        total += t.amount;
+    });
+
+    return Array.from(groupedIncomes.entries())
+        .map(([name, amount]) => ({ description: name, amount }))
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 4)
         .map(t => ({...t, percentage: total > 0 ? ((t.amount / total) * 100).toFixed(1) + '% do total' : '0% do total' }));
-  }, [filteredTransactions, itemBalanceMap]);
+  }, [filteredTransactions, itemInfoMap]);
   
     const itemToCategoryMap = useMemo(() => {
         const map = new Map<string, { name: string, color?: string }>();
@@ -614,15 +667,15 @@ const DashboardPage: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-               <h3 className="font-bold text-lg mb-2 text-slate-800">Top Despesas</h3>
+               <h3 className="font-bold text-lg mb-2 text-slate-800">Top Despesas (Por Item)</h3>
                <div className="divide-y divide-slate-200">
-                   {topExpenses.length > 0 ? topExpenses.map((item, index) => <TopListItem key={item.id} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4">Nenhuma despesa no período.</p>}
+                   {topExpenses.length > 0 ? topExpenses.map((item, index) => <TopListItem key={index} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4">Nenhuma despesa no período.</p>}
                </div>
            </div>
            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="font-bold text-lg mb-2 text-slate-800">Top Receitas</h3>
+                <h3 className="font-bold text-lg mb-2 text-slate-800">Top Receitas (Por Item)</h3>
                 <div className="divide-y divide-slate-200">
-                   {topIncomes.length > 0 ? topIncomes.map((item, index) => <TopListItem key={item.id} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4">Nenhuma receita no período.</p>}
+                   {topIncomes.length > 0 ? topIncomes.map((item, index) => <TopListItem key={index} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4">Nenhuma receita no período.</p>}
                </div>
            </div>
       </div>

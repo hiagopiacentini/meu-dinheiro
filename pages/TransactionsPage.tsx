@@ -1077,10 +1077,37 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                 ) : (
                                     paginatedTransactions.map(t => {
                                         const categoryInfo = t.itemId ? categoryMap.get(t.itemId) : null;
-                                        const isExpense = t.type === TransactionType.EXPENSE;
                                         const accountName = accountMap.get(t.accountId);
                                         const cardName = t.cardId ? cardMap.get(t.cardId) : null;
                                         const displayAccount = cardName ? `${accountName} -> ${cardName}` : accountName;
+
+                                        // Color & Sign Logic
+                                        let displayProps = { color: 'text-slate-800', sign: '' };
+                                        if (t.type === TransactionType.INCOME) {
+                                            displayProps = { color: 'text-green-600', sign: '+ ' };
+                                        } else if (t.type === TransactionType.EXPENSE) {
+                                            displayProps = { color: 'text-red-600', sign: '- ' };
+                                        } else if (t.type === TransactionType.TRANSFER) {
+                                            if (accountFilter !== 'Todos') {
+                                                const viewingId = accountFilter.includes('|') ? accountFilter.split('|')[0] : accountFilter;
+                                                const isCardView = accountFilter.includes('|');
+                                                
+                                                if (isCardView) {
+                                                    const viewingCardId = accountFilter.split('|')[1];
+                                                    // Paying this card?
+                                                    if (t.cardId === viewingCardId && t.destinationAccountId === viewingId) {
+                                                        displayProps = { color: 'text-green-600', sign: '+ ' };
+                                                    }
+                                                } else {
+                                                    // Normal Account view
+                                                    if (t.accountId === viewingId) displayProps = { color: 'text-red-600', sign: '- ' };
+                                                    else if (t.destinationAccountId === viewingId) displayProps = { color: 'text-green-600', sign: '+ ' };
+                                                }
+                                            } else {
+                                                // General View: Transfers are usually neutral/grey unless we want to emphasize flow
+                                                displayProps = { color: 'text-slate-500', sign: '' };
+                                            }
+                                        }
 
                                         return (
                                         <tr key={t.id} className="hover:bg-gray-50">
@@ -1092,8 +1119,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                                     {categoryInfo?.item || 'N/A'}
                                                 </span>
                                             </td>
-                                            <td className={`px-4 py-3 text-right font-bold ${isExpense ? 'text-red-500' : 'text-green-500'}`}>
-                                                {isExpense ? '- ' : ''}{formatCurrency(t.amount)}
+                                            <td className={`px-4 py-3 text-right font-bold ${displayProps.color}`}>
+                                                {displayProps.sign}{formatCurrency(t.amount)}
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center justify-center space-x-1">
