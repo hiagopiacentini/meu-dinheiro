@@ -61,7 +61,7 @@ export interface Transaction {
   splitGroupId?: string; // ID to link split transactions together
   
   createdAt?: string; // Timestamp ISO string of when the record was created
-  cardId?: string;
+  cardId?: string | null;
 }
 
 export interface Loan {

@@ -417,15 +417,37 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             if (accountFilter.includes('|')) {
                 // Filter by specific Card: AccountId AND CardId match
                 const [accId, cId] = accountFilter.split('|');
-                items = items.filter(t => t.accountId === accId && t.cardId === cId);
+                // Strict check: Must match account AND exact card ID
+                items = items.filter(t => {
+                    const matchesAccount = t.accountId === accId || t.destinationAccountId === accId;
+                    return matchesAccount && t.cardId === cId;
+                });
             } else {
                 // Filter by Account: AccountId matches. 
-                // NOTE: Should we show card transactions here? 
-                // Usually "Account" filter implies everything under that account. 
-                // If user wants ONLY account (no cards), they'd need a specific filter, but usually in a list view, filtering by account shows all activity.
-                // However, based on the AccountsPage request ("separar o que é cartão"), maybe user expects strict separation here too?
-                // Let's keep it simple: Filter by Account ID shows all (Account + Cards). Filter by Card shows only Card.
-                items = items.filter(t => t.accountId === accountFilter);
+                // STRICT SEPARATION: Show ONLY transactions NOT linked to any card.
+                items = items.filter(t => {
+                    const isSource = t.accountId === accountFilter;
+                    const isDest = t.destinationAccountId === accountFilter;
+                    
+                    if (!isSource && !isDest) return false;
+
+                    // If it is an Expense or Income on a card, hide it from Account view
+                    if ((t.type === TransactionType.EXPENSE || t.type === TransactionType.INCOME) && t.cardId) {
+                        return false;
+                    }
+
+                    // Special handling for Transfers
+                    if (t.type === TransactionType.TRANSFER) {
+                        // If viewing Source Account (paying out), show it regardless of card (e.g., paying bill)
+                        if (isSource) return true;
+                        
+                        // If viewing Destination Account and it targets a card (e.g. paying bill), hide from Account View
+                        // because it affects the Card balance, not the Account cash balance (on destination side)
+                        if (isDest && t.cardId) return false;
+                    }
+
+                    return true;
+                });
             }
         }
 
@@ -507,12 +529,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                 description: `Transferência para ${accountMap.get(destAccId)}`,
                 amount: transferAmount, date, type: TransactionType.EXPENSE,
                 accountId: sourceAccId, itemId, 
-                ...(type === TransactionType.EXPENSE && cardId ? { cardId } : {})
+                cardId: (type === TransactionType.EXPENSE && cardId) ? cardId : null
             };
             const incomeTx: Omit<Transaction, 'id'> = {
                 description: `Transferência de ${accountMap.get(sourceAccId)}`,
                 amount: transferAmount, date, type: TransactionType.INCOME,
-                accountId: destAccId, itemId
+                accountId: destAccId, itemId,
+                cardId: null // Transfers in usually don't link to a card on the destination
             };
 
             if (editingTransaction) {
@@ -563,6 +586,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                 type: TransactionType.INCOME,
                 accountId,
                 itemId,
+                cardId: cardId || null
             };
             
             const newTxs = [incomeTransaction];
@@ -575,6 +599,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     type: TransactionType.EXPENSE,
                     accountId: changeAccountId,
                     itemId: changeItemId,
+                    cardId: null // Change is cash usually
                 };
                 newTxs.push(changeTransaction);
             }
@@ -590,7 +615,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             date, 
             accountId, 
             type, 
-            ...(cardId ? { cardId } : {}) // Only add cardId if it exists to prevent 'undefined' error in Firestore
+            cardId: cardId || null // Explicitly set to null if empty to clear DB field
         };
 
         if (editingInstallmentGroup) {
@@ -681,7 +706,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                  ...commonData, 
                  amount: parseFloat(item.amount), 
                  itemId: item.itemId,
-                 description: `${description} - ${categoryMap.get(item.itemId)?.item}`,
+                 description: `${description} - ${categoryMap.get(item.itemId)?.item || 'Item'}`,
                  splitGroupId: finalSplitGroupId // Link them together
             }));
             

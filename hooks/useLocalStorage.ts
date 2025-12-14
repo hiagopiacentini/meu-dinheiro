@@ -1,12 +1,13 @@
+
 import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 
-// Safe JSON stringify to handle circular references
+// Safe JSON stringify to handle circular references robustly
 const safeStringify = (obj: any) => {
   const seen = new WeakSet();
   return JSON.stringify(obj, (key, value) => {
     if (typeof value === "object" && value !== null) {
       if (seen.has(value)) {
-        return;
+        return "[Circular]";
       }
       seen.add(value);
     }

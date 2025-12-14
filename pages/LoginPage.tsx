@@ -8,13 +8,13 @@ interface LoginPageProps {
   onLogin: () => void;
 }
 
-// Safe JSON stringify helper
+// Safe JSON stringify helper to prevent circular structure errors
 const safeStringify = (obj: any) => {
   const seen = new WeakSet();
   return JSON.stringify(obj, (key, value) => {
     if (typeof value === "object" && value !== null) {
       if (seen.has(value)) {
-        return;
+        return "[Circular]";
       }
       seen.add(value);
     }

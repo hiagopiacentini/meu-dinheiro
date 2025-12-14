@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useTransactions, useCategories, useAccounts } from '../hooks/useFirestore';
 import { TransactionType } from '../types';
 import { 
@@ -56,6 +56,73 @@ const KpiCard: React.FC<{ title: string, value: string, subtext?: string, colorC
         </div>
     </div>
 );
+
+// --- Custom Dropdown Component ---
+interface FilterOption {
+    label: string;
+    value: string;
+}
+
+const FilterDropdown: React.FC<{
+    options: FilterOption[];
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+    className?: string;
+}> = ({ options, value, onChange, placeholder, className = "w-48" }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (ref.current && !ref.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [ref]);
+
+    const handleSelect = (optionValue: string) => {
+        onChange(optionValue);
+        setIsOpen(false);
+    };
+
+    const selectedOption = options.find(o => o.value === value);
+    const label = selectedOption ? selectedOption.label : (placeholder || "Selecione...");
+
+    return (
+        <div className={`relative ${className}`} ref={ref}>
+            <button 
+                onClick={() => setIsOpen(!isOpen)} 
+                className="flex items-center justify-between w-full px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+            >
+                <span className="truncate mr-2">{label}</span>
+                <ChevronDownIcon className="w-4 h-4 text-slate-400 flex-shrink-0" />
+            </button>
+            {isOpen && (
+                <div className="absolute right-0 top-full mt-1 w-full min-w-[220px] bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                    <div className="py-1">
+                        {options.map((option) => (
+                            <button
+                                key={option.value}
+                                onClick={() => handleSelect(option.value)}
+                                className={`block w-full text-left px-4 py-2 text-sm truncate transition-colors ${
+                                    value === option.value 
+                                    ? 'bg-blue-50 text-blue-700 font-medium' 
+                                    : 'text-slate-700 hover:bg-slate-50'
+                                }`}
+                                title={option.label}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 // --- DRE Components ---
 
@@ -140,6 +207,10 @@ const ReportsPage: React.FC = () => {
     const [period, setPeriod] = useState<'currentMonth' | 'lastMonth' | '3months' | '6months' | 'year' | 'all'>('currentMonth');
     const [categoryViewMode, setCategoryViewMode] = useState<'category' | 'structure'>('category');
 
+    // Chart Filters
+    const [incomeSubcategoryFilter, setIncomeSubcategoryFilter] = useState('');
+    const [expenseItemFilter, setExpenseItemFilter] = useState('');
+
     // Mappings - Enhanced to include Item Name and isFixed
     const categoryMap = useMemo(() => {
         const map = new Map<string, { name: string, subName: string, itemName: string, color?: string, isFixed?: boolean }>();
@@ -174,6 +245,26 @@ const ReportsPage: React.FC = () => {
     }, [categories]);
 
     const accountMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc])), [accounts]);
+
+    // Generate Filter Options
+    const incomeSubcategoryOptions = useMemo(() => {
+        const subs = new Set<string>();
+        categories
+            .filter(c => c.type === TransactionType.INCOME)
+            .forEach(c => c.subcategories.forEach(s => subs.add(s.name)));
+        return Array.from(subs).sort();
+    }, [categories]);
+
+    const expenseItemOptions = useMemo(() => {
+        const items: {id: string, name: string, fullPath: string}[] = [];
+        categories
+            .filter(c => c.type === TransactionType.EXPENSE)
+            .forEach(c => c.subcategories.forEach(s => s.items.forEach(i => {
+                items.push({id: i.id, name: i.name, fullPath: `${s.name} > ${i.name}`});
+            })));
+        return items.sort((a, b) => a.name.localeCompare(b.name));
+    }, [categories]);
+
 
     // Data Processing based on period (Updated logic for specific ranges)
     const filteredTransactions = useMemo(() => {
@@ -327,6 +418,9 @@ const ReportsPage: React.FC = () => {
             if (t.type !== TransactionType.EXPENSE) return;
             if (t.itemId && itemBalanceMap.get(t.itemId) === false) return;
 
+            // Apply Item Filter
+            if (expenseItemFilter && t.itemId !== expenseItemFilter) return;
+
             const date = getUTCDate(t.date);
             const key = date.toISOString().split('T')[0]; // YYYY-MM-DD
             
@@ -342,7 +436,7 @@ const ReportsPage: React.FC = () => {
         });
 
         return Array.from(data.values()).sort((a, b) => a.dateMs - b.dateMs);
-    }, [filteredTransactions, itemBalanceMap]);
+    }, [filteredTransactions, itemBalanceMap, expenseItemFilter]);
 
     // --- REPORT 5: Daily Income (Chronological) ---
     const dailyIncomeData = useMemo(() => {
@@ -352,6 +446,12 @@ const ReportsPage: React.FC = () => {
             if (t.type !== TransactionType.INCOME) return;
             if (t.itemId && itemBalanceMap.get(t.itemId) === false) return;
 
+            // Apply Subcategory Filter
+            if (incomeSubcategoryFilter) {
+                const info = categoryMap.get(t.itemId || '');
+                if (info?.subName !== incomeSubcategoryFilter) return;
+            }
+
             const date = getUTCDate(t.date);
             const key = date.toISOString().split('T')[0]; // YYYY-MM-DD
             
@@ -367,7 +467,7 @@ const ReportsPage: React.FC = () => {
         });
 
         return Array.from(data.values()).sort((a, b) => a.dateMs - b.dateMs);
-    }, [filteredTransactions, itemBalanceMap]);
+    }, [filteredTransactions, itemBalanceMap, incomeSubcategoryFilter, categoryMap]);
 
     // --- REPORT 6: Detailed DRE Data (3 Levels) ---
     const dreData = useMemo(() => {
@@ -730,8 +830,23 @@ const ReportsPage: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Chart 4: Daily Income (Chronological) */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <h3 className="text-lg font-bold text-slate-800 mb-2">Receitas Diárias</h3>
-                    <p className="text-xs text-slate-500 mb-6">Acompanhamento das entradas dia a dia.</p>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800">Receitas Diárias</h3>
+                            <p className="text-xs text-slate-500">Acompanhamento das entradas dia a dia.</p>
+                        </div>
+                        <FilterDropdown 
+                            value={incomeSubcategoryFilter}
+                            onChange={setIncomeSubcategoryFilter}
+                            options={[
+                                { label: 'Todas Subcategorias', value: '' },
+                                ...incomeSubcategoryOptions.map(sub => ({ label: sub, value: sub }))
+                            ]}
+                            placeholder="Todas Subcategorias"
+                            className="w-48"
+                        />
+                    </div>
+                    
                     <div className="h-64 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={dailyIncomeData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -750,8 +865,23 @@ const ReportsPage: React.FC = () => {
 
                 {/* Chart 5: Daily Expenses (Chronological) */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <h3 className="text-lg font-bold text-slate-800 mb-2">Gastos Diários</h3>
-                    <p className="text-xs text-slate-500 mb-6">Acompanhamento das despesas dia a dia.</p>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800">Gastos Diários</h3>
+                            <p className="text-xs text-slate-500">Acompanhamento das despesas dia a dia.</p>
+                        </div>
+                        <FilterDropdown 
+                            value={expenseItemFilter}
+                            onChange={setExpenseItemFilter}
+                            options={[
+                                { label: 'Todos Itens', value: '' },
+                                ...expenseItemOptions.map(item => ({ label: item.fullPath, value: item.id }))
+                            ]}
+                            placeholder="Todos Itens"
+                            className="w-56"
+                        />
+                    </div>
+
                     <div className="h-64 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={dailyExpensesData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
