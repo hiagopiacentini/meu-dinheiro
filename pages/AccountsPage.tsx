@@ -171,7 +171,7 @@ const AccountModal: React.FC<{
     const [isCreditCard, setIsCreditCard] = useState(false);
     
     // Cards State
-    const [cards, setCards] = useState<{id: string, name: string}[]>([]);
+    const [cards, setCards] = useState<{id: string, name: string, initialBalance?: number}[]>([]);
     const [newCardName, setNewCardName] = useState('');
 
     React.useEffect(() => {
@@ -201,13 +201,17 @@ const AccountModal: React.FC<{
 
     const handleAddCard = () => {
         if (newCardName.trim()) {
-            setCards([...cards, { id: crypto.randomUUID(), name: newCardName.trim() }]);
+            setCards([...cards, { id: crypto.randomUUID(), name: newCardName.trim(), initialBalance: 0 }]);
             setNewCardName('');
         }
     };
 
     const handleRemoveCard = (cardId: string) => {
         setCards(cards.filter(c => c.id !== cardId));
+    };
+
+    const handleCardBalanceChange = (cardId: string, value: string) => {
+        setCards(cards.map(c => c.id === cardId ? { ...c, initialBalance: parseFloat(value) || 0 } : c));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -245,7 +249,7 @@ const AccountModal: React.FC<{
                 <input type="text" id="acc-name" value={name} onChange={e => setName(e.target.value)} required className="mt-1 block w-full input-style" />
             </div>
             <div>
-                <label htmlFor="acc-balance" className="block text-sm font-medium text-slate-700">Saldo Inicial *</label>
+                <label htmlFor="acc-balance" className="block text-sm font-medium text-slate-700">Saldo Inicial (Conta) *</label>
                 <input type="number" id="acc-balance" value={initialBalance} onChange={e => setInitialBalance(e.target.value)} required step="0.01" className="mt-1 block w-full input-style" />
             </div>
              <div>
@@ -283,24 +287,40 @@ const AccountModal: React.FC<{
                         value={newCardName} 
                         onChange={e => setNewCardName(e.target.value)} 
                         placeholder="Nome (ex: Virtual, Adicional)" 
-                        className="input-style text-sm py-1"
+                        className="input-style text-sm py-2"
                         onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddCard(); }}}
                     />
-                    <button type="button" onClick={handleAddCard} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200">
+                    <button type="button" onClick={handleAddCard} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors">
                         <PlusIcon className="w-5 h-5" />
                     </button>
                 </div>
                 {cards.length > 0 && (
-                    <ul className="space-y-1 max-h-32 overflow-y-auto">
+                    <ul className="space-y-2 max-h-40 overflow-y-auto pr-1">
                         {cards.map(card => (
-                            <li key={card.id} className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded text-sm">
-                                <span className="text-slate-700 flex items-center gap-2">
-                                    <CreditCardIcon className="w-3 h-3 text-slate-400"/>
+                            <li key={card.id} className="flex justify-between items-center bg-white border border-slate-200 px-3 py-2 rounded-lg shadow-sm gap-3">
+                                <span className="text-slate-700 flex items-center gap-2 flex-grow truncate font-medium text-sm">
+                                    <div className="bg-slate-100 p-1 rounded">
+                                        <CreditCardIcon className="w-3 h-3 text-slate-500 flex-shrink-0"/>
+                                    </div>
                                     {card.name}
                                 </span>
-                                <button type="button" onClick={() => handleRemoveCard(card.id)} className="text-slate-400 hover:text-red-500">
-                                    <XIcon className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <label htmlFor={`card-balance-${card.id}`} className="text-xs text-slate-500 font-medium">Saldo Inicial:</label>
+                                    <div className="relative">
+                                        <input 
+                                            id={`card-balance-${card.id}`}
+                                            type="number" 
+                                            value={card.initialBalance || ''} 
+                                            onChange={(e) => handleCardBalanceChange(card.id, e.target.value)} 
+                                            className="w-28 pl-2 pr-2 py-1.5 text-right text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-slate-700 placeholder-slate-400 transition-all"
+                                            placeholder="0.00"
+                                            step="0.01"
+                                        />
+                                    </div>
+                                    <button type="button" onClick={() => handleRemoveCard(card.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors ml-1" title="Remover Cartão">
+                                        <XIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </li>
                         ))}
                     </ul>
@@ -553,7 +573,8 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
         // Init Balances
         accounts.forEach(acc => {
             accBalances.set(acc.id, acc.initialBalance);
-            acc.cards?.forEach(c => crdBalances.set(c.id, 0));
+            // Initialize card balance with its specific initialBalance if available, otherwise 0
+            acc.cards?.forEach(c => crdBalances.set(c.id, c.initialBalance || 0));
         });
 
         transactions.forEach(t => {
@@ -867,6 +888,11 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     
     // If debtToCheck is negative, it means we owe money.
     const hasDebt = debtToCheck < 0;
+    
+    // Logic for Card Display Title and Color
+    const cardBalanceIsPositive = debtToCheck > 0;
+    const cardDisplayLabel = cardBalanceIsPositive ? 'Saldo Cartões' : 'Fatura Cartões';
+    const cardDisplayColor = cardBalanceIsPositive ? 'text-green-600' : 'text-red-500';
 
     return (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -950,8 +976,8 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                             {formatCurrency(currentViewBalance)}
                                         </span>
                                         {!selectedCardId && hasLinkedCards && (
-                                            <span className="text-sm text-red-500 font-medium mt-1">
-                                                Fatura Cartões: {formatCurrency(currentAccountTotalCardDebt)}
+                                            <span className={`text-sm ${cardDisplayColor} font-medium mt-1`}>
+                                                {cardDisplayLabel}: {formatCurrency(Math.abs(currentAccountTotalCardDebt))}
                                             </span>
                                         )}
                                     </div>

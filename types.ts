@@ -16,7 +16,7 @@ export interface Account {
   isCreditCard?: boolean; // New flag to identify credit card accounts
   imageUrl?: string;
   order?: number; // Field to control the display order
-  cards?: { id: string; name: string }[];
+  cards?: { id: string; name: string; initialBalance?: number }[];
 }
 
 // For the 3-level categories
@@ -80,6 +80,13 @@ export interface Loan {
 // Add AnnualGoals type to be shared across components.
 export interface AnnualGoals {
   [year: string]: number;
+}
+
+// Structure: { "2024": { "0": 500, "1": 1000 ... } } where keys are month indexes (0-11)
+export interface ManualSavings {
+  [year: string]: {
+    [month: string]: number;
+  }
 }
 
 export interface YieldEntry {

@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract } from '../types';
+import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract, ManualSavings } from '../types';
 import { sampleCategories } from '../data/demoData';
 
 // --- ACCOUNTS HOOK ---
@@ -423,6 +423,51 @@ export const useGoals = () => {
   };
 
   return { goals, setGoals };
+};
+
+// --- MANUAL SAVINGS HOOK ---
+export const useManualSavings = () => {
+  const [manualSavings, setManualSavings] = useState<ManualSavings>({});
+  const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setUserId(user ? user.uid : null);
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const docRef = doc(db, `users/${userId}/settings/manual_savings`);
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setManualSavings(docSnap.data() as ManualSavings);
+      } else {
+        setManualSavings({});
+      }
+    }, (error) => {
+      console.error("Error fetching manual savings:", error.message);
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+
+  const updateManualSavings = async (newManualSavings: ManualSavings) => {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return false;
+    try {
+        await setDoc(doc(db, `users/${currentUid}/settings/manual_savings`), newManualSavings);
+        return true;
+    } catch (error: any) {
+        console.error("Erro ao salvar economias manuais:", error.message);
+        alert(`Erro ao salvar economias manuais: ${error.message}`);
+        return false;
+    }
+  };
+
+  return { manualSavings, updateManualSavings };
 };
 
 // --- CDB INVESTMENTS HOOK ---
