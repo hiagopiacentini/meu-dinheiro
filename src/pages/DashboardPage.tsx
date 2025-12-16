@@ -32,9 +32,9 @@ const StatCard: React.FC<{title: string, amount: number, percentage?: number, is
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-slate-500 mb-2 flex justify-between">
             {title}
-            {info && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{info}</span>}
+            {info && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full privacy-hidden">{info}</span>}
         </h3>
-        <p className="text-3xl font-bold text-slate-800 mb-2">{formatCurrency(amount)}</p>
+        <p className="text-3xl font-bold text-slate-800 mb-2 privacy-hidden">{formatCurrency(amount)}</p>
         {percentage !== undefined && isPositive !== undefined && (
             <div className="flex items-center text-sm">
                 {isPositive ? <UpArrowIcon className="w-4 h-4 text-green-500 mr-1" /> : <DownArrowIcon className="w-4 h-4 text-red-500 mr-1" />}
@@ -56,8 +56,8 @@ const SavingsGoalCard: React.FC<{title: string, goal: number, current: number, l
             <div className={`${color} h-2 rounded-full`} style={{ width: `${percentage}%` }}></div>
           </div>
           <div className="flex justify-between text-sm text-slate-500 mt-1">
-            <span>Atingido: {formatCurrency(current)}</span>
-            <span>Meta: {formatCurrency(goal)}</span>
+            <span>Atingido: <span className="privacy-hidden">{formatCurrency(current)}</span></span>
+            <span>Meta: <span className="privacy-hidden">{formatCurrency(goal)}</span></span>
           </div>
         </div>
     );
@@ -73,7 +73,7 @@ const RecentActivityItem: React.FC<{color?: string, description: string, categor
       </div>
     </div>
     <div className="text-right">
-      <p className={`font-bold ${amount.startsWith('-') ? 'text-red-500' : 'text-green-500'}`}>{amount}</p>
+      <p className={`font-bold privacy-hidden ${amount.startsWith('-') ? 'text-red-500' : 'text-green-500'}`}>{amount}</p>
       <p className="text-sm text-slate-400">{time}</p>
     </div>
   </div>
@@ -85,7 +85,7 @@ const MyAccountItem: React.FC<{ name: string, type: string, balance: number}> = 
             <p className="font-semibold text-slate-800">{name}</p>
             <p className="text-sm text-slate-500">{type}</p>
         </div>
-        <p className={`font-bold ${balance < 0 ? 'text-red-500': 'text-slate-800'}`}>{formatCurrency(balance)}</p>
+        <p className={`font-bold privacy-hidden ${balance < 0 ? 'text-red-500': 'text-slate-800'}`}>{formatCurrency(balance)}</p>
     </div>
 );
 
@@ -98,7 +98,7 @@ const TopListItem: React.FC<{ index: number, description: string, percentage: st
             <p className="text-xs text-slate-400">{percentage}</p>
         </div>
       </div>
-      <p className="font-bold text-slate-800">{formatCurrency(amount)}</p>
+      <p className="font-bold text-slate-800 privacy-hidden">{formatCurrency(amount)}</p>
     </div>
 );
 
@@ -379,7 +379,7 @@ const DashboardPage: React.FC = () => {
     if (manualSavings && manualSavings[String(year)]) {
         const yearData = manualSavings[String(year)];
         if (yearData && typeof yearData === 'object') {
-             manualSavingsTotal = Object.values(yearData).reduce((sum: number, val: number) => sum + (val || 0), 0);
+             manualSavingsTotal = Object.values(yearData).reduce((sum: number, val: any) => sum + (Number(val) || 0), 0);
         }
     }
     
@@ -649,7 +649,9 @@ const DashboardPage: React.FC = () => {
                     cursor={{fill: 'rgba(241, 245, 249, 0.5)'}}
                     formatter={(value) => formatCurrency(value as number)} 
                     contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }} 
-                    labelStyle={{ color: '#1e293b' }}/>
+                    labelStyle={{ color: '#1e293b' }}
+                    wrapperClassName="privacy-hidden"
+                  />
                   <Legend wrapperStyle={{fontSize: "14px", color: '#475569'}}/>
                   <Bar dataKey="Receitas" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={10} />
                   <Bar dataKey="Despesas" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={10} />

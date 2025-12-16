@@ -379,7 +379,7 @@ const DashboardPage: React.FC = () => {
     if (manualSavings && manualSavings[String(year)]) {
         const yearData = manualSavings[String(year)];
         if (yearData && typeof yearData === 'object') {
-             manualSavingsTotal = Object.values(yearData).reduce((sum: number, val: number) => sum + (val || 0), 0);
+             manualSavingsTotal = Object.values(yearData).reduce((sum: number, val: any) => sum + (Number(val) || 0), 0);
         }
     }
     
