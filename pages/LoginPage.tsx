@@ -8,18 +8,27 @@ interface LoginPageProps {
   onLogin: () => void;
 }
 
-// Safe JSON stringify helper to prevent circular structure errors
+// Robust stringify to avoid crashes from circular references
 const safeStringify = (obj: any) => {
-  const seen = new WeakSet();
-  return JSON.stringify(obj, (key, value) => {
-    if (typeof value === "object" && value !== null) {
-      if (seen.has(value)) {
-        return "[Circular]";
+  const cache = new Set();
+  try {
+    return JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) {
+          // Circular reference found
+          return '[Circular]';
+        }
+        // Store value in our collection
+        cache.add(value);
       }
-      seen.add(value);
-    }
-    return value;
-  });
+      return value;
+    });
+  } catch (error) {
+    console.error("Error stringifying object:", error);
+    return "[]"; // Fallback to empty array/object representation
+  } finally {
+      cache.clear();
+  }
 };
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {

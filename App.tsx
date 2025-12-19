@@ -6,37 +6,41 @@ import AccountsPage from './pages/AccountsPage';
 import CategoriesPage from './pages/CategoriesPage';
 import TransactionsPage from './pages/TransactionsPage';
 import LoansPage from './pages/LoansPage';
-import BalancesPage from './pages/BalancesPage';
 import GoalsPage from './pages/GoalsPage';
 import ReportsPage from './pages/ReportsPage';
 import InvestmentsPage from './pages/InvestmentsPage';
 import LoginPage from './pages/LoginPage';
+import BalancesPage from './pages/BalancesPage';
 import { auth } from './services/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { PrivacyProvider, usePrivacy } from './contexts/PrivacyContext';
 
 import DashboardIcon from './components/icons/DashboardIcon';
 import AccountsIcon from './components/icons/AccountsIcon';
 import CategoriesIcon from './components/icons/CategoriesIcon';
 import TransactionsIcon from './components/icons/TransactionsIcon';
 import LoansIcon from './components/icons/LoansIcon';
-import BalancesIcon from './components/icons/BalancesIcon';
 import GoalsIcon from './components/icons/GoalsIcon';
 import ReportsIcon from './components/icons/ReportsIcon';
 import MenuIcon from './components/icons/MenuIcon';
 import PlusIcon from './components/icons/PlusIcon';
 import InvestmentsIcon from './components/icons/InvestmentsIcon';
+import BalancesIcon from './components/icons/BalancesIcon';
+import EyeIcon from './components/icons/EyeIcon';
+import EyeSlashIcon from './components/icons/EyeSlashIcon';
 
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [activePage, setActivePage] = useState('Dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [addTransactionTrigger, setAddTransactionTrigger] = useState(0);
   const [addAccountTrigger, setAddAccountTrigger] = useState(0);
   const [addCategoryTrigger, setAddCategoryTrigger] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  // Store only what we need to avoid circular reference issues with the full User object
   const [userName, setUserName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  
+  const { isPrivacyMode, togglePrivacy } = usePrivacy();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -83,7 +87,6 @@ const App: React.FC = () => {
     } catch (error) {
         console.error("Erro ao tentar fazer logout no Firebase:", error);
     } finally {
-        // Force state cleanup regardless of backend error
         setIsAuthenticated(false);
         setUserName('');
         setActivePage('Dashboard');
@@ -104,12 +107,12 @@ const App: React.FC = () => {
         return <InvestmentsPage />;
       case 'Empréstimos':
         return <LoansPage />;
-      case 'Saldos':
-        return <BalancesPage />;
       case 'Metas':
         return <GoalsPage />;
       case 'Relatórios':
         return <ReportsPage />;
+      case 'Saldos':
+        return <BalancesPage />;
       default:
         return <DashboardPage />;
     }
@@ -117,18 +120,19 @@ const App: React.FC = () => {
 
   const menuItems = [
     { name: 'Dashboard', icon: DashboardIcon },
+    { name: 'Saldos', icon: BalancesIcon },
     { name: 'Contas', icon: AccountsIcon },
     { name: 'Categorias', icon: CategoriesIcon },
     { name: 'Lançamentos', icon: TransactionsIcon },
     { name: 'Investimentos', icon: InvestmentsIcon },
     { name: 'Empréstimos', icon: LoansIcon },
-    { name: 'Saldos', icon: BalancesIcon },
     { name: 'Relatórios', icon: ReportsIcon },
     { name: 'Metas', icon: GoalsIcon },
   ];
 
   const pageSubtitles: { [key: string]: string } = {
       'Dashboard': 'Sua visão geral financeira personalizada.',
+      'Saldos': 'Resumo consolidado do patrimônio e caixa.',
       'Contas': 'Visualize todas as suas contas bancárias e carteiras digitais.',
       'Categorias': 'Organize suas receitas e despesas com categorias e subcategorias.',
       'Lançamentos': 'Adicione, edite e visualize todas as suas transações.',
@@ -250,15 +254,22 @@ const App: React.FC = () => {
                     {pageSubtitles[activePage] && <p className="text-sm text-slate-500 mt-1">{pageSubtitles[activePage]}</p>}
                   </div>
                 </div>
-                <div className="flex items-center space-x-4">
-                  
+                <div className="flex items-center space-x-2 md:space-x-4">
+                  <button 
+                    onClick={togglePrivacy}
+                    className={`p-2 rounded-full transition-colors ${isPrivacyMode ? 'bg-blue-100 text-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                    title={isPrivacyMode ? "Desativar Modo Privacidade" : "Ativar Modo Privacidade"}
+                  >
+                    {isPrivacyMode ? <EyeSlashIcon className="w-6 h-6" /> : <EyeIcon className="w-6 h-6" />}
+                  </button>
+
                   {activePage === 'Contas' && (
                       <button
                           onClick={handleAddAccountClick}
                           className="btn-primary hidden sm:flex items-center space-x-2"
                       >
                           <PlusIcon className="w-5 h-5" />
-                          <span>Adicionar Nova Conta</span>
+                          <span>Nova Conta</span>
                       </button>
                   )}
                   {activePage === 'Categorias' && (
@@ -283,6 +294,14 @@ const App: React.FC = () => {
         )}
       </div>
     </>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <PrivacyProvider>
+      <AppContent />
+    </PrivacyProvider>
   );
 };
 

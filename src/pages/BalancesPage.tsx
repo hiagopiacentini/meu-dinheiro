@@ -5,7 +5,6 @@ import { TransactionType, Account } from '../types';
 import MoneyIcon from '../components/icons/MoneyIcon';
 import CreditCardIcon from '../components/icons/CreditCardIcon';
 import BalancesIcon from '../components/icons/BalancesIcon';
-import PrivateValue from '../components/PrivateValue';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -127,7 +126,7 @@ const BalancesPage: React.FC = () => {
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Patrimônio Líquido Total</p>
                         <p className={`text-3xl font-bold ${totalNetWorth >= 0 ? 'text-slate-800' : 'text-red-600'}`}>
-                            <PrivateValue>{formatCurrency(totalNetWorth)}</PrivateValue>
+                            {formatCurrency(totalNetWorth)}
                         </p>
                     </div>
                     <p className="text-xs text-slate-400">Soma de todas as contas e faturas</p>
@@ -137,7 +136,7 @@ const BalancesPage: React.FC = () => {
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Disponível em Conta</p>
                         <p className="text-3xl font-bold text-green-600">
-                            <PrivateValue>{formatCurrency(totalCash)}</PrivateValue>
+                            {formatCurrency(totalCash)}
                         </p>
                     </div>
                     <p className="text-xs text-slate-400">Dinheiro livre para uso</p>
@@ -147,7 +146,7 @@ const BalancesPage: React.FC = () => {
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Comprometido / Faturas</p>
                         <p className="text-3xl font-bold text-red-500">
-                            <PrivateValue>{formatCurrency(totalDebt)}</PrivateValue>
+                            {formatCurrency(totalDebt)}
                         </p>
                     </div>
                     <p className="text-xs text-slate-400">Soma de saldos negativos e cartões</p>
@@ -189,7 +188,7 @@ const BalancesPage: React.FC = () => {
                                         <div className="flex flex-col items-end min-w-[150px]">
                                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide mb-0.5">Saldo Consolidado</span>
                                             <span className={`text-2xl font-bold tracking-tight ${acc.consolidated >= 0 ? 'text-slate-800' : 'text-red-600'}`}>
-                                                <PrivateValue>{formatCurrency(acc.consolidated)}</PrivateValue>
+                                                {formatCurrency(acc.consolidated)}
                                             </span>
                                         </div>
                                     </div>
@@ -204,7 +203,7 @@ const BalancesPage: React.FC = () => {
                                                 <div>
                                                     <p className="text-xs text-slate-500 font-medium">Em Conta</p>
                                                     <p className={`font-bold text-sm ${acc.accountBalance >= 0 ? 'text-slate-700' : 'text-red-600'}`}>
-                                                        <PrivateValue>{formatCurrency(acc.accountBalance)}</PrivateValue>
+                                                        {formatCurrency(acc.accountBalance)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -219,7 +218,7 @@ const BalancesPage: React.FC = () => {
                                                     <div>
                                                         <p className="text-xs text-slate-500 font-medium">Fatura / Cartões</p>
                                                         <p className={`font-bold text-sm ${acc.cardsBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                            <PrivateValue>{formatCurrency(acc.cardsBalance)}</PrivateValue>
+                                                            {formatCurrency(acc.cardsBalance)}
                                                         </p>
                                                     </div>
                                                 </div>

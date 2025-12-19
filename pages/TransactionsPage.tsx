@@ -11,6 +11,7 @@ import XIcon from '../components/icons/XIcon';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
 import ChevronDownIcon from '../components/icons/ChevronDownIcon';
+import PrivateValue from '../components/PrivateValue';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -120,7 +121,6 @@ const FilterDropdown: React.FC<{
     );
 };
 
-// SVG Checkmark for custom checkbox
 const checkmarkSvg = `data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e`;
 
 const CustomCheckbox: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => (
@@ -155,20 +155,16 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const { categories } = useCategories();
     const { loans } = useLoans();
     
-    // State to remember last used form fields
     const [lastUsedDetails, setLastUsedDetails] = useState({
         accountId: '',
         cardId: '',
         type: TransactionType.EXPENSE,
     });
 
-    // Filter State (Defined early to be used in handleClearForm)
     const [accountFilter, setAccountFilter] = useState('Todos');
-
-    // Form State
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [editingInstallmentGroup, setEditingInstallmentGroup] = useState<Transaction | null>(null);
-    const [editingSplitGroupId, setEditingSplitGroupId] = useState<string | null>(null); // New state for editing split groups
+    const [editingSplitGroupId, setEditingSplitGroupId] = useState<string | null>(null); 
 
     const [type, setType] = useState<TransactionType>(lastUsedDetails.type);
     const [description, setDescription] = useState('');
@@ -187,7 +183,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [changeItemId, setChangeItemId] = useState('');
     const [peerAccountId, setPeerAccountId] = useState('');
 
-    // Other Filter State
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const [dateFilter, setDateFilter] = useState('Este Mês');
@@ -196,17 +191,14 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [customDateRange, setCustomDateRange] = useState<{start: Date | null, end: Date | null}>({ start: null, end: null });
 
-    // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
-    // Delete Modal
     const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean, transaction: Transaction | null }>({ isOpen: false, transaction: null });
     
     const descriptionInputRef = useRef<HTMLInputElement>(null);
 
     const activeAccounts = useMemo(() => accounts.filter(a => a.isActive), [accounts]);
-
     const isEditing = !!editingTransaction || !!editingInstallmentGroup || !!editingSplitGroupId;
     const maxDate = '9999-12-31';
 
@@ -218,7 +210,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setDescription('');
         setAmount('');
         setDate(new Date().toISOString().split('T')[0]);
-        // Logic update: If a specific account is filtered, default to it. Otherwise fall back to last used or first active.
         if (accountFilter !== 'Todos') {
             if (accountFilter.includes('|')) {
                 const [accId, cId] = accountFilter.split('|');
@@ -251,7 +242,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         }
     }, [addTransactionTrigger, handleClearForm]);
 
-    // New Effect: Update form account when filter changes (only if not editing)
     useEffect(() => {
         if (!editingTransaction && !editingInstallmentGroup && !editingSplitGroupId && accountFilter !== 'Todos') {
             if (accountFilter.includes('|')) {
@@ -361,9 +351,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     
     const handleCustomDateChange = (range: { start: Date | null, end: Date | null }) => {
         setCustomDateRange(range);
-        if (range.start && range.end) {
-             // Already handled
-        }
     };
     
     const handleDescriptionBlur = () => {
@@ -378,7 +365,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     };
 
     const filteredTransactions = useMemo(() => {
-        // Use explicit copy of array
         let items = [...transactions];
         
         const now = getNowGmtMinus4();
@@ -411,41 +397,27 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         } else if (typeFilter === 'Saídas') {
             items = items.filter(t => t.type === TransactionType.EXPENSE && (!t.itemId || itemBalanceMap.get(t.itemId) !== false));
         }
-        // For 'Todos', no type filter is applied, showing all items.
         
         if (accountFilter !== 'Todos') {
             if (accountFilter.includes('|')) {
-                // Filter by specific Card: AccountId AND CardId match
                 const [accId, cId] = accountFilter.split('|');
-                // Strict check: Must match account AND exact card ID
                 items = items.filter(t => {
                     const matchesAccount = t.accountId === accId || t.destinationAccountId === accId;
                     return matchesAccount && t.cardId === cId;
                 });
             } else {
-                // Filter by Account: AccountId matches. 
-                // STRICT SEPARATION: Show ONLY transactions NOT linked to any card.
                 items = items.filter(t => {
                     const isSource = t.accountId === accountFilter;
                     const isDest = t.destinationAccountId === accountFilter;
                     
                     if (!isSource && !isDest) return false;
-
-                    // If it is an Expense or Income on a card, hide it from Account view
                     if ((t.type === TransactionType.EXPENSE || t.type === TransactionType.INCOME) && t.cardId) {
                         return false;
                     }
-
-                    // Special handling for Transfers
                     if (t.type === TransactionType.TRANSFER) {
-                        // If viewing Source Account (paying out), show it regardless of card (e.g., paying bill)
                         if (isSource) return true;
-                        
-                        // If viewing Destination Account and it targets a card (e.g. paying bill), hide from Account View
-                        // because it affects the Card balance, not the Account cash balance (on destination side)
                         if (isDest && t.cardId) return false;
                     }
-
                     return true;
                 });
             }
@@ -464,20 +436,12 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             );
         }
 
-        // Sort by date descending, then by creation time descending (LIFO for same day)
         return items.sort((a, b) => {
             const dateA = getUTCDate(a.date).getTime();
             const dateB = getUTCDate(b.date).getTime();
-
-            // 1. Primary Sort: Transaction Date
-            if (dateA !== dateB) {
-                return dateB - dateA; // Newer business dates first
-            }
-
-            // 2. Secondary Sort: Creation Time (Newest created first)
+            if (dateA !== dateB) return dateB - dateA;
             const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
             const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-            
             return createdB - createdA;
         });
     }, [transactions, searchTerm, dateFilter, typeFilter, accountFilter, installmentFilter, customDateRange, itemBalanceMap]);
@@ -495,7 +459,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         }, { periodIncome: 0, periodExpenses: 0 });
     }, [filteredTransactions, itemBalanceMap]);
 
-    // Calculations for Split Validation
     const splitSum = useMemo(() => {
         return splitItems.reduce((acc, item) => acc + (parseFloat(item.amount) || 0), 0);
     }, [splitItems]);
@@ -506,252 +469,86 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        // Update last used details before clearing form
         setLastUsedDetails({ accountId, cardId, type });
-        
         let success = false;
-
-        const categoryInfo = categoryMap.get(itemId);
-        // Exclude 'Repasse' from transfer logic even if it is not included in balance
-        // isTransfer calculated above is better
         
+        const commonData = { description, date, accountId, type, cardId: cardId || null };
+        const transactionData = { ...commonData, amount: parseFloat(amount), itemId };
+
         if (isTransfer) {
-            if (!peerAccountId || !accountId || !amount) {
-                alert('Para transferências, selecione as contas de origem, destino e o valor.');
-                return;
-            }
-            const transferAmount = parseFloat(amount);
-            const sourceAccId = type === TransactionType.EXPENSE ? accountId : peerAccountId;
-            const destAccId = type === TransactionType.EXPENSE ? peerAccountId : accountId;
-
-            const expenseTx: Omit<Transaction, 'id'> = {
-                description: `Transferência para ${accountMap.get(destAccId)}`,
-                amount: transferAmount, date, type: TransactionType.EXPENSE,
-                accountId: sourceAccId, itemId, 
-                cardId: (type === TransactionType.EXPENSE && cardId) ? cardId : null
-            };
-            const incomeTx: Omit<Transaction, 'id'> = {
-                description: `Transferência de ${accountMap.get(sourceAccId)}`,
-                amount: transferAmount, date, type: TransactionType.INCOME,
-                accountId: destAccId, itemId,
-                cardId: null // Transfers in usually don't link to a card on the destination
-            };
-
-            if (editingTransaction) {
-                // When editing a transfer, remove the old pair and add the new pair
-                const oldTx = editingTransaction;
-                const partnerTx = transactions.find(t => 
-                     t.id !== oldTx.id &&
-                     t.date === oldTx.date &&
-                     t.amount === oldTx.amount &&
-                     t.itemId === oldTx.itemId &&
-                     t.type !== oldTx.type
-                );
-
-                const idsToRemove = [oldTx.id];
-                if (partnerTx) idsToRemove.push(partnerTx.id);
-                
-                // Perform async operations
-                const delSuccess = await deleteTransactions(idsToRemove);
-                if(delSuccess) {
-                   success = await addTransactions([expenseTx, incomeTx]);
-                }
-            } else {
-                success = await addTransactions([expenseTx, incomeTx]);
-            }
-            if (success) handleClearForm();
-            return;
+             const transferAmount = parseFloat(amount);
+             const sourceAccId = type === TransactionType.EXPENSE ? accountId : peerAccountId;
+             const destAccId = type === TransactionType.EXPENSE ? peerAccountId : accountId;
+             const expenseTx: Omit<Transaction, 'id'> = { description: `Transferência para ${accountMap.get(destAccId)}`, amount: transferAmount, date, type: TransactionType.EXPENSE, accountId: sourceAccId, itemId, cardId: (type === TransactionType.EXPENSE && cardId) ? cardId : null };
+             const incomeTx: Omit<Transaction, 'id'> = { description: `Transferência de ${accountMap.get(sourceAccId)}`, amount: transferAmount, date, type: TransactionType.INCOME, accountId: destAccId, itemId, cardId: null };
+             
+             if (editingTransaction) {
+                 const partnerTx = transactions.find(t => t.id !== editingTransaction.id && t.date === editingTransaction.date && t.amount === editingTransaction.amount && t.itemId === editingTransaction.itemId && t.type !== editingTransaction.type);
+                 const idsToRemove = [editingTransaction.id]; if(partnerTx) idsToRemove.push(partnerTx.id);
+                 await deleteTransactions(idsToRemove);
+             }
+             success = await addTransactions([expenseTx, incomeTx]);
+        } 
+        else if (type === TransactionType.INCOME && isChange) {
+             const saleAmount = parseFloat(amount);
+             const paidAmount = parseFloat(amountPaid);
+             const changeAmount = paidAmount - saleAmount;
+             const newTxs = [{ ...transactionData, type: TransactionType.INCOME, cardId: cardId || null }];
+             if(changeAmount > 0) newTxs.push({ description: `Troco para: ${description}`, amount: changeAmount, date, type: TransactionType.EXPENSE, accountId: changeAccountId, itemId: changeItemId, cardId: null });
+             success = await addTransactions(newTxs);
         }
-
-        if (type === TransactionType.INCOME && isChange) {
-            const saleAmount = parseFloat(amount);
-            const paidAmount = parseFloat(amountPaid);
-            if (isNaN(saleAmount) || saleAmount <= 0) {
-                alert('O valor da receita deve ser positivo.'); return;
-            }
-            if (isNaN(paidAmount) || paidAmount < saleAmount) {
-                alert('O valor pago deve ser maior ou igual ao valor da receita.'); return;
-            }
-            if (!changeAccountId || !changeItemId || !accountId || !itemId) {
-                alert('Selecione a conta e a categoria para a receita e para o troco.'); return;
-            }
-            
-            const changeAmount = paidAmount - saleAmount;
-            
-            const incomeTransaction: Omit<Transaction, 'id'> = {
-                description,
-                amount: saleAmount,
-                date,
-                type: TransactionType.INCOME,
-                accountId,
-                itemId,
-                cardId: cardId || null
-            };
-            
-            const newTxs = [incomeTransaction];
-    
-            if (changeAmount > 0) {
-                const changeTransaction: Omit<Transaction, 'id'> = {
-                    description: `Troco para: ${description}`,
-                    amount: changeAmount,
-                    date,
-                    type: TransactionType.EXPENSE,
-                    accountId: changeAccountId,
-                    itemId: changeItemId,
-                    cardId: null // Change is cash usually
-                };
-                newTxs.push(changeTransaction);
-            }
-            
-            success = await addTransactions(newTxs);
-            if(success) handleClearForm();
-            return;
-        }
-
-
-        const commonData = { 
-            description, 
-            date, 
-            accountId, 
-            type, 
-            cardId: cardId || null // Explicitly set to null if empty to clear DB field
-        };
-
-        if (editingInstallmentGroup) {
-            const groupId = editingInstallmentGroup.installmentGroupId!;
-            // Delete old installments
-            const idsToRemove = transactions
-                .filter(t => t.installmentGroupId === groupId)
-                .map(t => t.id);
-            const delSuccess = await deleteTransactions(idsToRemove);
-
-            if (delSuccess) {
-                 // Re-create installments
-                const totalInstallments = parseInt(installmentsCount, 10);
-                const originalDate = getUTCDate(date);
-                const newTransactions: Omit<Transaction, 'id'>[] = [];
-
-                for (let i = 0; i < totalInstallments; i++) {
-                    const installmentDate = new Date(originalDate);
-                    installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
-                    newTransactions.push({
-                        ...commonData,
-                        amount: parseFloat(amount),
-                        itemId,
-                        date: installmentDate.toISOString().split('T')[0],
-                        description: `${description} (${i + 1}/${totalInstallments})`,
-                        installmentGroupId: groupId,
-                        currentInstallment: i + 1,
-                        totalInstallments
-                    });
-                }
-                success = await addTransactions(newTransactions);
-            }
-
+        else if (editingInstallmentGroup) {
+             const groupId = editingInstallmentGroup.installmentGroupId!;
+             const idsToRemove = transactions.filter(t => t.installmentGroupId === groupId).map(t => t.id);
+             await deleteTransactions(idsToRemove);
+             const totalInstallments = parseInt(installmentsCount, 10);
+             const originalDate = getUTCDate(date);
+             const newTransactions = [];
+             for (let i = 0; i < totalInstallments; i++) {
+                 const installmentDate = new Date(originalDate); installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
+                 newTransactions.push({ ...commonData, amount: parseFloat(amount), itemId, date: installmentDate.toISOString().split('T')[0], description: `${description} (${i + 1}/${totalInstallments})`, installmentGroupId: groupId, currentInstallment: i + 1, totalInstallments });
+             }
+             success = await addTransactions(newTransactions);
         } else if (isInstallment && isSplit) {
-            const totalInstallments = parseInt(installmentsCount, 10);
-            const installmentGroupId = crypto.randomUUID();
-            const originalDate = getUTCDate(date);
-            const allNewTransactions: Omit<Transaction, 'id'>[] = [];
-            const perInstallmentAmount = parseFloat(amount);
-
-            if (!isSplitValid) {
-                alert(`A soma dos valores divididos deve ser igual ao valor da parcela.`);
-                return;
-            }
-
-            for (let i = 0; i < totalInstallments; i++) {
-                const installmentDate = new Date(originalDate);
-                installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
-                
-                splitItems.forEach(item => {
-                    allNewTransactions.push({
-                        ...commonData,
-                        amount: parseFloat(item.amount),
-                        itemId: item.itemId,
-                        date: installmentDate.toISOString().split('T')[0],
-                        description: `${description} (${i+1}/${totalInstallments}) - ${categoryMap.get(item.itemId)?.item}`,
-                        installmentGroupId,
-                        currentInstallment: i + 1,
-                        totalInstallments
-                    });
-                });
-            }
-            success = await addTransactions(allNewTransactions);
-
+             const totalInstallments = parseInt(installmentsCount, 10);
+             const installmentGroupId = crypto.randomUUID();
+             const originalDate = getUTCDate(date);
+             const allNewTransactions: any[] = [];
+             for (let i = 0; i < totalInstallments; i++) {
+                 const installmentDate = new Date(originalDate); installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
+                 splitItems.forEach(item => {
+                     allNewTransactions.push({ ...commonData, amount: parseFloat(item.amount), itemId: item.itemId, date: installmentDate.toISOString().split('T')[0], description: `${description} (${i+1}/${totalInstallments}) - ${categoryMap.get(item.itemId)?.item}`, installmentGroupId, currentInstallment: i + 1, totalInstallments });
+                 });
+             }
+             success = await addTransactions(allNewTransactions);
         } else if (isSplit) {
-            if (!isSplitValid) {
-                alert('A soma dos valores divididos deve ser igual ao valor total.'); 
-                return;
-            }
-            if(splitItems.some(i => !i.itemId || !i.amount)) {
-                alert('Todos os itens divididos devem ter um item e um valor.'); return;
-            }
-            
-            // If editing a split group, delete the old ones first
-            if (editingSplitGroupId) {
-                const idsToRemove = transactions.filter(t => t.splitGroupId === editingSplitGroupId).map(t => t.id);
-                const delSuccess = await deleteTransactions(idsToRemove);
-                if (!delSuccess) {
-                    alert('Erro ao atualizar transação dividida.');
-                    return;
-                }
-            }
-
-            // Create new group ID (either keep existing or new, creating new ensures clean slate)
-            const finalSplitGroupId = editingSplitGroupId || crypto.randomUUID();
-
-            const newTransactions: Omit<Transaction, 'id'>[] = splitItems.map(item => ({
-                 ...commonData, 
-                 amount: parseFloat(item.amount), 
-                 itemId: item.itemId,
-                 description: `${description} - ${categoryMap.get(item.itemId)?.item || 'Item'}`,
-                 splitGroupId: finalSplitGroupId // Link them together
-            }));
-            
-            success = await addTransactions(newTransactions);
-
-        } else if (isInstallment && type === TransactionType.EXPENSE) {
-            const totalInstallments = parseInt(installmentsCount, 10);
-            const installmentGroupId = crypto.randomUUID();
-            const originalDate = getUTCDate(date);
-            const newTransactions: Omit<Transaction, 'id'>[] = [];
-            for(let i = 0; i < totalInstallments; i++) {
-                const installmentDate = new Date(originalDate);
-                installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
-                newTransactions.push({
-                    ...commonData, amount: parseFloat(amount), itemId,
-                    date: installmentDate.toISOString().split('T')[0],
-                    description: `${description} (${i + 1}/${totalInstallments})`,
-                    installmentGroupId, currentInstallment: i + 1, totalInstallments
-                });
-            }
-            success = await addTransactions(newTransactions);
+             const finalSplitGroupId = editingSplitGroupId || crypto.randomUUID();
+             if (editingSplitGroupId) await deleteTransactions(transactions.filter(t => t.splitGroupId === editingSplitGroupId).map(t => t.id));
+             const newTransactions = splitItems.map(item => ({ ...commonData, amount: parseFloat(item.amount), itemId: item.itemId, description: `${description} - ${categoryMap.get(item.itemId)?.item || 'Item'}`, splitGroupId: finalSplitGroupId }));
+             success = await addTransactions(newTransactions);
+        } else if (isInstallment) {
+             const totalInstallments = parseInt(installmentsCount, 10);
+             const installmentGroupId = crypto.randomUUID();
+             const originalDate = getUTCDate(date);
+             const newTransactions = [];
+             for(let i = 0; i < totalInstallments; i++) {
+                 const installmentDate = new Date(originalDate); installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
+                 newTransactions.push({ ...commonData, amount: parseFloat(amount), itemId, date: installmentDate.toISOString().split('T')[0], description: `${description} (${i + 1}/${totalInstallments})`, installmentGroupId, currentInstallment: i + 1, totalInstallments });
+             }
+             success = await addTransactions(newTransactions);
         } else {
-             if (!description || !amount || !date || !accountId || !itemId) { alert('Por favor, preencha todos os campos obrigatórios.'); return; }
-            const transactionData = { ...commonData, amount: parseFloat(amount), itemId };
-            if (editingTransaction) {
-                success = await updateTransaction({ ...editingTransaction, ...transactionData });
-            } else {
-                const newId = await addTransaction(transactionData);
-                success = !!newId;
-            }
+             if (editingTransaction) success = await updateTransaction({ ...editingTransaction, ...transactionData });
+             else success = !!await addTransaction(transactionData);
         }
-        
-        if (success) {
-            handleClearForm();
-        }
+
+        if (success) handleClearForm();
     };
     
     const handleConfirmDelete = async (option: 'single' | 'future') => {
         const t = deleteModalState.transaction;
         if (!t) return;
-        
-        if (option === 'single') {
-            await deleteTransaction(t.id);
-        } else {
-            // Future includes current
+        if (option === 'single') await deleteTransaction(t.id);
+        else {
             const group = transactions.filter(tx => tx.installmentGroupId === t.installmentGroupId);
             const toDelete = group.filter(tx => (tx.currentInstallment || 0) >= (t.currentInstallment || 0)).map(tx => tx.id);
             await deleteTransactions(toDelete);
@@ -762,24 +559,17 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const handleDelete = (id: string) => {
         const t = transactions.find(tx => tx.id === id);
         if (t) {
-            if (t.installmentGroupId) {
-                setDeleteModalState({ isOpen: true, transaction: t });
-            } else if (t.splitGroupId) {
+            if (t.installmentGroupId) setDeleteModalState({ isOpen: true, transaction: t });
+            else if (t.splitGroupId) {
                 if (window.confirm('Esta transação faz parte de um grupo dividido. Deseja excluir todo o grupo?')) {
-                     const groupIds = transactions.filter(tx => tx.splitGroupId === t.splitGroupId).map(tx => tx.id);
-                     deleteTransactions(groupIds);
+                     deleteTransactions(transactions.filter(tx => tx.splitGroupId === t.splitGroupId).map(tx => tx.id));
                 }
-            } else {
-                if (window.confirm('Tem certeza que deseja excluir esta transação?')) {
-                    deleteTransaction(id);
-                }
-            }
+            } else if (window.confirm('Tem certeza que deseja excluir esta transação?')) deleteTransaction(id);
         }
     };
 
     const handleEdit = (transaction: Transaction) => {
         setEditingTransaction(transaction);
-        // Setup form fields
         setType(transaction.type);
         setAccountId(transaction.accountId);
         setCardId(transaction.cardId || '');
@@ -789,7 +579,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             setEditingInstallmentGroup(transaction);
             setIsInstallment(true);
             setInstallmentsCount(String(transaction.totalInstallments));
-            // Usually editing installment edits the group, so we load the base description (remove suffix)
             const baseDesc = transaction.description.replace(/\s\(\d+\/\d+\)(\s-\s.*)?$/, '');
             setDescription(baseDesc);
             setAmount(String(transaction.amount));
@@ -799,11 +588,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             setIsSplit(true);
             const group = transactions.filter(t => t.splitGroupId === transaction.splitGroupId);
             setSplitItems(group.map((g, i) => ({ id: i, itemId: g.itemId || '', amount: String(g.amount) })));
-            
-            // Try to extract base description. Assuming "Desc - Category" format.
             const firstPart = transaction.description.split(' - ')[0]; 
             setDescription(firstPart);
-            
             const total = group.reduce((acc, curr) => acc + curr.amount, 0);
             setAmount(String(total));
             setItemId(''); 
@@ -816,13 +602,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             setAmount(String(transaction.amount));
             setItemId(transaction.itemId || '');
         }
-        
-        // Scroll top
         const formElement = document.querySelector('form');
         if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
     };
 
-    // Construct Combined Account/Card Options for Select
     const accountOptions = useMemo(() => {
         const options: { value: string; label: string; isCard: boolean }[] = [];
         activeAccounts.forEach(acc => {
@@ -1053,21 +836,32 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-white p-4 rounded-xl border border-slate-200"><p className="text-sm text-slate-500 font-medium">Receitas no Período</p><p className="text-2xl font-bold text-green-600">{formatCurrency(periodIncome)}</p></div>
-                    <div className="bg-white p-4 rounded-xl border border-slate-200"><p className="text-sm text-slate-500 font-medium">Despesas no Período</p><p className="text-2xl font-bold text-red-600">{formatCurrency(periodExpenses)}</p></div>
-                    <div className="bg-white p-4 rounded-xl border border-slate-200"><p className="text-sm text-slate-500 font-medium">Saldo</p><p className={`text-2xl font-bold ${periodIncome - periodExpenses >= 0 ? 'text-slate-800' : 'text-red-600'}`}>{formatCurrency(periodIncome - periodExpenses)}</p></div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200">
+                        <p className="text-sm text-slate-500 font-medium">Receitas no Período</p>
+                        <p className="text-2xl font-bold text-green-600"><PrivateValue>{formatCurrency(periodIncome)}</PrivateValue></p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200">
+                        <p className="text-sm text-slate-500 font-medium">Despesas no Período</p>
+                        <p className="text-2xl font-bold text-red-600"><PrivateValue>{formatCurrency(periodExpenses)}</PrivateValue></p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200">
+                        <p className="text-sm text-slate-500 font-medium">Saldo</p>
+                        <p className={`text-2xl font-bold ${periodIncome - periodExpenses >= 0 ? 'text-slate-800' : 'text-red-600'}`}>
+                            <PrivateValue>{formatCurrency(periodIncome - periodExpenses)}</PrivateValue>
+                        </p>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm table-fixed">
+                        <table className="w-full text-sm">
                             <thead className="bg-gray-50 text-slate-500 uppercase text-xs">
                                 <tr>
                                     <th className="px-4 py-3 font-semibold text-left w-[110px]">Data</th>
-                                    <th className="px-4 py-3 font-semibold text-left">Descrição</th>
+                                    <th className="px-4 py-3 font-semibold text-left min-w-[200px]">Descrição</th>
                                     <th className="px-4 py-3 font-semibold text-left w-[150px]">Conta</th>
-                                    <th className="px-4 py-3 font-semibold text-center w-[180px]">Item</th>
-                                    <th className="px-4 py-3 font-semibold text-right w-[120px]">Valor</th>
+                                    <th className="px-4 py-3 font-semibold text-center w-[160px]">Item</th>
+                                    <th className="px-4 py-3 font-semibold text-right w-[160px]">Valor</th>
                                     <th className="px-4 py-3 font-semibold text-center w-[100px]">Ações</th>
                                 </tr>
                             </thead>
@@ -1081,7 +875,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                         const cardName = t.cardId ? cardMap.get(t.cardId) : null;
                                         const displayAccount = cardName ? `${accountName} -> ${cardName}` : accountName;
 
-                                        // Color & Sign Logic
                                         let displayProps = { color: 'text-slate-800', sign: '' };
                                         if (t.type === TransactionType.INCOME) {
                                             displayProps = { color: 'text-green-600', sign: '+ ' };
@@ -1094,17 +887,14 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                                 
                                                 if (isCardView) {
                                                     const viewingCardId = accountFilter.split('|')[1];
-                                                    // Paying this card?
                                                     if (t.cardId === viewingCardId && t.destinationAccountId === viewingId) {
                                                         displayProps = { color: 'text-green-600', sign: '+ ' };
                                                     }
                                                 } else {
-                                                    // Normal Account view
                                                     if (t.accountId === viewingId) displayProps = { color: 'text-red-600', sign: '- ' };
                                                     else if (t.destinationAccountId === viewingId) displayProps = { color: 'text-green-600', sign: '+ ' };
                                                 }
                                             } else {
-                                                // General View: Transfers are usually neutral/grey unless we want to emphasize flow
                                                 displayProps = { color: 'text-slate-500', sign: '' };
                                             }
                                         }
@@ -1112,15 +902,15 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                         return (
                                         <tr key={t.id} className="hover:bg-gray-50">
                                             <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(t.date)}</td>
-                                            <td className="px-4 py-3 text-slate-800 font-medium truncate" title={t.description}>{t.description}</td>
-                                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap truncate" title={displayAccount}>{displayAccount}</td>
+                                            <td className="px-4 py-3 text-slate-800 font-medium truncate max-w-xs" title={t.description}>{t.description}</td>
+                                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap truncate max-w-[150px]" title={displayAccount}>{displayAccount}</td>
                                             <td className="px-4 py-3 text-center align-middle">
                                                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${categoryInfo ? (categoryColors[categoryInfo.cat] || defaultCategoryColor) : defaultCategoryColor}`}>
                                                     {categoryInfo?.item || 'N/A'}
                                                 </span>
                                             </td>
-                                            <td className={`px-4 py-3 text-right font-bold ${displayProps.color}`}>
-                                                {displayProps.sign}{formatCurrency(t.amount)}
+                                            <td className={`px-4 py-3 text-right font-bold ${displayProps.color} whitespace-nowrap tabular-nums min-w-[140px]`}>
+                                                <PrivateValue className="inline-block">{displayProps.sign}{formatCurrency(t.amount)}</PrivateValue>
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center justify-center space-x-1">

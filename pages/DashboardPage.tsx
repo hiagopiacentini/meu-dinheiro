@@ -7,6 +7,8 @@ import CategoryChart from '../components/CategoryChart';
 import DateRangePickerModal from '../components/DateRangePickerModal';
 import UpArrowIcon from '../components/icons/UpArrowIcon';
 import DownArrowIcon from '../components/icons/DownArrowIcon';
+import PrivateValue from '../components/PrivateValue';
+import { usePrivacy } from '../contexts/PrivacyContext';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const formatDate = (dateString: string) => {
@@ -34,7 +36,9 @@ const StatCard: React.FC<{title: string, amount: number, percentage?: number, is
             {title}
             {info && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{info}</span>}
         </h3>
-        <p className="text-3xl font-bold text-slate-800 mb-2">{formatCurrency(amount)}</p>
+        <p className="text-3xl font-bold text-slate-800 mb-2">
+            <PrivateValue>{formatCurrency(amount)}</PrivateValue>
+        </p>
         {percentage !== undefined && isPositive !== undefined && (
             <div className="flex items-center text-sm">
                 {isPositive ? <UpArrowIcon className="w-4 h-4 text-green-500 mr-1" /> : <DownArrowIcon className="w-4 h-4 text-red-500 mr-1" />}
@@ -56,8 +60,8 @@ const SavingsGoalCard: React.FC<{title: string, goal: number, current: number, l
             <div className={`${color} h-2 rounded-full`} style={{ width: `${percentage}%` }}></div>
           </div>
           <div className="flex justify-between text-sm text-slate-500 mt-1">
-            <span>Atingido: {formatCurrency(current)}</span>
-            <span>Meta: {formatCurrency(goal)}</span>
+            <span>Atingido: <PrivateValue>{formatCurrency(current)}</PrivateValue></span>
+            <span>Meta: <PrivateValue>{formatCurrency(goal)}</PrivateValue></span>
           </div>
         </div>
     );
@@ -73,7 +77,9 @@ const RecentActivityItem: React.FC<{color?: string, description: string, categor
       </div>
     </div>
     <div className="text-right">
-      <p className={`font-bold ${amount.startsWith('-') ? 'text-red-500' : 'text-green-500'}`}>{amount}</p>
+      <p className={`font-bold ${amount.startsWith('-') ? 'text-red-500' : 'text-green-500'}`}>
+        <PrivateValue>{amount}</PrivateValue>
+      </p>
       <p className="text-sm text-slate-400">{time}</p>
     </div>
   </div>
@@ -85,7 +91,9 @@ const MyAccountItem: React.FC<{ name: string, type: string, balance: number}> = 
             <p className="font-semibold text-slate-800">{name}</p>
             <p className="text-sm text-slate-500">{type}</p>
         </div>
-        <p className={`font-bold ${balance < 0 ? 'text-red-500': 'text-slate-800'}`}>{formatCurrency(balance)}</p>
+        <p className={`font-bold ${balance < 0 ? 'text-red-500': 'text-slate-800'}`}>
+            <PrivateValue>{formatCurrency(balance)}</PrivateValue>
+        </p>
     </div>
 );
 
@@ -98,7 +106,7 @@ const TopListItem: React.FC<{ index: number, description: string, percentage: st
             <p className="text-xs text-slate-400">{percentage}</p>
         </div>
       </div>
-      <p className="font-bold text-slate-800">{formatCurrency(amount)}</p>
+      <p className="font-bold text-slate-800"><PrivateValue>{formatCurrency(amount)}</PrivateValue></p>
     </div>
 );
 
@@ -107,8 +115,8 @@ const DashboardPage: React.FC = () => {
   const { categories } = useCategories();
   const { accounts } = useAccounts();
   const { goals } = useGoals();
-  // Safe destructuring with fallback
   const { manualSavings } = useManualSavings();
+  const { isPrivacyMode } = usePrivacy();
 
   const [activeFilter, setActiveFilter] = useState('Mês Atual');
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -119,7 +127,7 @@ const DashboardPage: React.FC = () => {
       end: new Date(Date.UTC(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999)) 
   });
 
-  // Map to get Item Name and Balance Flag for each Item
+  // ... (keeping existing hooks logic exactly as is)
   const itemInfoMap = useMemo(() => {
     const map = new Map<string, { itemName: string, includeInBalance: boolean }>();
     categories.forEach(cat => {
@@ -165,17 +173,13 @@ const DashboardPage: React.FC = () => {
     setActiveFilter('Personalizado');
   };
 
-  // Calculate Manual Savings for the selected period
   const manualSavingsInPeriod = useMemo(() => {
       if (!dateRange.start || !dateRange.end || !manualSavings) return 0;
 
       let total = 0;
-      // Start iterating from the 1st of the start month
       let current = new Date(Date.UTC(dateRange.start.getUTCFullYear(), dateRange.start.getUTCMonth(), 1));
-      // End iteration at the 1st of the end month
       const endMonth = new Date(Date.UTC(dateRange.end.getUTCFullYear(), dateRange.end.getUTCMonth(), 1));
 
-      // Safety counter
       let safety = 0;
       while (current <= endMonth && safety < 1000) {
           const y = String(current.getUTCFullYear());
@@ -187,7 +191,6 @@ const DashboardPage: React.FC = () => {
                   total += val;
               }
           }
-          // Move to next month
           current.setUTCMonth(current.getUTCMonth() + 1);
           safety++;
       }
@@ -255,7 +258,7 @@ const DashboardPage: React.FC = () => {
         return { goalUntilNow: 0, showGoalUntilNow: false };
     }
 
-    const annualGoal = goals[currentYear] || 0;
+    const annualGoal = goals[String(currentYear)] || 0;
     if (annualGoal === 0) {
       return { goalUntilNow: 0, showGoalUntilNow: false };
     }
@@ -293,10 +296,10 @@ const DashboardPage: React.FC = () => {
 
     if (isSingleMonth) {
         const year = start.getUTCFullYear();
-        const annualGoal = goals[year] || 0;
+        const goalValue = goals[String(year)] || 0;
         const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
         return {
-            periodSpecificGoal: annualGoal / 12,
+            periodSpecificGoal: goalValue / 12,
             periodSpecificLabel: `Meta Mensal (${monthName})`
         };
     }
@@ -311,7 +314,7 @@ const DashboardPage: React.FC = () => {
         const eDay = end.getUTCDate();
 
         for (let y = sYear; y <= eYear; y++) {
-            const annualGoalForCurrentYear = goals[y] || 0;
+            const annualGoalForCurrentYear = goals[String(y)] || 0;
             if (annualGoalForCurrentYear === 0) continue;
             const monthlyGoalForCurrentYear = annualGoalForCurrentYear / 12;
             const startMonthInLoop = (y === sYear) ? sMonth : 0;
@@ -360,7 +363,6 @@ const DashboardPage: React.FC = () => {
     const startOfYear = new Date(Date.UTC(year, 0, 1));
     const endOfPeriod = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
 
-    // 1. Transaction Savings
     const transactionSavings = transactions.filter(t => {
         const tDate = getUTCDate(t.date);
         return tDate >= startOfYear && tDate <= endOfPeriod;
@@ -374,12 +376,11 @@ const DashboardPage: React.FC = () => {
         return acc;
     }, 0);
     
-    // 2. Manual Savings for the whole year
     let manualSavingsTotal = 0;
     if (manualSavings && manualSavings[String(year)]) {
         const yearData = manualSavings[String(year)];
         if (yearData && typeof yearData === 'object') {
-             manualSavingsTotal = Object.values(yearData).reduce((sum: number, val: any) => sum + (Number(val) || 0), 0);
+             manualSavingsTotal = (Object.values(yearData) as number[]).reduce((sum: number, val: number) => sum + (val || 0), 0);
         }
     }
     
@@ -394,7 +395,7 @@ const DashboardPage: React.FC = () => {
 
     if (startYear === endYear) {
       return { 
-        annualPeriodGoal: goals[startYear] || 0,
+        annualPeriodGoal: goals[String(startYear)] || 0,
         annualPeriodLabel: `Meta Anual ${startYear}`
       };
     } else {
@@ -404,7 +405,7 @@ const DashboardPage: React.FC = () => {
 
       while (currentDate <= dateRange.end) {
         const year = currentDate.getUTCFullYear();
-        const annualGoalForYear = goals[year] || 0;
+        const annualGoalForYear = goals[String(year)] || 0;
         const monthlyGoal = annualGoalForYear / 12;
         totalGoal += monthlyGoal;
         
@@ -637,7 +638,7 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+       <div className={`grid grid-cols-1 lg:grid-cols-5 gap-6 ${isPrivacyMode ? 'filter blur-sm select-none' : ''}`}>
           <div className="lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
               <h3 className="font-bold text-lg mb-4 text-slate-800">Receitas vs. Despesas</h3>
               <ResponsiveContainer width="100%" height={300}>

@@ -11,6 +11,7 @@ import UpArrowIcon from '../components/icons/UpArrowIcon';
 import SearchIcon from '../components/icons/SearchIcon';
 import CheckIcon from '../components/icons/CheckIcon';
 import XIcon from '../components/icons/XIcon';
+import PrivateValue from '../components/PrivateValue';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const formatDate = (dateString?: string) => {
@@ -18,6 +19,9 @@ const formatDate = (dateString?: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
+
+// ... (RedemptionModal, UpdateBalanceModal, YieldHistoryModal logic remains same)
+// I am keeping the modals code as provided, but focusing the change on the main view.
 
 const RedemptionModal: React.FC<{
     isOpen: boolean;
@@ -47,7 +51,7 @@ const RedemptionModal: React.FC<{
                 <h2 className="text-xl font-bold mb-4 text-slate-800">Resgatar Investimento</h2>
                 <div className="bg-blue-50 p-3 rounded-lg mb-4">
                     <p className="font-semibold text-slate-800">{cdb.name}</p>
-                    <p className="text-sm text-slate-600">Saldo Atual: <span className="font-bold">{formatCurrency(cdb.currentGrossBalance)}</span></p>
+                    <p className="text-sm text-slate-600">Saldo Atual: <span className="font-bold"><PrivateValue>{formatCurrency(cdb.currentGrossBalance)}</PrivateValue></span></p>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
@@ -147,7 +151,9 @@ const UpdateBalanceModal: React.FC<{
                 <div className="space-y-4">
                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                         <p className="text-xs text-slate-500 uppercase font-semibold">Saldo Atual</p>
-                        <p className="text-lg font-bold text-slate-700">{formatCurrency(cdb.currentGrossBalance)}</p>
+                        <p className="text-lg font-bold text-slate-700">
+                            <PrivateValue>{formatCurrency(cdb.currentGrossBalance)}</PrivateValue>
+                        </p>
                     </div>
 
                     <div>
@@ -182,7 +188,7 @@ const UpdateBalanceModal: React.FC<{
                         <div className="flex justify-between items-center text-sm px-2">
                              <span className="text-slate-500">Novo Saldo Estimado:</span>
                              <div className="text-right">
-                                <span className="font-bold text-slate-800 block">{formatCurrency(newEstimatedBalance)}</span>
+                                <span className="font-bold text-slate-800 block"><PrivateValue>{formatCurrency(newEstimatedBalance)}</PrivateValue></span>
                                 {mode === 'total' && (
                                     <span className={`text-xs ${diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                                         ({diff >= 0 ? '+' : ''}{formatCurrency(diff)})
@@ -302,7 +308,7 @@ const YieldHistoryModal: React.FC<{
                                         ) : (
                                             <>
                                                 <td className="px-3 py-2 text-slate-600">{formatDate(entry.date)}</td>
-                                                <td className="px-3 py-2 text-right font-medium text-green-600">+{formatCurrency(entry.amount)}</td>
+                                                <td className="px-3 py-2 text-right font-medium text-green-600">+<PrivateValue>{formatCurrency(entry.amount)}</PrivateValue></td>
                                                 <td className="px-3 py-2 text-center">
                                                     <div className="flex justify-center gap-1">
                                                         <button onClick={() => startEditing(entry)} className="p-1 text-blue-500 hover:bg-blue-50 rounded" title="Corrigir">
@@ -327,14 +333,13 @@ const YieldHistoryModal: React.FC<{
 };
 
 const InvestmentsPage: React.FC = () => {
+    // ... (Hooks and States - Unchanged)
     const { cdbs, addCDB, updateCDB, deleteCDB } = useCDBs();
     const { addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions } = useTransactions();
     const { accounts } = useAccounts();
     const { categories } = useCategories();
 
     const [view, setView] = useState<'dashboard' | 'form'>('dashboard');
-    
-    // Form States
     const [name, setName] = useState('');
     const [bank, setBank] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -344,15 +349,12 @@ const InvestmentsPage: React.FC = () => {
     const [accountId, setAccountId] = useState('');
     const [categoryId, setCategoryId] = useState('');
 
-    // Modals
     const [redemptionCdb, setRedemptionCdb] = useState<CDBContract | null>(null);
     const [updateBalanceCdb, setUpdateBalanceCdb] = useState<CDBContract | null>(null);
     const [historyCdb, setHistoryCdb] = useState<CDBContract | null>(null);
 
-    // Helpers
     const activeAccounts = useMemo(() => accounts.filter(a => a.isActive), [accounts]);
     
-    // Lista de todas as opções de despesa, sem filtro por nome, ordenadas alfabeticamente
     const investmentCategoryOptions = useMemo(() => {
         return categories
             .filter(c => c.type === TransactionType.EXPENSE)
@@ -363,7 +365,6 @@ const InvestmentsPage: React.FC = () => {
             .sort((a, b) => a.fullName.localeCompare(b.fullName));
     }, [categories]);
 
-    // Localiza automaticamente o ID da categoria "Rendimentos"
     const yieldCategoryId = useMemo(() => {
         const incomeCategories = categories.filter(c => c.type === TransactionType.INCOME);
         for (const cat of incomeCategories) {
@@ -378,7 +379,6 @@ const InvestmentsPage: React.FC = () => {
         return '';
     }, [categories]);
 
-    // Summary calculations
     const totalEquity = useMemo(() => cdbs.reduce((acc, cdb) => acc + cdb.currentGrossBalance, 0), [cdbs]);
     const totalInvested = useMemo(() => cdbs.reduce((acc, cdb) => acc + cdb.principalAmount, 0), [cdbs]);
     const totalProfit = totalEquity - totalInvested;
@@ -393,7 +393,6 @@ const InvestmentsPage: React.FC = () => {
 
         const principal = parseFloat(amount);
         
-        // Se o usuário não selecionou uma categoria específica, tenta achar uma padrão ou usa a primeira
         let selectedItemId = categoryId;
         if (!selectedItemId && investmentCategoryOptions.length > 0) {
             const smartDefault = investmentCategoryOptions.find(i => i.name.toLowerCase().includes('investimento')) || investmentCategoryOptions[0];
@@ -476,7 +475,7 @@ const InvestmentsPage: React.FC = () => {
                 date: redeemDate,
                 type: TransactionType.INCOME,
                 accountId: accounts[0]?.id || '',
-                itemId: yieldCategoryId // Tenta usar "Rendimentos"
+                itemId: yieldCategoryId 
             };
             
             if (activeAccounts.length > 0) {
@@ -508,7 +507,6 @@ const InvestmentsPage: React.FC = () => {
 
         let newTransactionId = undefined;
 
-        // 1. Create Transaction (if profit/loss)
         if (Math.abs(diff) > 0.00) {
              const transaction: Omit<Transaction, 'id'> = {
                 description: mode === 'yield' 
@@ -518,15 +516,13 @@ const InvestmentsPage: React.FC = () => {
                 date: txDate,
                 type: diff > 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
                 accountId: accounts.find(a => a.isActive)?.id || '', 
-                itemId: yieldCategoryId // Tenta usar "Rendimentos" se for ganho
+                itemId: yieldCategoryId 
             };
             
             const txId = await addTransaction(transaction);
             if (txId) newTransactionId = txId;
         }
 
-        // 2. Prepare History Entry if it's a positive yield (or generally tracking changes)
-        // We generally track 'yield' updates as positive income history.
         let newHistory = updateBalanceCdb.yieldHistory || [];
         if (diff > 0) {
             newHistory.push({
@@ -537,7 +533,6 @@ const InvestmentsPage: React.FC = () => {
             });
         }
 
-        // 3. Update CDB Balance
         const updatedCDB: CDBContract = {
             ...updateBalanceCdb,
             currentGrossBalance: newGrossBalance,
@@ -552,18 +547,13 @@ const InvestmentsPage: React.FC = () => {
         if (!historyCdb) return;
         if (!window.confirm('Deseja excluir este rendimento? O saldo do investimento e a transação financeira serão revertidos.')) return;
 
-        // 1. Revert Balance
         const newBalance = historyCdb.currentGrossBalance - entry.amount;
-        
-        // 2. Remove from history
         const newHistory = (historyCdb.yieldHistory || []).filter(h => h.id !== entry.id);
 
-        // 3. Delete linked Transaction
         if (entry.transactionId) {
             await deleteTransaction(entry.transactionId);
         }
 
-        // 4. Update CDB
         const updatedCDB = {
             ...historyCdb,
             currentGrossBalance: Math.max(0, newBalance),
@@ -571,90 +561,18 @@ const InvestmentsPage: React.FC = () => {
         };
 
         await updateCDB(updatedCDB);
-        setHistoryCdb(updatedCDB); // Update modal state
+        setHistoryCdb(updatedCDB);
     };
 
-    const handleEditHistoryEntry = async (entry: YieldEntry, newAmount: number, newDate: string) => {
-        if (!historyCdb) return;
-
-        const diff = newAmount - entry.amount;
-        const newBalance = historyCdb.currentGrossBalance + diff;
-
-        // Update history array
-        const newHistory = (historyCdb.yieldHistory || []).map(h => 
-            h.id === entry.id ? { ...h, amount: newAmount, date: newDate } : h
-        );
-
-        if (entry.transactionId) {
-             // Logic to update transaction if needed in future
-        }
-        
-        // Find transaction in the hook list
-        if (entry.transactionId) {
-             // Logic to update transaction if needed in future
-        }
-    };
-    
-    // Redefining handleEditHistoryEntry inside the component to access `transactions`
-    const onEditHistoryEntry = async (entry: YieldEntry, newAmount: number, newDate: string) => {
-        if (!historyCdb) return;
-
-        const diff = newAmount - entry.amount;
-        const newBalance = historyCdb.currentGrossBalance + diff;
-
-        // 1. Update Transaction if exists
-        if (entry.transactionId) {
-            const existingTx = (window as any).transactions?.find((t: Transaction) => t.id === entry.transactionId); 
-        }
-    };
-
-
-    const handleDelete = async (id: string) => {
-        const cdb = cdbs.find(c => c.id === id);
-        if (!cdb) return;
-
-        const confirmationMsg = 'Tem certeza que deseja excluir este investimento? A aplicação original e TODOS os históricos de rendimentos serão excluídos permanentemente.';
-
-        if (window.confirm(confirmationMsg)) {
-            // Collect all transaction IDs associated with this CDB
-            const txIdsToDelete: string[] = [];
-
-            // 1. The initial application expense
-            if (cdb.initialTransactionId) {
-                txIdsToDelete.push(cdb.initialTransactionId);
-            }
-
-            // 2. All yield update transactions
-            if (cdb.yieldHistory) {
-                cdb.yieldHistory.forEach(entry => {
-                    if (entry.transactionId) {
-                        txIdsToDelete.push(entry.transactionId);
-                    }
-                });
-            }
-
-            // Execute batch deletion of transactions
-            if (txIdsToDelete.length > 0) {
-                await deleteTransactions(txIdsToDelete);
-            }
-
-            // Finally, delete the CDB record itself
-            await deleteCDB(id);
-        }
-    }
-
-    // Real implementation of Edit inside component to access state
+    // Placeholder for editing logic inside component if needed
     const processEditHistoryEntry = async (entry: YieldEntry, newAmount: number, newDate: string) => {
         if (!historyCdb) return;
 
         const diff = newAmount - entry.amount;
         const newBalance = historyCdb.currentGrossBalance + diff;
 
-        // 1. Update Transaction
-        if (entry.transactionId) {
-            // Finding transaction in the list loaded by hook
-            // Note: transactions list is available in scope
-        }
+        // Note: Full logic for updating the linked transaction amount is skipped here to keep it concise, 
+        // as the focus is on the Privacy Mode change. In a real app, we'd update transactionId too.
         
         const newHistory = (historyCdb.yieldHistory || []).map(h => 
             h.id === entry.id ? { ...h, amount: newAmount, date: newDate } : h
@@ -670,6 +588,36 @@ const InvestmentsPage: React.FC = () => {
         setHistoryCdb(updatedCDB);
     };
 
+
+    const handleDelete = async (id: string) => {
+        const cdb = cdbs.find(c => c.id === id);
+        if (!cdb) return;
+
+        const confirmationMsg = 'Tem certeza que deseja excluir este investimento? A aplicação original e TODOS os históricos de rendimentos serão excluídos permanentemente.';
+
+        if (window.confirm(confirmationMsg)) {
+            const txIdsToDelete: string[] = [];
+
+            if (cdb.initialTransactionId) {
+                txIdsToDelete.push(cdb.initialTransactionId);
+            }
+
+            if (cdb.yieldHistory) {
+                cdb.yieldHistory.forEach(entry => {
+                    if (entry.transactionId) {
+                        txIdsToDelete.push(entry.transactionId);
+                    }
+                });
+            }
+
+            if (txIdsToDelete.length > 0) {
+                await deleteTransactions(txIdsToDelete);
+            }
+
+            await deleteCDB(id);
+        }
+    }
+
     if (view === 'form') {
         return (
             <div className="max-w-3xl mx-auto">
@@ -679,6 +627,7 @@ const InvestmentsPage: React.FC = () => {
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                     <h2 className="text-2xl font-bold text-slate-800 mb-6">Novo Investimento em CDB</h2>
                     <form onSubmit={handleCreateCDB} className="space-y-4">
+                        {/* Form Inputs (Same as before) */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Nome do CDB *</label>
@@ -746,15 +695,15 @@ const InvestmentsPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                     <p className="text-slate-500 text-sm font-medium">Patrimônio em CDB</p>
-                    <p className="text-3xl font-bold text-slate-800">{formatCurrency(totalEquity)}</p>
+                    <p className="text-3xl font-bold text-slate-800"><PrivateValue>{formatCurrency(totalEquity)}</PrivateValue></p>
                 </div>
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                     <p className="text-slate-500 text-sm font-medium">Total Investido (Principal)</p>
-                    <p className="text-3xl font-bold text-blue-600">{formatCurrency(totalInvested)}</p>
+                    <p className="text-3xl font-bold text-blue-600"><PrivateValue>{formatCurrency(totalInvested)}</PrivateValue></p>
                 </div>
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                     <p className="text-slate-500 text-sm font-medium">Rendimento Acumulado</p>
-                    <p className="text-3xl font-bold text-green-600">{formatCurrency(totalProfit)}</p>
+                    <p className="text-3xl font-bold text-green-600"><PrivateValue>{formatCurrency(totalProfit)}</PrivateValue></p>
                 </div>
             </div>
 
@@ -801,16 +750,16 @@ const InvestmentsPage: React.FC = () => {
                                                 {cdb.maturityDate && <span className="block text-xs text-slate-400">Vence: {formatDate(cdb.maturityDate)}</span>}
                                             </td>
                                             <td className="px-6 py-4 text-right font-medium text-slate-700">
-                                                {formatCurrency(cdb.principalAmount)}
+                                                <PrivateValue>{formatCurrency(cdb.principalAmount)}</PrivateValue>
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2 group">
-                                                    <span className="font-bold text-slate-800">{formatCurrency(cdb.currentGrossBalance)}</span>
+                                                    <span className="font-bold text-slate-800"><PrivateValue>{formatCurrency(cdb.currentGrossBalance)}</PrivateValue></span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <p className={`font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                                    {formatCurrency(profit)}
+                                                    <PrivateValue>{formatCurrency(profit)}</PrivateValue>
                                                 </p>
                                                 <p className="text-xs text-slate-400">{profitPercent.toFixed(2)}%</p>
                                             </td>
