@@ -572,7 +572,8 @@ const InvestmentsPage: React.FC = () => {
                 rateDescription: rate,
                 currentGrossBalance: newGrossBalance,
                 linkedAccountId: accountId,
-                maturityDate: maturity || undefined
+                // FIX: use null instead of undefined to satisfy Firestore update constraints
+                maturityDate: maturity || null
             };
 
             await updateCDB(updatedCDB);
@@ -610,7 +611,7 @@ const InvestmentsPage: React.FC = () => {
                 initialTransactionId: txId, 
                 yieldHistory: [],
                 linkedAccountId: accountId,
-                ...(maturity ? { maturityDate: maturity } : {})
+                maturityDate: maturity || null
             };
             await addCDB(newCDB);
             setView('dashboard');

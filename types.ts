@@ -103,7 +103,7 @@ export interface CDBContract {
   applicationDate: string; // data_aplicacao
   principalAmount: number; // valor_aplicado_principal
   rateDescription: string; // taxa_rendimento
-  maturityDate?: string; // data_vencimento
+  maturityDate?: string | null; // data_vencimento (allow null for firestore)
   currentGrossBalance: number; // saldo_bruto_atual
   isActive: boolean;
   initialTransactionId?: string; // ID da transação que criou o investimento
