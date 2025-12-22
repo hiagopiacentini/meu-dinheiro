@@ -411,9 +411,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     const isDest = t.destinationAccountId === accountFilter;
                     
                     if (!isSource && !isDest) return false;
-                    if ((t.type === TransactionType.EXPENSE || t.type === TransactionType.INCOME) && t.cardId) {
-                        return false;
-                    }
+                    
+                    // Ajuste: Quando filtrar por uma conta pai, mostra lançamentos de cartão também.
+                    // Apenas transferências de pagamento de fatura internas (Destino + cardId) são omitidas para não duplicar saldo visual.
                     if (t.type === TransactionType.TRANSFER) {
                         if (isSource) return true;
                         if (isDest && t.cardId) return false;

@@ -108,4 +108,5 @@ export interface CDBContract {
   isActive: boolean;
   initialTransactionId?: string; // ID da transação que criou o investimento
   yieldHistory?: YieldEntry[]; // Histórico de rendimentos lançados
+  linkedAccountId: string; // Conta bancária à qual este investimento está vinculado para rendimentos e resgates
 }

@@ -13,18 +13,32 @@ const safeStringify = (obj: any) => {
   const cache = new Set();
   try {
     return JSON.stringify(obj, (key, value) => {
-      if (typeof value === 'object' && value !== null) {
-        if (cache.has(value)) {
-          // Circular reference found
-          return '[Circular]';
-        }
-        // Store value in our collection
-        cache.add(value);
+      if (typeof value !== 'object' || value === null) {
+        return value;
       }
+
+      if (cache.has(value)) {
+        return '[Circular]';
+      }
+      cache.add(value);
+
+      const ctorName = value.constructor?.name;
+      if (
+          value instanceof Node || 
+          value instanceof Window ||
+          value instanceof Event ||
+          ctorName === 'Y' || 
+          ctorName === 'Ka' ||
+          ctorName === 'e' || 
+          (value && 'nodeType' in value)
+      ) {
+          return undefined;
+      }
+
       return value;
     });
   } catch (error) {
-    console.error("Error stringifying object:", error);
+    console.error("Error stringifying object in safeStringify:", error);
     return "[]"; // Fallback to empty array/object representation
   } finally {
       cache.clear();
@@ -45,21 +59,21 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       // 1. Clean Accounts (remove ids containing '-demo')
       const storedAccounts = JSON.parse(localStorage.getItem('accounts') || '[]');
       if (Array.isArray(storedAccounts)) {
-        const userAccounts = storedAccounts.filter((acc: any) => !acc.id.includes('-demo'));
+        const userAccounts = storedAccounts.filter((acc: any) => acc && acc.id && !acc.id.includes('-demo'));
         localStorage.setItem('accounts', safeStringify(userAccounts));
       }
 
       // 2. Clean Transactions (remove ids starting with 't-demo')
       const storedTransactions = JSON.parse(localStorage.getItem('transactions') || '[]');
       if (Array.isArray(storedTransactions)) {
-        const userTransactions = storedTransactions.filter((t: any) => !String(t.id).startsWith('t-demo'));
+        const userTransactions = storedTransactions.filter((t: any) => t && t.id && !String(t.id).startsWith('t-demo'));
         localStorage.setItem('transactions', safeStringify(userTransactions));
       }
 
       // 3. Clean Categories 
       const storedCategories = JSON.parse(localStorage.getItem('categories') || '[]');
       if (Array.isArray(storedCategories)) {
-        const userCategories = storedCategories.filter((c: any) => c.id.length > 10);
+        const userCategories = storedCategories.filter((c: any) => c && c.id && c.id.length > 10);
         if (userCategories.length !== storedCategories.length) {
              localStorage.setItem('categories', safeStringify(userCategories));
         }

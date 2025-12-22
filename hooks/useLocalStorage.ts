@@ -6,25 +6,32 @@ const safeStringify = (obj: any) => {
   const cache = new Set();
   try {
     return JSON.stringify(obj, (key, value) => {
-      // Ignore DOM elements and potential circular emitters like 'src' in native objects or library internal structures
+      // 1. Handle non-object values early
+      if (typeof value !== 'object' || value === null) {
+        return value;
+      }
+
+      // 2. Prevent circular references
+      if (cache.has(value)) {
+        return '[Circular]';
+      }
+      cache.add(value);
+
+      // 3. Block problematic types and minified library internal structures
+      // 'Y' and 'Ka' are known minified names in Recharts/D3/Firebase that cause issues
+      const ctorName = value.constructor?.name;
       if (
           value instanceof Node || 
-          (value && typeof value === 'object' && 'nodeType' in value) ||
           value instanceof Window ||
           value instanceof Event ||
-          (value && typeof value === 'object' && value.constructor && value.constructor.name === 'Y') // Specific fix for constructors named 'Y' in error
+          ctorName === 'Y' || 
+          ctorName === 'Ka' ||
+          ctorName === 'e' || 
+          (value && 'nodeType' in value)
       ) {
           return undefined;
       }
       
-      if (typeof value === 'object' && value !== null) {
-        if (cache.has(value)) {
-          // Circular reference found, discard key
-          return '[Circular]';
-        }
-        // Store value in our collection
-        cache.add(value);
-      }
       return value;
     });
   } catch (error) {
