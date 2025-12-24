@@ -10,9 +10,8 @@ import ChevronRightIcon from '../components/icons/ChevronRightIcon';
 import ChevronDownIcon from '../components/icons/ChevronDownIcon';
 import ArrowUturnLeftIcon from '../components/icons/ArrowUturnLeftIcon';
 
-// New icons for better visuals
 const DragHandleIcon = () => (
-    <svg className="w-4 h-4 text-slate-300" fill="currentColor" viewBox="0 0 24 24">
+    <svg className="w-4 h-4 text-slate-500 opacity-30" fill="currentColor" viewBox="0 0 24 24">
         <path d="M8 9h2V7H8v2zm0 4h2v-2H8v2zm0 4h2v-2H8v2zm4-10v2h2V7h-2zm0 6h2v-2h-2v2zm0 4h2v-2h-2v2zm4-10v2h2V7h-2zm0 6h2v-2h-2v2zm0 4h2v-2h-2v2z" />
     </svg>
 );
@@ -71,9 +70,9 @@ const CategoryModal: React.FC<{
     const getTitle = () => {
         const actionText = config.action === 'add' ? 'Nova' : 'Editar';
         switch (config.type) {
-            case 'category': return `${actionText} Categoria`;
-            case 'subcategory': return `${actionText} Subcategoria`;
-            case 'item': return `${actionText} Item`;
+            case 'category': return `${actionText} categoria`;
+            case 'subcategory': return `${actionText} subcategoria`;
+            case 'item': return `${actionText} item`;
             default: return '';
         }
     };
@@ -111,12 +110,12 @@ const CategoryModal: React.FC<{
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all" onClick={e => e.stopPropagation()}>
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
                     <h2 className="text-xl font-bold text-slate-800">{getTitle()}</h2>
-                    <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full text-slate-400">&times;</button>
+                    <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full text-slate-500">&times;</button>
                 </div>
                 <form onSubmit={handleSubmit} className="p-6 space-y-5">
                      {config.action === 'add' ? (
                         <div>
-                            <label htmlFor="cat-name-multi" className="block text-xs font-bold text-slate-500 uppercase mb-2">Nome(s) (Enter para lista)</label>
+                            <label htmlFor="cat-name-multi" className="block text-xs font-normal text-slate-500 mb-2">Nomes (Enter para lista)</label>
                             <input
                                 type="text"
                                 id="cat-name-multi"
@@ -130,7 +129,7 @@ const CategoryModal: React.FC<{
                             {namesList.length > 0 && (
                                 <div className="mt-4 flex flex-wrap gap-2">
                                     {namesList.map((n, index) => (
-                                        <span key={index} className="inline-flex items-center bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-xs font-semibold">
+                                        <span key={index} className="inline-flex items-center bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-xs font-normal">
                                             {n}
                                             <button type="button" onClick={() => removeName(n)} className="ml-1.5 hover:text-blue-900 font-bold">&times;</button>
                                         </span>
@@ -140,7 +139,7 @@ const CategoryModal: React.FC<{
                         </div>
                     ) : (
                         <div>
-                            <label htmlFor="cat-name-single" className="block text-xs font-bold text-slate-500 uppercase mb-2">Nome</label>
+                            <label htmlFor="cat-name-single" className="block text-xs font-normal text-slate-500 mb-2">Nome</label>
                             <input
                                 type="text"
                                 id="cat-name-single"
@@ -155,7 +154,7 @@ const CategoryModal: React.FC<{
 
                     {config.type === 'category' && (
                         <div>
-                           <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Identidade Visual (Cor)</label>
+                           <label className="block text-xs font-normal text-slate-500 mb-2">Identidade visual (cor)</label>
                             <div className="flex flex-wrap gap-2.5">
                                 {predefinedColors.map(color => (
                                     <button 
@@ -180,11 +179,11 @@ const CategoryModal: React.FC<{
                         <div className="space-y-3 bg-slate-50 p-4 rounded-xl">
                             <div className="flex items-center">
                                 <input type="checkbox" id="cat-balance" checked={includeInBalance} onChange={e => setIncludeInBalance(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" style={{accentColor: '#2563eb'}}/>
-                                <label htmlFor="cat-balance" className="ml-2 block text-sm font-medium text-slate-700">Incluir no balanço financeiro</label>
+                                <label htmlFor="cat-balance" className="ml-2 block text-sm font-normal text-slate-700">Incluir no balanço financeiro</label>
                             </div>
                             <div className="flex items-center">
                                 <input type="checkbox" id="cat-fixed" checked={isFixed} onChange={e => setIsFixed(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" style={{accentColor: '#2563eb'}}/>
-                                <label htmlFor="cat-fixed" className="ml-2 block text-sm font-medium text-slate-700">É uma despesa fixa</label>
+                                <label htmlFor="cat-fixed" className="ml-2 block text-sm font-normal text-slate-700">É uma despesa fixa</label>
                             </div>
                         </div>
                     )}
@@ -288,7 +287,6 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
         }
     };
 
-    // --- Drag and Drop ---
     const handleDragStart = (e: React.DragEvent, item: DragItem) => {
         e.stopPropagation();
         setDraggedItem(item);
@@ -357,23 +355,22 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
     
     return (
         <div className="space-y-6 pb-12">
-            {/* Upper Summary Info */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Categorias</p>
-                    <p className="text-xl font-bold text-slate-700">{stats.catCount}</p>
+                    <p className="text-xs font-normal text-slate-500 tracking-normal">Categorias</p>
+                    <p className="text-xl font-bold text-slate-700 tracking-normal">{stats.catCount}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Subcategorias</p>
-                    <p className="text-xl font-bold text-slate-700">{stats.subCount}</p>
+                    <p className="text-xs font-normal text-slate-500 tracking-normal">Subcategorias</p>
+                    <p className="text-xl font-bold text-slate-700 tracking-normal">{stats.subCount}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Total de Itens</p>
-                    <p className="text-xl font-bold text-slate-700">{stats.itemCount}</p>
+                    <p className="text-xs font-normal text-slate-500 tracking-normal">Total de itens</p>
+                    <p className="text-xl font-bold text-slate-700 tracking-normal">{stats.itemCount}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Itens Fixos</p>
-                    <p className="text-xl font-bold text-slate-700">{stats.fixedCount}</p>
+                    <p className="text-xs font-normal text-slate-500 tracking-normal">Itens fixos</p>
+                    <p className="text-xl font-bold text-slate-700 tracking-normal">{stats.fixedCount}</p>
                 </div>
             </div>
 
@@ -382,32 +379,32 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                     <div className="inline-flex p-1 bg-slate-100 rounded-xl">
                         <button 
                             onClick={() => setActiveTab(TransactionType.EXPENSE)} 
-                            className={`px-6 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === TransactionType.EXPENSE ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`px-6 py-2 text-sm font-normal rounded-lg transition-all tracking-normal ${activeTab === TransactionType.EXPENSE ? 'bg-white text-red-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             Despesas
                         </button>
                         <button 
                             onClick={() => setActiveTab(TransactionType.INCOME)} 
-                            className={`px-6 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === TransactionType.INCOME ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`px-6 py-2 text-sm font-normal rounded-lg transition-all tracking-normal ${activeTab === TransactionType.INCOME ? 'bg-white text-green-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             Receitas
                         </button>
                     </div>
                     <div className="relative flex-1 md:max-w-xs">
-                        <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none" />
+                        <SearchIcon className="w-5 h-5 text-slate-500 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none" />
                         <input 
                             type="text" 
                             value={searchTerm} 
                             onChange={e => setSearchTerm(e.target.value)} 
-                            className="input-style pl-10 border-slate-200 focus:border-blue-400 focus:ring-blue-500/20"
-                            placeholder=""
+                            className="input-style pl-10 border-slate-200 focus:border-blue-400 focus:ring-blue-500/20 tracking-normal"
+                            placeholder="Buscar categoria..."
                         />
                     </div>
                 </div>
                 
                 <div className="space-y-4">
                     {filteredCategories.length === 0 ? (
-                        <div className="text-center py-20 text-slate-400">Nenhum resultado encontrado para sua busca.</div>
+                        <div className="text-center py-20 text-slate-500 tracking-normal font-normal">Nenhum resultado encontrado para sua busca.</div>
                     ) : (
                         filteredCategories.map(category => (
                             <div 
@@ -419,7 +416,6 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                 onDrop={(e) => handleDrop(e, category.id, 'category')}
                                 className={`transition-all ${draggedItem?.id === category.id ? 'opacity-30' : ''}`}
                             >
-                                {/* Category Level */}
                                 <div 
                                     className={`group flex items-center justify-between p-3 pl-1 rounded-xl hover:bg-slate-50 border-2 border-transparent transition-all cursor-pointer ${expandedItems[category.id] ? 'bg-slate-50/50' : ''} ${dragOverId === category.id ? 'border-blue-500 bg-blue-50/50' : ''}`} 
                                     onClick={(e) => toggleExpand(e, category.id)}
@@ -430,13 +426,13 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                                 <DragHandleIcon />
                                             </div>
                                             <div className={`transition-transform duration-200 ${expandedItems[category.id] ? 'rotate-0' : '-rotate-90'}`}>
-                                                <ChevronDownIcon className="w-4 h-4 text-slate-400" />
+                                                <ChevronDownIcon className="w-4 h-4 text-slate-500" />
                                             </div>
                                         </div>
                                         <div className="flex items-center space-x-3">
                                             <div className="w-4 h-10 rounded-full" style={{ backgroundColor: category.color || '#cbd5e1' }}></div>
-                                            <span className="text-lg font-bold text-slate-800 select-none">{category.name}</span>
-                                            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{category.subcategories.length} subs</span>
+                                            <span className="text-lg font-bold text-slate-800 select-none tracking-normal">{category.name}</span>
+                                            <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full tracking-normal">{category.subcategories.length} subs</span>
                                         </div>
                                     </div>
                                     <ActionButtons 
@@ -446,7 +442,6 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                      />
                                 </div>
 
-                                {/* Subcategories Level */}
                                 {expandedItems[category.id] && (
                                     <div className="ml-10 mt-1 border-l-2 border-slate-100 pl-4 space-y-1 py-1">
                                         {category.subcategories.map(subcategory => (
@@ -468,9 +463,9 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                                             <DragHandleIcon />
                                                         </div>
                                                         <div className={`transition-transform duration-200 ${expandedItems[subcategory.id] ? 'rotate-0' : '-rotate-90'}`}>
-                                                            {subcategory.items.length > 0 ? <ChevronDownIcon className="w-3.5 h-3.5 text-slate-400" /> : <div className="w-3.5" />}
+                                                            {subcategory.items.length > 0 ? <ChevronDownIcon className="w-3.5 h-3.5 text-slate-500" /> : <div className="w-3.5" />}
                                                         </div>
-                                                        <span className="text-sm font-semibold text-slate-700 select-none">{subcategory.name}</span>
+                                                        <span className="text-sm font-normal text-slate-700 select-none tracking-normal">{subcategory.name}</span>
                                                     </div>
                                                     <ActionButtons 
                                                         onAdd={() => openModal('item', 'add', { parentId: subcategory.id, categoryId: category.id })}
@@ -479,7 +474,6 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                                     />
                                                 </div>
 
-                                                {/* Items Level */}
                                                 {expandedItems[subcategory.id] && (
                                                     <div className="ml-8 mt-1 border-l-2 border-slate-50 pl-4 space-y-1 pb-2">
                                                         {subcategory.items.map(item => (
@@ -497,9 +491,9 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                                                         <DragHandleIcon />
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="text-sm text-slate-600 select-none">{item.name}</span>
-                                                                        {item.isFixed && <span className="bg-orange-50 text-orange-600 text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase border border-orange-100">Fixo</span>}
-                                                                        {!item.includeInBalance && <span className="bg-slate-100 text-slate-500 text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase">Extra-Balanço</span>}
+                                                                        <span className="text-sm text-slate-600 select-none tracking-normal font-normal">{item.name}</span>
+                                                                        {item.isFixed && <span className="bg-orange-50 text-orange-600 text-[9px] px-1.5 py-0.5 rounded-full font-bold border border-orange-100 tracking-normal">Fixo</span>}
+                                                                        {!item.includeInBalance && <span className="bg-slate-100 text-slate-500 text-[9px] px-1.5 py-0.5 rounded-full font-bold tracking-normal">Extra-balanço</span>}
                                                                     </div>
                                                                 </div>
                                                                 <ActionButtons 
@@ -520,16 +514,15 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                 </div>
             </div>
 
-            {/* Undo Toast */}
             {undoBackup && (
                 <div className="fixed bottom-8 right-8 z-50 animate-in slide-in-from-right-10 duration-500">
                     <div className="bg-slate-800 text-white px-5 py-4 rounded-2xl shadow-2xl flex items-center gap-4">
                         <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></div>
-                        <span className="text-sm font-medium">Alteração realizada.</span>
+                        <span className="text-sm font-normal tracking-normal">Alteração realizada.</span>
                         <button 
                             type="button"
                             onClick={handleUndo}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl transition-all text-xs font-bold border border-slate-600"
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl transition-all text-xs font-bold border border-slate-600 tracking-normal"
                         >
                             <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
                             DESFAZER

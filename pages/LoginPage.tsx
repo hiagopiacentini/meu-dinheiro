@@ -8,7 +8,7 @@ interface LoginPageProps {
   onLogin: () => void;
 }
 
-// Robust stringify to avoid crashes from circular references
+// Robust stringify to avoid crashes from circular references and complex objects
 const safeStringify = (obj: any) => {
   const cache = new Set();
   try {
@@ -20,26 +20,24 @@ const safeStringify = (obj: any) => {
       if (cache.has(value)) {
         return '[Circular]';
       }
+      
       cache.add(value);
 
-      const ctorName = value.constructor?.name;
-      if (
-          value instanceof Node || 
-          value instanceof Window ||
-          value instanceof Event ||
-          ctorName === 'Y' || 
-          ctorName === 'Ka' ||
-          ctorName === 'e' || 
-          (value && 'nodeType' in value)
-      ) {
-          return undefined;
+      // Robust check to only serialize plain objects and arrays
+      // This prevents issues with Firebase internal objects (often minified as 'Y', 'Ka', etc.)
+      const proto = Object.getPrototypeOf(value);
+      const isPlainObject = proto === Object.prototype || proto === null;
+      const isArray = Array.isArray(value);
+
+      if (!isPlainObject && !isArray) {
+        return undefined; // Strips out internal library instances that cause circularity errors
       }
 
       return value;
     });
   } catch (error) {
     console.error("Error stringifying object in safeStringify:", error);
-    return "[]"; // Fallback to empty array/object representation
+    return "[]"; 
   } finally {
       cache.clear();
   }
@@ -57,26 +55,35 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const cleanupDemoData = () => {
     try {
       // 1. Clean Accounts (remove ids containing '-demo')
-      const storedAccounts = JSON.parse(localStorage.getItem('accounts') || '[]');
-      if (Array.isArray(storedAccounts)) {
-        const userAccounts = storedAccounts.filter((acc: any) => acc && acc.id && !acc.id.includes('-demo'));
-        localStorage.setItem('accounts', safeStringify(userAccounts));
+      const storedAccountsStr = localStorage.getItem('accounts');
+      if (storedAccountsStr) {
+          const storedAccounts = JSON.parse(storedAccountsStr);
+          if (Array.isArray(storedAccounts)) {
+            const userAccounts = storedAccounts.filter((acc: any) => acc && acc.id && typeof acc.id === 'string' && !acc.id.includes('-demo'));
+            localStorage.setItem('accounts', safeStringify(userAccounts));
+          }
       }
 
       // 2. Clean Transactions (remove ids starting with 't-demo')
-      const storedTransactions = JSON.parse(localStorage.getItem('transactions') || '[]');
-      if (Array.isArray(storedTransactions)) {
-        const userTransactions = storedTransactions.filter((t: any) => t && t.id && !String(t.id).startsWith('t-demo'));
-        localStorage.setItem('transactions', safeStringify(userTransactions));
+      const storedTransactionsStr = localStorage.getItem('transactions');
+      if (storedTransactionsStr) {
+          const storedTransactions = JSON.parse(storedTransactionsStr);
+          if (Array.isArray(storedTransactions)) {
+            const userTransactions = storedTransactions.filter((t: any) => t && t.id && !String(t.id).startsWith('t-demo'));
+            localStorage.setItem('transactions', safeStringify(userTransactions));
+          }
       }
 
       // 3. Clean Categories 
-      const storedCategories = JSON.parse(localStorage.getItem('categories') || '[]');
-      if (Array.isArray(storedCategories)) {
-        const userCategories = storedCategories.filter((c: any) => c && c.id && c.id.length > 10);
-        if (userCategories.length !== storedCategories.length) {
-             localStorage.setItem('categories', safeStringify(userCategories));
-        }
+      const storedCategoriesStr = localStorage.getItem('categories');
+      if (storedCategoriesStr) {
+          const storedCategories = JSON.parse(storedCategoriesStr);
+          if (Array.isArray(storedCategories)) {
+            const userCategories = storedCategories.filter((c: any) => c && c.id && c.id.length > 10);
+            if (userCategories.length !== storedCategories.length) {
+                 localStorage.setItem('categories', safeStringify(userCategories));
+            }
+          }
       }
 
     } catch (e) {

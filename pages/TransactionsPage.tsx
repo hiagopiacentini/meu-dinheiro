@@ -104,7 +104,7 @@ const FilterDropdown: React.FC<{
 
     return (
         <div className="relative h-full" ref={ref}>
-            <button onClick={() => setIsOpen(prev => !prev)} className="btn-secondary w-full flex justify-between items-center px-3 py-2 h-full text-left bg-white">
+            <button onClick={() => setIsOpen(prev => !prev)} className="btn-secondary w-full flex justify-between items-center px-3 py-2 h-full text-left bg-white font-medium">
                 <span className="truncate mr-2 text-sm">{selectedLabel}</span>
                 <ChevronDownIcon className="w-4 h-4 text-slate-400 flex-shrink-0" />
             </button>
@@ -401,10 +401,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         if (accountFilter !== 'Todos') {
             if (accountFilter.includes('|')) {
                 const [accId, cId] = accountFilter.split('|');
-                items = items.filter(t => {
-                    const matchesAccount = t.accountId === accId || t.destinationAccountId === accId;
-                    return matchesAccount && t.cardId === cId;
-                });
+                items = items.filter(t => t.cardId === cId);
             } else {
                 items = items.filter(t => {
                     const isSource = t.accountId === accountFilter;
@@ -412,12 +409,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     
                     if (!isSource && !isDest) return false;
                     
-                    // Ajuste: Quando filtrar por uma conta pai, mostra lançamentos de cartão também.
-                    // Apenas transferências de pagamento de fatura internas (Destino + cardId) são omitidas para não duplicar saldo visual.
-                    if (t.type === TransactionType.TRANSFER) {
-                        if (isSource) return true;
-                        if (isDest && t.cardId) return false;
-                    }
+                    // Ajuste solicitado: Qualquer transação ligada a um cartão (incluindo pagamentos)
+                    // deve aparecer apenas no filtro do cartão, e nunca na visão da conta pura.
+                    if (t.cardId) return false;
+                    
                     return true;
                 });
             }
@@ -825,7 +820,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                             value={typeFilter}
                             onChange={setTypeFilter}
                         />
-                        <button onClick={() => setInstallmentFilter(s => !s)} className={`btn-secondary w-full h-full flex justify-center items-center px-3 py-2 text-sm ${installmentFilter ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600'}`}>
+                        <button onClick={() => setInstallmentFilter(s => !s)} className={`btn-secondary w-full h-full flex justify-center items-center px-3 py-2 text-sm font-medium ${installmentFilter ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600'}`}>
                             Parceladas
                         </button>
                     </div>
@@ -836,15 +831,15 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-white p-4 rounded-xl border border-slate-200">
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                         <p className="text-sm text-slate-500 font-medium">Receitas no Período</p>
                         <p className="text-2xl font-bold text-green-600"><PrivateValue>{formatCurrency(periodIncome)}</PrivateValue></p>
                     </div>
-                    <div className="bg-white p-4 rounded-xl border border-slate-200">
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                         <p className="text-sm text-slate-500 font-medium">Despesas no Período</p>
                         <p className="text-2xl font-bold text-red-600"><PrivateValue>{formatCurrency(periodExpenses)}</PrivateValue></p>
                     </div>
-                    <div className="bg-white p-4 rounded-xl border border-slate-200">
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                         <p className="text-sm text-slate-500 font-medium">Saldo</p>
                         <p className={`text-2xl font-bold ${periodIncome - periodExpenses >= 0 ? 'text-slate-800' : 'text-red-600'}`}>
                             <PrivateValue>{formatCurrency(periodIncome - periodExpenses)}</PrivateValue>
@@ -887,8 +882,11 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                                 
                                                 if (isCardView) {
                                                     const viewingCardId = accountFilter.split('|')[1];
+                                                    // Na visão do cartão, o pagamento de fatura é uma "entrada" de crédito.
                                                     if (t.cardId === viewingCardId && t.destinationAccountId === viewingId) {
                                                         displayProps = { color: 'text-green-600', sign: '+ ' };
+                                                    } else {
+                                                        displayProps = { color: 'text-red-600', sign: '- ' };
                                                     }
                                                 } else {
                                                     if (t.accountId === viewingId) displayProps = { color: 'text-red-600', sign: '- ' };

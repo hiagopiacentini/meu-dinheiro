@@ -31,11 +31,11 @@ const Sidebar: React.FC<SidebarProps> = ({ menuItems, activeItem, setActiveItem,
 
       <aside className={`fixed inset-y-0 left-0 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col w-64 transform transition-transform duration-300 ease-in-out z-40 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
         <div className="relative flex flex-col items-center justify-center px-6 py-8">
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
+          <h1 className="text-3xl font-bold text-slate-900 tracking-normal">
             Sobra+
           </h1>
           {displayName && (
-            <p className="text-sm font-medium text-slate-500 mt-1">
+            <p className="text-sm font-normal text-slate-500 mt-1 tracking-normal">
               {displayName}
             </p>
           )}
@@ -44,7 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({ menuItems, activeItem, setActiveItem,
           </button>
         </div>
         <nav className="mt-2 flex-1 px-4">
-          <ul className="space-y-2">
+          <ul className="space-y-1">
             {menuItems.map(item => (
               <li key={item.name}>
                 <a
@@ -54,13 +54,13 @@ const Sidebar: React.FC<SidebarProps> = ({ menuItems, activeItem, setActiveItem,
                     setActiveItem(item.name);
                     setIsOpen(false);
                   }}
-                  className={`flex items-center px-4 py-2.5 rounded-lg transition-colors duration-200 text-sm font-medium ${
+                  className={`flex items-center px-4 py-2.5 rounded-lg transition-all duration-200 text-sm tracking-normal ${
                     activeItem === item.name
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-600 hover:bg-gray-100 hover:text-slate-900'
+                      ? 'bg-blue-600 text-white font-bold shadow-sm'
+                      : 'text-slate-600 font-normal hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
-                  <item.icon className="w-5 h-5 mr-3" />
+                  <item.icon className={`w-5 h-5 mr-3 ${activeItem === item.name ? 'opacity-100' : 'text-slate-500'}`} />
                   <span>{item.name}</span>
                 </a>
               </li>

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useTransactions, useCategories, useAccounts, useGoals, useManualSavings } from '../hooks/useFirestore';
+import { useTransactions, useCategories, useAccounts, useGoals, useManualSavings, useCDBs } from '../hooks/useFirestore';
 import { TransactionType, Transaction } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import CategoryChart from '../components/CategoryChart';
@@ -16,10 +16,8 @@ const formatDate = (dateString: string) => {
     return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()).toLocaleDateString('pt-BR');
 };
 
-// Helper to get the current date in GMT-4
 const getNowGmtMinus4 = () => {
     const now = new Date();
-    // Offset in milliseconds for GMT-4
     const offset = -4 * 60 * 60 * 1000;
     const localOffset = now.getTimezoneOffset() * 60 * 1000;
     return new Date(now.getTime() + localOffset + offset);
@@ -32,15 +30,15 @@ const getUTCDate = (dateString: string) => {
 
 const StatCard: React.FC<{title: string, amount: number, percentage?: number, isPositive?: boolean, info?: string}> = ({title, amount, percentage, isPositive, info}) => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h3 className="text-slate-500 mb-2 flex justify-between">
+        <h3 className="text-slate-500 mb-2 flex justify-between text-sm font-normal tracking-normal">
             {title}
-            {info && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{info}</span>}
+            {info && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-normal">{info}</span>}
         </h3>
-        <p className="text-3xl font-bold text-slate-800 mb-2">
+        <p className="text-3xl font-bold text-slate-800 mb-2 tracking-normal">
             <PrivateValue>{formatCurrency(amount)}</PrivateValue>
         </p>
         {percentage !== undefined && isPositive !== undefined && (
-            <div className="flex items-center text-sm">
+            <div className="flex items-center text-sm font-normal tracking-normal">
                 {isPositive ? <UpArrowIcon className="w-4 h-4 text-green-500 mr-1" /> : <DownArrowIcon className="w-4 h-4 text-red-500 mr-1" />}
                 <span className="text-green-500">{percentage.toFixed(1)}%</span>
             </div>
@@ -53,13 +51,13 @@ const SavingsGoalCard: React.FC<{title: string, goal: number, current: number, l
     return (
         <div>
           <div className="flex justify-between items-baseline mb-1">
-            <h4 className="font-medium text-slate-700">{label}</h4>
-            <span className="text-sm font-semibold text-blue-600">{percentage.toFixed(0)}%</span>
+            <h4 className="font-normal text-slate-700 text-sm tracking-normal">{label}</h4>
+            <span className="text-sm font-bold text-blue-600 tracking-normal">{percentage.toFixed(0)}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-slate-200 rounded-full h-2">
             <div className={`${color} h-2 rounded-full`} style={{ width: `${percentage}%` }}></div>
           </div>
-          <div className="flex justify-between text-sm text-slate-500 mt-1">
+          <div className="flex justify-between text-xs text-slate-500 mt-1 font-normal tracking-normal">
             <span>Atingido: <PrivateValue>{formatCurrency(current)}</PrivateValue></span>
             <span>Meta: <PrivateValue>{formatCurrency(goal)}</PrivateValue></span>
           </div>
@@ -70,17 +68,17 @@ const SavingsGoalCard: React.FC<{title: string, goal: number, current: number, l
 const RecentActivityItem: React.FC<{color?: string, description: string, category: string, amount: string, time: string}> = ({color, description, category, amount, time}) => (
   <div className="flex items-center justify-between py-3">
     <div className="flex items-center">
-      <div className="w-10 h-10 rounded-lg mr-3" style={{ backgroundColor: color || '#e2e8f0' }}></div>
+      <div className="w-10 h-10 rounded-lg mr-3" style={{ backgroundColor: color || '#cbd5e1' }}></div>
       <div>
-        <p className="font-semibold text-slate-800">{description}</p>
-        <p className="text-sm text-slate-500">{category}</p>
+        <p className="font-bold text-slate-800 text-sm tracking-normal">{description}</p>
+        <p className="text-xs text-slate-500 font-normal tracking-normal">{category}</p>
       </div>
     </div>
     <div className="text-right">
-      <p className={`font-bold ${amount.startsWith('-') ? 'text-red-500' : 'text-green-500'}`}>
+      <p className={`text-sm font-bold tracking-normal ${amount.startsWith('-') ? 'text-red-500' : 'text-green-500'}`}>
         <PrivateValue>{amount}</PrivateValue>
       </p>
-      <p className="text-sm text-slate-400">{time}</p>
+      <p className="text-[10px] text-slate-500 font-normal tracking-normal">{time}</p>
     </div>
   </div>
 );
@@ -88,10 +86,10 @@ const RecentActivityItem: React.FC<{color?: string, description: string, categor
 const MyAccountItem: React.FC<{ name: string, type: string, balance: number}> = ({name, type, balance}) => (
     <div className="flex items-center justify-between py-2">
         <div>
-            <p className="font-semibold text-slate-800">{name}</p>
-            <p className="text-sm text-slate-500">{type}</p>
+            <p className="font-bold text-slate-800 text-sm tracking-normal">{name}</p>
+            <p className="text-xs text-slate-500 font-normal tracking-normal">{type}</p>
         </div>
-        <p className={`font-bold ${balance < 0 ? 'text-red-500': 'text-slate-800'}`}>
+        <p className={`font-bold text-sm tracking-normal ${balance < 0 ? 'text-red-500': 'text-slate-800'}`}>
             <PrivateValue>{formatCurrency(balance)}</PrivateValue>
         </p>
     </div>
@@ -100,13 +98,13 @@ const MyAccountItem: React.FC<{ name: string, type: string, balance: number}> = 
 const TopListItem: React.FC<{ index: number, description: string, percentage: string, amount: number}> = ({index, description, percentage, amount}) => (
     <div className="flex items-center justify-between text-sm py-2">
       <div className="flex items-center">
-        <span className="text-slate-500 mr-3">{index}.</span>
+        <span className="text-slate-500 mr-3 font-normal">{index}.</span>
         <div>
-            <p className="font-semibold text-slate-800">{description}</p>
-            <p className="text-xs text-slate-400">{percentage}</p>
+            <p className="font-bold text-slate-800 tracking-normal">{description}</p>
+            <p className="text-[10px] text-slate-500 font-normal tracking-normal">{percentage}</p>
         </div>
       </div>
-      <p className="font-bold text-slate-800"><PrivateValue>{formatCurrency(amount)}</PrivateValue></p>
+      <p className="font-bold text-slate-800 tracking-normal"><PrivateValue>{formatCurrency(amount)}</PrivateValue></p>
     </div>
 );
 
@@ -116,9 +114,10 @@ const DashboardPage: React.FC = () => {
   const { accounts } = useAccounts();
   const { goals } = useGoals();
   const { manualSavings } = useManualSavings();
+  const { cdbs } = useCDBs();
   const { isPrivacyMode } = usePrivacy();
 
-  const [activeFilter, setActiveFilter] = useState('Mês Atual');
+  const [activeFilter, setActiveFilter] = useState('Mês atual');
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   
   const today = getNowGmtMinus4();
@@ -127,7 +126,17 @@ const DashboardPage: React.FC = () => {
       end: new Date(Date.UTC(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999)) 
   });
 
-  // ... (keeping existing hooks logic exactly as is)
+  const yieldCategoryId = useMemo(() => {
+        for (const cat of categories.filter(c => c.type === TransactionType.INCOME)) {
+            for (const sub of cat.subcategories) {
+                for (const item of sub.items) {
+                    if (item.name.toLowerCase().includes('rendimento')) return item.id;
+                }
+            }
+        }
+        return 'YIELD_CAT_FALLBACK';
+  }, [categories]);
+
   const itemInfoMap = useMemo(() => {
     const map = new Map<string, { itemName: string, includeInBalance: boolean }>();
     categories.forEach(cat => {
@@ -148,10 +157,10 @@ const DashboardPage: React.FC = () => {
     let startUTC: Date;
     let endUTC: Date;
 
-    if (activeFilter === 'Mês Atual') {
+    if (activeFilter === 'Mês atual') {
       startUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
       endUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
-    } else if (activeFilter === 'Este Ano') {
+    } else if (activeFilter === 'Este ano') {
       startUTC = new Date(Date.UTC(now.getFullYear(), 0, 1));
       endUTC = new Date(Date.UTC(now.getFullYear(), 11, 31, 23, 59, 59, 999));
     } else {
@@ -217,21 +226,32 @@ const DashboardPage: React.FC = () => {
       filtered.forEach(t => {
         const itemInfo = itemInfoMap.get(t.itemId || '');
         const shouldInclude = !t.itemId || (itemInfo ? itemInfo.includeInBalance : true);
-        
+        const isRedemptionProfit = t.type === TransactionType.INCOME && t.itemId === yieldCategoryId;
+
         if (shouldInclude) {
-            if (t.type === TransactionType.INCOME) income += t.amount;
+            if (t.type === TransactionType.INCOME && !isRedemptionProfit) income += t.amount;
             else if (t.type === TransactionType.EXPENSE) expense += t.amount;
         }
       });
+
+      let investmentProfitInPeriod = 0;
+      cdbs.forEach(cdb => {
+          (cdb.yieldHistory || []).forEach(y => {
+             const yDate = getUTCDate(y.date);
+             if (yDate >= start && yDate <= end) investmentProfitInPeriod += y.amount;
+          });
+      });
+
+      const totalIncomeIncludingInvestments = income + investmentProfitInPeriod;
       
       return {
           filteredTransactions: filtered,
-          periodIncome: income,
+          periodIncome: totalIncomeIncludingInvestments,
           periodExpenses: expense,
-          periodSavings: (income - expense) + manualSavingsInPeriod,
+          periodSavings: (totalIncomeIncludingInvestments - expense) + manualSavingsInPeriod,
       };
   
-  }, [transactions, dateRange, itemInfoMap, manualSavingsInPeriod]);
+  }, [transactions, cdbs, dateRange, itemInfoMap, manualSavingsInPeriod, yieldCategoryId]);
 
   const { goalUntilNow, showGoalUntilNow } = useMemo(() => {
     const now = getNowGmtMinus4();
@@ -239,7 +259,7 @@ const DashboardPage: React.FC = () => {
     const currentMonth = now.getMonth();
     
     let isWithinCurrentMonth = false;
-    if (activeFilter === 'Mês Atual') {
+    if (activeFilter === 'Mês atual') {
         isWithinCurrentMonth = true;
     } else if (activeFilter === 'Personalizado' && dateRange.start && dateRange.end) {
         const start = dateRange.start;
@@ -286,7 +306,7 @@ const DashboardPage: React.FC = () => {
 
   const { periodSpecificGoal, periodSpecificLabel } = useMemo(() => {
     if (!dateRange.start || !dateRange.end) {
-        return { periodSpecificGoal: 0, periodSpecificLabel: 'Meta Mensal' };
+        return { periodSpecificGoal: 0, periodSpecificLabel: 'Meta mensal' };
     }
 
     const start = dateRange.start;
@@ -300,7 +320,7 @@ const DashboardPage: React.FC = () => {
         const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
         return {
             periodSpecificGoal: goalValue / 12,
-            periodSpecificLabel: `Meta Mensal (${monthName})`
+            periodSpecificLabel: `Meta mensal (${monthName})`
         };
     }
 
@@ -352,7 +372,7 @@ const DashboardPage: React.FC = () => {
 
     return {
         periodSpecificGoal: calculatePeriodGoal(),
-        periodSpecificLabel: 'Meta do Período'
+        periodSpecificLabel: 'Meta do período'
     };
 
 }, [dateRange, goals]);
@@ -369,13 +389,23 @@ const DashboardPage: React.FC = () => {
     }).reduce((acc, t) => {
         const itemInfo = itemInfoMap.get(t.itemId || '');
         const shouldInclude = !t.itemId || (itemInfo ? itemInfo.includeInBalance : true);
+        const isRedemptionProfit = t.type === TransactionType.INCOME && t.itemId === yieldCategoryId;
+
         if(shouldInclude){
-            if (t.type === TransactionType.INCOME) return acc + t.amount;
+            if (t.type === TransactionType.INCOME && !isRedemptionProfit) return acc + t.amount;
             if (t.type === TransactionType.EXPENSE) return acc - t.amount;
         }
         return acc;
     }, 0);
     
+    let investmentProfitInYear = 0;
+    cdbs.forEach(cdb => {
+        (cdb.yieldHistory || []).forEach(y => {
+            const yDate = getUTCDate(y.date);
+            if (yDate >= startOfYear && yDate <= endOfPeriod) investmentProfitInYear += y.amount;
+        });
+    });
+
     let manualSavingsTotal = 0;
     if (manualSavings && manualSavings[String(year)]) {
         const yearData = manualSavings[String(year)];
@@ -384,11 +414,11 @@ const DashboardPage: React.FC = () => {
         }
     }
     
-    return { annualSavingsToDate: transactionSavings + manualSavingsTotal };
-  }, [transactions, dateRange.start, itemInfoMap, manualSavings]);
+    return { annualSavingsToDate: transactionSavings + investmentProfitInYear + manualSavingsTotal };
+  }, [transactions, cdbs, dateRange.start, itemInfoMap, manualSavings, yieldCategoryId]);
   
   const { annualPeriodGoal, annualPeriodLabel } = useMemo(() => {
-    if (!dateRange.start || !dateRange.end) return { annualPeriodGoal: 0, annualPeriodLabel: 'Meta do Período' };
+    if (!dateRange.start || !dateRange.end) return { annualPeriodGoal: 0, annualPeriodLabel: 'Meta do período' };
     
     const startYear = dateRange.start.getUTCFullYear();
     const endYear = dateRange.end.getUTCFullYear();
@@ -396,7 +426,7 @@ const DashboardPage: React.FC = () => {
     if (startYear === endYear) {
       return { 
         annualPeriodGoal: goals[String(startYear)] || 0,
-        annualPeriodLabel: `Meta Anual ${startYear}`
+        annualPeriodLabel: `Meta anual ${startYear}`
       };
     } else {
       let totalGoal = 0;
@@ -414,16 +444,14 @@ const DashboardPage: React.FC = () => {
         
       return {
         annualPeriodGoal: totalGoal,
-        annualPeriodLabel: 'Meta do Período'
+        annualPeriodLabel: 'Meta do período'
       };
     }
   }, [dateRange, goals]);
   
   const monthlyChartData = useMemo(() => {
       const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-      
       const dataMap = new Map<string, { Receitas: number, Despesas: number, monthIndex: number }>();
-
       const yearForAxis = dateRange.start?.getUTCFullYear() || getNowGmtMinus4().getFullYear();
 
       monthNames.forEach((name, index) => {
@@ -435,24 +463,38 @@ const DashboardPage: React.FC = () => {
           const shouldInclude = !t.itemId || (itemInfo ? itemInfo.includeInBalance : true);
           if (!shouldInclude) return;
 
+          const isRedemptionProfit = t.type === TransactionType.INCOME && t.itemId === yieldCategoryId;
+          if (isRedemptionProfit) return;
+
           const tDate = getUTCDate(t.date);
           const monthIndex = tDate.getUTCMonth();
           const year = tDate.getUTCFullYear();
           const key = `${monthNames[monthIndex]}/${year}`;
           
-          if (!dataMap.has(key)) {
-              dataMap.set(key, { Receitas: 0, Despesas: 0, monthIndex });
-          }
+          if (!dataMap.has(key)) dataMap.set(key, { Receitas: 0, Despesas: 0, monthIndex });
           const entry = dataMap.get(key)!;
           if (t.type === TransactionType.INCOME) entry.Receitas += t.amount;
           else if (t.type === TransactionType.EXPENSE) entry.Despesas += t.amount;
+      });
+
+      cdbs.forEach(cdb => {
+          (cdb.yieldHistory || []).forEach(y => {
+             const yDate = getUTCDate(y.date);
+             const monthIndex = yDate.getUTCMonth();
+             const year = yDate.getUTCFullYear();
+             const key = `${monthNames[monthIndex]}/${year}`;
+             if (dataMap.has(key)) {
+                const entry = dataMap.get(key)!;
+                entry.Receitas += y.amount;
+             }
+          });
       });
 
       return Array.from(dataMap.entries())
           .map(([name, values]) => ({ name, ...values }))
           .sort((a, b) => a.monthIndex - b.monthIndex) 
           .filter(d => (dateRange.end?.getUTCFullYear() || 0) > (dateRange.start?.getUTCFullYear() || 1) || d.Receitas > 0 || d.Despesas > 0); 
-  }, [filteredTransactions, dateRange, itemInfoMap]);
+  }, [filteredTransactions, cdbs, dateRange, itemInfoMap, yieldCategoryId]);
 
 
   const accountBalances = useMemo(() => {
@@ -585,8 +627,8 @@ const DashboardPage: React.FC = () => {
   return (
     <div className="space-y-6 relative">
       <div className="flex space-x-2">
-        {['Mês Atual', 'Este Ano', 'Personalizado'].map(f => (
-            <button key={f} onClick={() => handleFilterClick(f)} className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${activeFilter === f ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-gray-100 border border-slate-200'}`}>
+        {['Mês atual', 'Este ano', 'Personalizado'].map(f => (
+            <button key={f} onClick={() => handleFilterClick(f)} className={`px-4 py-2 rounded-full text-sm font-normal transition-all tracking-normal ${activeFilter === f ? 'bg-blue-600 text-white font-bold' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}>
                 {f}
             </button>
         ))}
@@ -610,14 +652,14 @@ const DashboardPage: React.FC = () => {
       />
 
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h3 className="font-bold text-lg mb-4 text-slate-800">Metas de Economia</h3>
+        <h3 className="font-bold text-lg mb-4 text-slate-800 tracking-normal">Metas de economia</h3>
         <div className="space-y-4">
           {showGoalUntilNow && (
             <SavingsGoalCard 
-              title="Meta até o Momento" 
+              title="Meta até o momento" 
               goal={goalUntilNow} 
               current={periodSavings} 
-              label="Meta até o Momento" 
+              label="Meta até o momento" 
               color="bg-purple-500" 
             />
           )}
@@ -629,7 +671,7 @@ const DashboardPage: React.FC = () => {
             color="bg-blue-500" 
           />
           <SavingsGoalCard 
-            title="Meta Anual" 
+            title="Meta anual" 
             goal={annualPeriodGoal} 
             current={annualSavingsToDate} 
             label={annualPeriodLabel} 
@@ -640,18 +682,18 @@ const DashboardPage: React.FC = () => {
 
        <div className={`grid grid-cols-1 lg:grid-cols-5 gap-6 ${isPrivacyMode ? 'filter blur-sm select-none' : ''}`}>
           <div className="lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-              <h3 className="font-bold text-lg mb-4 text-slate-800">Receitas vs. Despesas</h3>
+              <h3 className="font-bold text-lg mb-4 text-slate-800 tracking-normal">Receitas vs. despesas</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={monthlyChartData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="#64748b"/>
-                  <YAxis fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" tickFormatter={(value) => `R$${(value as number)/1000}k`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" fontWeight="400"/>
+                  <YAxis fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" fontWeight="400" tickFormatter={(value) => `R$${(value as number)/1000}k`} />
                   <Tooltip 
                     cursor={{fill: 'rgba(241, 245, 249, 0.5)'}}
                     formatter={(value) => formatCurrency(value as number)} 
                     contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }} 
                     labelStyle={{ color: '#1e293b' }}/>
-                  <Legend wrapperStyle={{fontSize: "14px", color: '#475569'}}/>
+                  <Legend wrapperStyle={{fontSize: "13px", color: '#64748b', fontWeight: 'normal'}}/>
                   <Bar dataKey="Receitas" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={10} />
                   <Bar dataKey="Despesas" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={10} />
                 </BarChart>
@@ -664,29 +706,29 @@ const DashboardPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-             <h3 className="font-bold text-lg mb-2 text-slate-800">Atividade Recente</h3>
-             <div className="divide-y divide-slate-200">
+             <h3 className="font-bold text-lg mb-2 text-slate-800 tracking-normal">Atividade recente</h3>
+             <div className="divide-y divide-slate-100">
                  {recentTransactionsForDashboard.length > 0 ? (
                     recentTransactionsForDashboard.map(({ transaction: t, category }) => (
                         <RecentActivityItem 
                             key={t.id}
                             color={category?.color}
                             description={t.description}
-                            category={category?.name || 'Sem Categoria'}
+                            category={category?.name || 'Sem categoria'}
                             amount={`${t.type === TransactionType.EXPENSE ? '-' : '+'} ${formatCurrency(t.amount)}`}
                             time={formatDate(t.date)}
                         />
                     ))
                 ) : (
-                     <p className="text-center text-slate-500 py-4">Nenhuma atividade recente.</p>
+                     <p className="text-center text-slate-500 py-4 font-normal text-sm">Nenhuma atividade recente.</p>
                 )}
              </div>
           </div>
            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-             <h3 className="font-bold text-lg mb-2 text-slate-800">Minhas Contas</h3>
-              <div className="divide-y divide-slate-200">
+             <h3 className="font-bold text-lg mb-2 text-slate-800 tracking-normal">Minhas contas</h3>
+              <div className="divide-y divide-slate-100">
                   {accounts.slice(0,3).map(acc => (
-                      <MyAccountItem key={acc.id} name={acc.name} type={acc.bank || 'Conta Corrente'} balance={accountBalances.get(acc.id) || 0} />
+                      <MyAccountItem key={acc.id} name={acc.name} type={acc.bank || 'Conta corrente'} balance={accountBalances.get(acc.id) || 0} />
                   ))}
               </div>
           </div>
@@ -694,15 +736,15 @@ const DashboardPage: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-               <h3 className="font-bold text-lg mb-2 text-slate-800">Top Despesas (Por Item)</h3>
-               <div className="divide-y divide-slate-200">
-                   {topExpenses.length > 0 ? topExpenses.map((item, index) => <TopListItem key={index} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4">Nenhuma despesa no período.</p>}
+               <h3 className="font-bold text-lg mb-2 text-slate-800 tracking-normal">Top despesas (por item)</h3>
+               <div className="divide-y divide-slate-100">
+                   {topExpenses.length > 0 ? topExpenses.map((item, index) => <TopListItem key={index} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4 font-normal text-sm">Nenhuma despesa no período.</p>}
                </div>
            </div>
            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="font-bold text-lg mb-2 text-slate-800">Top Receitas (Por Item)</h3>
-                <div className="divide-y divide-slate-200">
-                   {topIncomes.length > 0 ? topIncomes.map((item, index) => <TopListItem key={index} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4">Nenhuma receita no período.</p>}
+                <h3 className="font-bold text-lg mb-2 text-slate-800 tracking-normal">Top receitas (por item)</h3>
+                <div className="divide-y divide-slate-100">
+                   {topIncomes.length > 0 ? topIncomes.map((item, index) => <TopListItem key={index} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4 font-normal text-sm">Nenhuma receita no período.</p>}
                </div>
            </div>
       </div>

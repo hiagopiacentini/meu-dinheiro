@@ -40,7 +40,6 @@ const InvoiceHistoryModal: React.FC<{
 
     const accountMap = new Map(accounts.map(acc => [acc.id, acc.name]));
 
-    // Filter transactions that are payments TO this card
     const history = transactions.filter(t => 
         t.type === TransactionType.TRANSFER &&
         t.destinationAccountId === accountId && 
@@ -63,7 +62,7 @@ const InvoiceHistoryModal: React.FC<{
                         <p className="text-center text-slate-500 py-8">Nenhum pagamento de fatura encontrado.</p>
                     ) : (
                         <table className="w-full text-sm">
-                            <thead className="bg-gray-50 text-slate-500 sticky top-0">
+                            <thead className="bg-gray-50 text-slate-500 uppercase text-xs sticky top-0">
                                 <tr>
                                     <th className="px-3 py-2 text-left">Data</th>
                                     <th className="px-3 py-2 text-left">Origem</th>
@@ -94,7 +93,6 @@ const InvoiceHistoryModal: React.FC<{
     );
 };
 
-// Filter Types for the dropdown
 type FilterType = 'overview' | 'card' | 'investments';
 
 const CardFilterDropdown: React.FC<{
@@ -203,7 +201,6 @@ const AccountModal: React.FC<{
     const [isActive, setIsActive] = useState(true);
     const [isCreditCard, setIsCreditCard] = useState(false);
     
-    // Cards State
     const [cards, setCards] = useState<{id: string, name: string, initialBalance?: number}[]>([]);
     const [newCardName, setNewCardName] = useState('');
 
@@ -311,7 +308,6 @@ const AccountModal: React.FC<{
                 </div>
             </div>
 
-            {/* Manage Cards Section */}
             <div className="pt-4 border-t border-slate-100">
                 <label className="block text-sm font-medium text-slate-700 mb-2">Cartões Vinculados</label>
                 <div className="flex gap-2 mb-2">
@@ -386,12 +382,10 @@ const PayInvoiceModal: React.FC<{
     onPay: (sourceAccountId: string, amount: number, date: string, itemId: string) => Promise<void>;
 }> = ({ isOpen, onClose, targetAccount, targetCardId, accounts, categories, currentBalance, onPay }) => {
     const [sourceAccountId, setSourceAccountId] = useState('');
-    // Suggest paying the full negative balance if it is negative
     const [amount, setAmount] = useState(currentBalance < 0 ? String(Math.abs(currentBalance)) : '');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [itemId, setItemId] = useState('');
 
-    // Update amount if targetAccount changes and has negative balance
     useEffect(() => {
         if (isOpen) {
             setAmount(currentBalance < 0 ? String(Math.abs(currentBalance).toFixed(2)) : '');
@@ -421,7 +415,6 @@ const PayInvoiceModal: React.FC<{
         await onPay(sourceAccountId, parseFloat(amount), date, itemId);
     };
 
-    // Permitir pagar com a própria conta (ex: pagar NuCard com NuConta)
     const activeSourceAccounts = accounts.filter(a => a.isActive);
     const cardName = targetCardId ? targetAccount.cards?.find(c => c.id === targetCardId)?.name : null;
     const titleContext = cardName ? ` - ${cardName}` : '';
@@ -437,7 +430,6 @@ const PayInvoiceModal: React.FC<{
                 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        {/* Auto-select own account helper */}
                         {activeSourceAccounts.some(a => a.id === targetAccount.id) && (
                             <div 
                                 onClick={() => setSourceAccountId(targetAccount.id)}
@@ -547,11 +539,17 @@ const categoryColors: { [key: string]: string } = {
 };
 const defaultCategoryColor = 'bg-slate-100 text-slate-800';
 
-const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigger }) => {
+interface AccountsPageProps {
+    addAccountTrigger: number;
+    initialParams?: { accountId: string, filterType: 'overview' | 'card' | 'investments' } | null;
+    onParamsProcessed?: () => void;
+}
+
+const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialParams, onParamsProcessed }) => {
     const { accounts, addAccount, updateAccount, deleteAccount, reorderAccounts } = useAccounts();
     const { transactions, addTransactions } = useTransactions();
     const { categories } = useCategories();
-    const { cdbs } = useCDBs(); // Hook for CDBs to check for linked investments
+    const { cdbs } = useCDBs();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isPayModalOpen, setIsPayModalOpen] = useState(false);
@@ -559,7 +557,6 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
     const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
     
-    // Selection state for current view
     const [filterType, setFilterType] = useState<FilterType>('overview');
     const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
     
@@ -569,10 +566,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     const [dragOverItemIndex, setDragOverItemIndex] = useState<number | null>(null);
 
     const [currentPage, setCurrentPage] = useState(1);
-    const [showInstallments, setShowInstallments] = useState(false);
-    const itemsPerPage = 5;
-    
-    const addAccountTriggerRef = useRef(addAccountTrigger);
+    const itemsPerPage = 10;
     
     const categoryMap = useMemo(() => {
         const map = new Map<string, string>();
@@ -580,21 +574,28 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
         return map;
     }, [categories]);
 
-    // Find Yield category item IDs
+    // Identificação dos IDs dos itens categorizados como "Rendimentos" para exclusão matemática do caixa
     const yieldItemIds = useMemo(() => {
-        const ids = new Set<string>();
+        const ids: string[] = [];
         categories.forEach(cat => cat.subcategories.forEach(sub => sub.items.forEach(item => {
-            if (item.name.toLowerCase().includes('rendimento')) ids.add(item.id);
+            // Correspondência exata para garantir que não exclua "Rendimentos Diários" por engano
+            if (item.name.trim().toLowerCase() === 'rendimentos') ids.push(item.id);
         })));
         return ids;
     }, [categories]);
 
     useEffect(() => {
-        // Fix: Use addAccountTrigger instead of undefined addTransactionTrigger
+        if (initialParams) {
+            setSelectedAccountId(initialParams.accountId);
+            setFilterType(initialParams.filterType);
+            if (onParamsProcessed) onParamsProcessed();
+        }
+    }, [initialParams, onParamsProcessed]);
+
+    useEffect(() => {
         if (addAccountTrigger > 0) {
             handleOpenModal();
         }
-        addAccountTriggerRef.current = addAccountTrigger;
     }, [addAccountTrigger]);
     
     useEffect(() => {
@@ -604,63 +605,53 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     }, [accounts, selectedAccountId]);
     
     useEffect(() => {
-        setFilterType('overview');
-        setSelectedCardId(null);
-        setCurrentPage(1);
-        setShowInstallments(false);
-        setSearchTerm('');
-    }, [selectedAccountId]);
+        if (!initialParams) {
+            setFilterType('overview');
+            setSelectedCardId(null);
+            setCurrentPage(1);
+            setSearchTerm('');
+        }
+    }, [selectedAccountId, initialParams]);
 
 
-    const { accountBalances, cardBalances } = useMemo(() => {
-        const accBalances = new Map<string, number>();
+    const { accountCashBalances, cardBalances } = useMemo(() => {
+        const accCashBalances = new Map<string, number>();
         const crdBalances = new Map<string, number>();
 
-        // Init Balances
         accounts.forEach(acc => {
-            accBalances.set(acc.id, acc.initialBalance);
-            acc.cards?.forEach(c => crdBalances.set(c.id, c.initialBalance || 0));
+            accCashBalances.set(acc.id, Number(acc.initialBalance) || 0);
+            acc.cards?.forEach(c => crdBalances.set(c.id, Number(c.initialBalance) || 0));
         });
 
         transactions.forEach(t => {
-            const updateAcc = (id: string, val: number) => {
-                accBalances.set(id, (accBalances.get(id) || 0) + val);
-            };
-            const updateCard = (id: string, val: number) => {
-                crdBalances.set(id, (crdBalances.get(id) || 0) + val);
-            };
+            // REGRA DE OURO: Se a transação for do item "Rendimentos", ela NÃO ENTRA no cálculo do saldo bancário de caixa.
+            // Isso fará com que o saldo do Recarga Pay reflita os 20,83.
+            if (t.itemId && yieldItemIds.includes(t.itemId)) return;
+
+            const updateAcc = (id: string, val: number) => accCashBalances.set(id, (accCashBalances.get(id) || 0) + val);
+            const updateCard = (id: string, val: number) => crdBalances.set(id, (crdBalances.get(id) || 0) + val);
 
             if (t.cardId) {
                 if (t.type === TransactionType.EXPENSE) {
-                    updateCard(t.cardId, -t.amount); 
+                    updateCard(t.cardId, -t.amount);
                 } else if (t.type === TransactionType.INCOME) {
-                    updateCard(t.cardId, t.amount); 
-                } else if (t.type === TransactionType.TRANSFER) {
-                    if (t.destinationAccountId && t.cardId) {
-                        updateCard(t.cardId, t.amount);
-                    }
-                }
-            } 
-            else {
-                if (t.type === TransactionType.INCOME) {
-                    updateAcc(t.accountId, t.amount);
-                } else if (t.type === TransactionType.EXPENSE) {
+                    updateCard(t.cardId, t.amount);
+                } else if (t.type === TransactionType.TRANSFER && t.destinationAccountId) {
+                    updateCard(t.cardId, t.amount);
                     updateAcc(t.accountId, -t.amount);
                 }
-            }
-
-            if (t.type === TransactionType.TRANSFER) {
-                updateAcc(t.accountId, -t.amount);
-                if (t.destinationAccountId) {
-                    if (!t.cardId) {
-                        updateAcc(t.destinationAccountId, t.amount);
-                    }
+            } else {
+                if (t.type === TransactionType.INCOME) updateAcc(t.accountId, t.amount);
+                else if (t.type === TransactionType.EXPENSE) updateAcc(t.accountId, -t.amount);
+                else if (t.type === TransactionType.TRANSFER) {
+                    updateAcc(t.accountId, -t.amount);
+                    if (t.destinationAccountId) updateAcc(t.destinationAccountId, t.amount);
                 }
             }
         });
 
-        return { accountBalances: accBalances, cardBalances: crdBalances };
-    }, [accounts, transactions]);
+        return { accountCashBalances: accCashBalances, cardBalances: crdBalances };
+    }, [accounts, transactions, yieldItemIds]);
 
     const currentViewBalance = useMemo(() => {
         if (!selectedAccountId) return 0;
@@ -669,24 +660,24 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
             return cardBalances.get(selectedCardId) || 0;
         }
 
-        // Overview or Investments (which reflects in the main balance)
-        return accountBalances.get(selectedAccountId) || 0;
-    }, [accountBalances, cardBalances, selectedAccountId, selectedCardId, filterType]);
+        if (filterType === 'investments') {
+            return cdbs
+                .filter(c => c.linkedAccountId === selectedAccountId && c.isActive)
+                .reduce((sum, c) => sum + c.currentGrossBalance, 0);
+        }
+
+        // Visão Geral agora mostra o saldo EXCLUINDO os "Rendimentos" (CDBs), apenas movimentação líquida.
+        return accountCashBalances.get(selectedAccountId) || 0;
+    }, [accountCashBalances, cdbs, cardBalances, selectedAccountId, selectedCardId, filterType]);
 
     const selectedAccount = useMemo(() => {
         return accounts.find(acc => acc.id === selectedAccountId) || null;
     }, [accounts, selectedAccountId]);
     
-    // Check if current account has any investments linked
     const hasLinkedInvestments = useMemo(() => {
         if (!selectedAccountId) return false;
         return cdbs.some(c => c.linkedAccountId === selectedAccountId && c.isActive);
     }, [cdbs, selectedAccountId]);
-
-    const currentAccountTotalCardDebt = useMemo(() => {
-        if (!selectedAccount || !selectedAccount.cards) return 0;
-        return selectedAccount.cards.reduce((acc, card) => acc + (cardBalances.get(card.id) || 0), 0);
-    }, [selectedAccount, cardBalances]);
 
     const filteredTransactions = useMemo(() => {
         if (!selectedAccountId) return [];
@@ -696,58 +687,32 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
             .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
         
         if (filterType === 'card' && selectedCardId) {
-            accountTransactions = accountTransactions.filter(t => 
-                t.cardId === selectedCardId && 
-                t.type !== TransactionType.TRANSFER 
-            );
+            accountTransactions = accountTransactions.filter(t => t.cardId === selectedCardId);
         } else if (filterType === 'investments') {
-            // MOSTRA APENAS RENDIMENTOS VINCULADOS A ESTA CONTA
-            accountTransactions = accountTransactions.filter(t => 
-                t.itemId && yieldItemIds.has(t.itemId) && 
-                (t.accountId === selectedAccountId || t.destinationAccountId === selectedAccountId)
-            );
-        } else {
-            // Overview View (Cash View)
             accountTransactions = accountTransactions.filter(t => {
+                const name = t.description.toLowerCase();
+                const isYieldItem = t.itemId && yieldItemIds.includes(t.itemId);
+                return isYieldItem || name.includes('cdb') || name.includes('aporte') || name.includes('resgate');
+            });
+        } else {
+            // Visão Geral (Histórico de caixa líquido)
+            accountTransactions = accountTransactions.filter(t => {
+                // REGRA: Na Visão Geral OCULTAMOS os "Rendimentos" e as compras de cartão
+                if (t.itemId && yieldItemIds.includes(t.itemId)) return false;
+                if (t.cardId && t.type !== TransactionType.TRANSFER) return false;
+
                 const isSource = t.accountId === selectedAccountId;
                 const isDest = t.destinationAccountId === selectedAccountId;
+                
                 if (isSource) return true;
-                if (isDest) {
-                    if (t.cardId) return false;
-                    return true;
-                }
+                if (isDest && !t.cardId) return true;
+                
                 return false;
             });
         }
             
-        let finalTransactions: Transaction[];
-
-        if (showInstallments) {
-            finalTransactions = accountTransactions.filter(t => !!t.installmentGroupId);
-        } else {
-            const now = new Date();
-            const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
-
-            const pastAndPresentTransactions = accountTransactions.filter(t => getUTCDate(t.date) <= todayUTC);
-            
-            const installmentGroups = new Map<string, Transaction>();
-            const singleTransactions: Transaction[] = [];
-
-            pastAndPresentTransactions.forEach(t => {
-                if (t.installmentGroupId) {
-                    const existing = installmentGroups.get(t.installmentGroupId);
-                    if (!existing || new Date(t.date) > new Date(existing.date)) {
-                        installmentGroups.set(t.installmentGroupId, t);
-                    }
-                } else {
-                    singleTransactions.push(t);
-                }
-            });
-            finalTransactions = [...singleTransactions, ...Array.from(installmentGroups.values())];
-        }
-        
-        return finalTransactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [transactions, selectedAccountId, filterType, selectedCardId, searchTerm, showInstallments, yieldItemIds]);
+        return accountTransactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [transactions, selectedAccountId, filterType, selectedCardId, searchTerm, accounts, yieldItemIds]);
     
     const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
     const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -780,7 +745,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
     };
 
     const handleDeleteAccount = async (id: string) => {
-        if (window.confirm('Tem certeza que deseja excluir esta conta? As transações associadas não serão excluídas.')) {
+        if (window.confirm('Tem certeza que deseja excluir esta conta?')) {
             const success = await deleteAccount(id);
             if (success) {
                 if (selectedAccountId === id) {
@@ -791,53 +756,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
             }
         }
     };
-    
-    const handlePayInvoice = async (sourceAccountId: string, amount: number, date: string, itemId: string) => {
-        if (!selectedAccount) return;
-        const transferTransaction: Omit<Transaction, 'id'> = {
-            description: `Pagamento Fatura: ${selectedAccount.name}${selectedCardId ? ' (Cartão)' : ''}`,
-            amount: amount,
-            date: date,
-            type: TransactionType.TRANSFER,
-            accountId: sourceAccountId,
-            destinationAccountId: selectedAccount.id,
-            cardId: selectedCardId || undefined,
-            itemId: itemId 
-        };
-        const success = await addTransactions([transferTransaction]);
-        if (success) setIsPayModalOpen(false);
-    };
 
-    const handleImageUpload = (file: File) => {
-      if (!selectedAccountId) return;
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        const acc = accounts.find(a => a.id === selectedAccountId);
-        if(acc) updateAccount({ ...acc, imageUrl: base64String });
-      };
-      reader.readAsDataURL(file);
-    };
-
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) handleImageUpload(e.target.files[0]);
-    };
-    
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault(); e.stopPropagation();
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) handleImageUpload(e.target.files[0]);
-    };
-
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); };
-    
-    const handleAccountDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
-        setDraggedItemIndex(index);
-        e.dataTransfer.effectAllowed = 'move';
-    };
-
-    const handleAccountDragEnter = (index: number) => setDragOverItemIndex(index);
-    const handleAccountDragEnd = () => { setDraggedItemIndex(null); setDragOverItemIndex(null); };
-    
     const handleAccountDrop = async (e: React.DragEvent<HTMLDivElement>, targetIndex: number) => {
         e.preventDefault();
         if (draggedItemIndex === null || draggedItemIndex === targetIndex) return;
@@ -858,19 +777,6 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
         }
         return { sign: '', color: 'text-slate-800' };
     };
-    
-    const debtToCheck = filterType === 'card' && selectedCardId ? (cardBalances.get(selectedCardId) || 0) : currentAccountTotalCardDebt;
-    const hasDebt = debtToCheck < 0;
-    
-    const cardBalanceIsPositive = debtToCheck > 0;
-    const cardDisplayLabel = filterType === 'investments' ? 'Rendimentos' : (cardBalanceIsPositive ? 'Saldo Cartões' : 'Fatura Cartões');
-    const cardDisplayColor = filterType === 'investments' ? 'text-blue-600' : (cardBalanceIsPositive ? 'text-green-600' : 'text-red-500');
-
-    const handleFilterChange = (type: FilterType, id: string | null) => {
-        setFilterType(type);
-        setSelectedCardId(id);
-        setCurrentPage(1);
-    };
 
     return (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -878,13 +784,14 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                 {accounts.map((acc, index) => {
                     const isSelected = acc.id === selectedAccountId;
                     const isDragOver = dragOverItemIndex === index;
+                    const cashBalance = accountCashBalances.get(acc.id) || 0;
                     return (
                         <div 
                             key={acc.id} 
                             draggable
-                            onDragStart={(e) => handleAccountDragStart(e, index)}
-                            onDragEnter={() => handleAccountDragEnter(index)}
-                            onDragEnd={handleAccountDragEnd}
+                            onDragStart={(e) => { setDraggedItemIndex(index); e.dataTransfer.effectAllowed = 'move'; }}
+                            onDragEnter={() => setDragOverItemIndex(index)}
+                            onDragEnd={() => { setDraggedItemIndex(null); setDragOverItemIndex(null); }}
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={(e) => handleAccountDrop(e, index)}
                             onClick={() => setSelectedAccountId(acc.id)} 
@@ -897,19 +804,17 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                         <div className="flex items-center space-x-2">
                                             <p className="font-bold text-slate-800 truncate" title={acc.name}>{acc.name}</p>
                                             {acc.isCreditCard && <div title="Cartão de Crédito"><CreditCardIcon className="w-4 h-4 text-slate-400" /></div>}
-                                            {!acc.isActive && <span className="text-xs bg-gray-200 text-gray-600 font-semibold px-2 py-0.5 rounded-full flex-shrink-0">Inativa</span>}
                                         </div>
-                                        <p className="text-sm text-slate-500 truncate">Saldo Disponível</p>
+                                        <p className="text-sm text-slate-500 truncate">Disponível em Caixa</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-1 pointer-events-auto flex-shrink-0">
                                     <p className="font-bold text-lg text-slate-800 whitespace-nowrap">
-                                        <PrivateValue>{formatCurrency(accountBalances.get(acc.id) || 0)}</PrivateValue>
+                                        <PrivateValue>{formatCurrency(cashBalance)}</PrivateValue>
                                     </p>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleOpenModal(acc); }} 
                                         className="p-2 rounded-full text-slate-400 hover:text-blue-500 hover:bg-slate-100 transition-colors"
-                                        aria-label="Editar conta"
                                       >
                                           <PencilIcon className="w-4 h-4" />
                                       </button>
@@ -925,28 +830,21 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div className="flex items-center space-x-4">
-                               <div onDrop={handleDrop} onDragOver={handleDragOver} className="relative group cursor-pointer">
-                                    <BankLogo account={selectedAccount} size="lg"/>
-                                    <div className="absolute inset-0 bg-black/60 rounded-xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                        <UploadIcon className="w-6 h-6 text-white mb-1"/>
-                                        <span className="text-white text-xs font-semibold">Alterar</span>
-                                    </div>
-                                    <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileSelect} />
-                                </div>
+                                <BankLogo account={selectedAccount} size="lg"/>
                                 <div className="flex-1">
                                     <div className="flex items-center gap-3">
                                         <h2 className="text-2xl font-bold text-slate-800">{selectedAccount.name}</h2>
                                         <CardFilterDropdown 
                                             selectedType={filterType}
                                             selectedId={selectedCardId}
-                                            onChange={handleFilterChange}
+                                            onChange={(type, id) => { setFilterType(type); setSelectedCardId(id); setCurrentPage(1); }}
                                             cards={selectedAccount.cards || []}
                                             hasInvestments={hasLinkedInvestments}
                                         />
                                     </div>
                                     <div className="flex flex-col mt-1">
-                                        <span className="text-sm text-slate-500">
-                                            {filterType === 'card' ? 'Saldo do Cartão' : filterType === 'investments' ? 'Rendimentos Totais' : 'Saldo Disponível (Conta)'}
+                                        <span className="text-sm text-slate-500 font-normal">
+                                            {filterType === 'card' ? 'Fatura do cartão' : filterType === 'investments' ? 'Saldo Bruto Investido' : 'Saldo de Caixa (Disponível)'}
                                         </span>
                                         <span className={`text-3xl font-bold ${currentViewBalance < 0 ? 'text-red-500' : 'text-slate-900'}`}>
                                             <PrivateValue>{formatCurrency(currentViewBalance)}</PrivateValue>
@@ -961,7 +859,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                         <TicketIcon className="w-4 h-4 text-slate-500"/> Histórico
                                     </button>
                                 )}
-                                {(hasDebt && (filterType === 'card' || selectedAccount.isCreditCard)) && (
+                                {(currentViewBalance < 0 && (filterType === 'card' || selectedAccount.isCreditCard)) && (
                                     <button onClick={handlePayBillClick} className="btn-primary bg-green-600 hover:bg-green-700 border-none flex items-center gap-2">
                                         <CheckIcon className="w-5 h-5"/> Pagar Fatura / Zerar
                                     </button>
@@ -974,7 +872,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                     <div className="p-6 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
                       <div className='flex-grow'>
                         <h3 className="text-lg font-bold text-slate-800">
-                            {filterType === 'card' ? 'Transações do Cartão' : filterType === 'investments' ? 'Histórico de Rendimentos' : 'Movimentações da Conta'}
+                            {filterType === 'card' ? 'Transações do Cartão' : filterType === 'investments' ? 'Aportes e Resgates' : 'Histórico de Caixa'}
                         </h3>
                       </div>
                        {totalPages > 1 && (
@@ -989,7 +887,6 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                                 {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
                                 <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10 h-10 w-full" placeholder=""/>
                             </div>
-                            <button onClick={() => setShowInstallments(s => !s)} className={`px-3 py-2 text-sm font-semibold rounded-lg whitespace-nowrap h-10 ${showInstallments ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>Parceladas</button>
                         </div>
                     </div>
                     
@@ -1005,7 +902,7 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
                             </thead>
                             <tbody className="divide-y divide-slate-200">
                                 {paginatedTransactions.length === 0 ? (
-                                    <tr><td colSpan={4} className="text-center p-8 text-slate-500">Nenhuma transação encontrada.</td></tr>
+                                    <tr><td colSpan={4} className="text-center p-8 text-slate-500">Nenhuma transação nesta visão.</td></tr>
                                 ) : (
                                     paginatedTransactions.map(t => {
                                         const categoryName = t.itemId ? categoryMap.get(t.itemId) : 'N/A';
@@ -1033,14 +930,10 @@ const AccountsPage: React.FC<{ addAccountTrigger: number }> = ({ addAccountTrigg
             </div>
 
             <AccountModal isOpen={isModalOpen} onClose={handleCloseModal} onSave={handleSaveAccount} onDelete={handleDeleteAccount} account={editingAccount} />
-
-            {selectedAccount && (
-                <PayInvoiceModal isOpen={isPayModalOpen} onClose={() => setIsPayModalOpen(false)} targetAccount={selectedAccount} targetCardId={selectedCardId} accounts={accounts} categories={categories} currentBalance={selectedCardId ? currentViewBalance : currentAccountTotalCardDebt} onPay={handlePayInvoice} />
-            )}
-
-            {selectedAccount && selectedCardId && filterType === 'card' && (
-                <InvoiceHistoryModal isOpen={isInvoiceHistoryOpen} onClose={() => setIsInvoiceHistoryOpen(false)} accountName={selectedAccount.name} cardName={selectedAccount.cards?.find(c => c.id === selectedCardId)?.name || ''} transactions={transactions} accountId={selectedAccount.id} cardId={selectedCardId} accounts={accounts} />
-            )}
+            {selectedAccount && <PayInvoiceModal isOpen={isPayModalOpen} onClose={() => setIsPayModalOpen(false)} targetAccount={selectedAccount} targetCardId={selectedCardId} accounts={accounts} categories={categories} currentBalance={selectedCardId ? currentViewBalance : currentViewBalance} onPay={async (s, a, d, i) => { 
+                const success = await addTransactions([{ description: `Pagamento Fatura: ${selectedAccount.name}`, amount: a, date: d, type: TransactionType.TRANSFER, accountId: s, destinationAccountId: selectedAccount.id, cardId: selectedCardId || undefined, itemId: i }]);
+                if (success) setIsPayModalOpen(false);
+            }} />}
         </div>
     );
 };

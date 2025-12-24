@@ -21,7 +21,6 @@ const formatDate = (dateString?: string) => {
     return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
 
-// Helper para obter a data atual em GMT-4
 const getNowGmtMinus4 = () => {
     const now = new Date();
     const offset = -4 * 60 * 60 * 1000;
@@ -34,26 +33,16 @@ const getUTCDate = (dateString: string) => {
     return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 };
 
-// --- Helpers para Cálculo de Dias Úteis e Feriados ---
-
 const isWeekend = (date: Date) => {
     const day = date.getUTCDay();
-    return day === 0 || day === 6; // 0 = Domingo, 6 = Sábado
+    return day === 0 || day === 6;
 };
 
 const isFixedHoliday = (date: Date) => {
     const month = date.getUTCMonth() + 1;
     const day = date.getUTCDate();
     const holidays = [
-        '1-1',   // Ano Novo
-        '21-4',  // Tiradentes
-        '1-5',   // Dia do Trabalho
-        '7-9',   // Independência
-        '12-10', // Aparecida
-        '2-11',  // Finados
-        '15-11', // Proclamação
-        // '20-11', // Consciência Negra - Removido a pedido do usuário para considerar rendimento neste dia
-        '25-12', // Natal
+        '1-1', '21-4', '1-5', '7-9', '12-10', '2-11', '15-11', '20-11', '25-12',
     ];
     return holidays.includes(`${day}-${month}`);
 };
@@ -100,14 +89,14 @@ const RedemptionModal: React.FC<{
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl font-bold mb-4 text-slate-800">Resgatar Investimento</h2>
+                <h2 className="text-xl font-bold mb-4 text-slate-800 tracking-normal">Resgatar investimento</h2>
                 <div className="bg-blue-50 p-3 rounded-lg mb-4">
-                    <p className="font-semibold text-slate-800">{cdb.name}</p>
-                    <p className="text-sm text-slate-600">Saldo Atual: <span className="font-bold"><PrivateValue>{formatCurrency(cdb.currentGrossBalance)}</PrivateValue></span></p>
+                    <p className="font-bold text-slate-800 tracking-normal">{cdb.name}</p>
+                    <p className="text-sm text-slate-500 font-normal tracking-normal">Saldo atual: <span className="font-bold"><PrivateValue>{formatCurrency(cdb.currentGrossBalance)}</PrivateValue></span></p>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Valor do Resgate</label>
+                        <label className="block text-sm font-normal text-slate-500 mb-1 tracking-normal">Valor do resgate</label>
                         <input
                             type="number"
                             value={amount}
@@ -121,7 +110,7 @@ const RedemptionModal: React.FC<{
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Data do Resgate</label>
+                        <label className="block text-sm font-normal text-slate-500 mb-1 tracking-normal">Data do resgate</label>
                         <input
                             type="date"
                             value={date}
@@ -132,7 +121,7 @@ const RedemptionModal: React.FC<{
                     </div>
                     <div className="flex justify-end space-x-3 pt-4">
                         <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
-                        <button type="submit" className="btn-primary">Confirmar Resgate</button>
+                        <button type="submit" className="btn-primary">Confirmar resgate</button>
                     </div>
                 </form>
             </div>
@@ -183,40 +172,35 @@ const UpdateBalanceModal: React.FC<{
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl font-bold mb-4 text-slate-800">Atualizar Investimento</h2>
+                <h2 className="text-xl font-bold mb-4 text-slate-800 tracking-normal">Atualizar saldo bruto</h2>
+                <p className="text-xs text-slate-500 mb-4 font-normal tracking-normal">Esta atualização reflete apenas o crescimento do capital e não gera movimentação na conta bancária até o resgate.</p>
                 
                 <div className="flex p-1 bg-slate-100 rounded-lg mb-6">
                     <button 
                         onClick={() => { setMode('yield'); setValue(''); }} 
-                        className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'yield' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}
+                        className={`flex-1 py-2 text-sm font-normal rounded-md transition-all tracking-normal ${mode === 'yield' ? 'bg-white shadow text-slate-800 font-bold' : 'text-slate-500'}`}
                     >
-                        Rendimento Único
+                        Rendimento único
                     </button>
                     <button 
                         onClick={() => { setMode('total'); setValue(''); }} 
-                        className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'total' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}
+                        className={`flex-1 py-2 text-sm font-normal rounded-md transition-all tracking-normal ${mode === 'total' ? 'bg-white shadow text-slate-800 font-bold' : 'text-slate-500'}`}
                     >
-                        Correção Total
+                        Correção total
                     </button>
                 </div>
 
                 <div className="space-y-4">
-                    {mode === 'total' && (
-                        <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg text-xs text-amber-800">
-                            <strong>Nota:</strong> O rendimento será distribuído entre os dias úteis desde a última atualização até a data informada. <strong>O dia da aplicação não gera rendimento.</strong>
-                        </div>
-                    )}
-
                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                        <p className="text-xs text-slate-500 uppercase font-semibold">Saldo Atual</p>
-                        <p className="text-lg font-bold text-slate-700">
+                        <p className="text-xs text-slate-500 font-normal tracking-normal mb-1">Saldo atual</p>
+                        <p className="text-lg font-bold text-slate-700 tracking-normal">
                             <PrivateValue>{formatCurrency(cdb.currentGrossBalance)}</PrivateValue>
                         </p>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            {mode === 'yield' ? 'Valor do Rendimento (+)' : 'Novo Saldo Total (=)'}
+                        <label className="block text-sm font-normal text-slate-500 mb-1 tracking-normal">
+                            {mode === 'yield' ? 'Valor do rendimento (+)' : 'Novo saldo total (=)'}
                         </label>
                         <input
                             type="number"
@@ -231,7 +215,7 @@ const UpdateBalanceModal: React.FC<{
                     </div>
                     
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Data de Referência</label>
+                        <label className="block text-sm font-normal text-slate-500 mb-1 tracking-normal">Data de referência</label>
                         <input
                             type="date"
                             value={date}
@@ -243,9 +227,9 @@ const UpdateBalanceModal: React.FC<{
 
                     {value && (
                         <div className="flex justify-between items-center text-sm px-2">
-                             <span className="text-slate-500">Ajuste de Saldo:</span>
+                             <span className="text-slate-500 font-normal tracking-normal">Ajuste de saldo:</span>
                              <div className="text-right">
-                                <span className={`font-bold block ${diff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                <span className={`font-bold block tracking-normal ${diff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                     {diff >= 0 ? '+' : ''}{formatCurrency(diff)}
                                 </span>
                              </div>
@@ -284,7 +268,7 @@ const YieldHistoryModal: React.FC<{
 
     if (!isOpen) return null;
 
-    const history = [...(cdb.yieldHistory || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const history = [...(cdb.yieldHistory || [])].sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime());
 
     const startEditing = (entry: YieldEntry) => {
         setEditingId(entry.id);
@@ -313,22 +297,22 @@ const YieldHistoryModal: React.FC<{
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg m-4 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800">Histórico de Rendimentos</h2>
-                        <p className="text-sm text-slate-500">{cdb.name}</p>
+                        <h2 className="text-xl font-bold text-slate-800 tracking-normal">Histórico de rendimentos</h2>
+                        <p className="text-sm text-slate-500 font-normal tracking-normal">{cdb.name}</p>
                     </div>
                     <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100"><XIcon className="w-5 h-5 text-slate-500"/></button>
                 </div>
 
                 <div className="overflow-y-auto flex-1 pr-2">
                     {history.length === 0 ? (
-                        <p className="text-center text-slate-500 py-8">Nenhum rendimento registrado.</p>
+                        <p className="text-center text-slate-500 py-8 font-normal tracking-normal">Nenhum rendimento registrado.</p>
                     ) : (
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 text-slate-500 sticky top-0">
-                                <tr>
-                                    <th className="px-3 py-2 text-left">Data</th>
-                                    <th className="px-3 py-2 text-right">Valor</th>
-                                    <th className="px-3 py-2 text-center">Ações</th>
+                                <tr className="text-xs font-normal tracking-normal text-slate-500">
+                                    <th className="px-3 py-2 text-left font-normal">Data</th>
+                                    <th className="px-3 py-2 text-right font-normal">Valor</th>
+                                    <th className="px-3 py-2 text-center font-normal">Ações</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -351,8 +335,8 @@ const YieldHistoryModal: React.FC<{
                                             </>
                                         ) : (
                                             <>
-                                                <td className="px-3 py-2 text-slate-600">{formatDate(entry.date)}</td>
-                                                <td className={`px-3 py-2 text-right font-medium ${entry.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                <td className="px-3 py-2 text-slate-600 font-normal tracking-normal">{formatDate(entry.date)}</td>
+                                                <td className={`px-3 py-2 text-right font-bold tracking-normal ${entry.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                     {entry.amount >= 0 ? '+' : ''}<PrivateValue>{formatCurrency(entry.amount)}</PrivateValue>
                                                 </td>
                                                 <td className="px-3 py-2 text-center">
@@ -378,9 +362,18 @@ const YieldHistoryModal: React.FC<{
     );
 };
 
-const InvestmentsPage: React.FC = () => {
+const KpiCardInvest: React.FC<{ title: string, value: string | number, colorClass?: string, isCurrency?: boolean }> = ({ title, value, colorClass = "text-slate-800", isCurrency = true }) => (
+    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-1 transition-shadow hover:shadow-md">
+        <h3 className="text-sm font-normal text-slate-500 tracking-normal">{title}</h3>
+        <p className={`text-2xl md:text-3xl font-bold tracking-tight ${colorClass}`}>
+            <PrivateValue>{typeof value === 'number' || isCurrency ? formatCurrency(Number(value)) : value}</PrivateValue>
+        </p>
+    </div>
+);
+
+const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 'overview' | 'card' | 'investments') => void }> = ({ onNavigateToAccount }) => {
     const { cdbs, addCDB, updateCDB, deleteCDB } = useCDBs();
-    const { addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions } = useTransactions();
+    const { addTransaction, addTransactions, updateTransaction } = useTransactions();
     const { accounts } = useAccounts();
     const { categories } = useCategories();
 
@@ -400,8 +393,7 @@ const InvestmentsPage: React.FC = () => {
     const [updateBalanceCdb, setUpdateBalanceCdb] = useState<CDBContract | null>(null);
     const [historyCdb, setHistoryCdb] = useState<CDBContract | null>(null);
 
-    // --- Filtros de Data ---
-    const [activeFilter, setActiveFilter] = useState('Mês Atual');
+    const [activeFilter, setActiveFilter] = useState('Mês atual');
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const today = getNowGmtMinus4();
     const [dateRange, setDateRange] = useState<{start: Date | null, end: Date | null}>({ 
@@ -415,10 +407,10 @@ const InvestmentsPage: React.FC = () => {
         let endUTC: Date = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
 
         switch (activeFilter) {
-            case 'Mês Atual':
+            case 'Mês atual':
                 startUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
                 break;
-            case 'Mês Passado':
+            case 'Mês passado':
                 startUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
                 endUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
                 break;
@@ -428,7 +420,7 @@ const InvestmentsPage: React.FC = () => {
             case 'Últimos 6 meses':
                 startUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 5, 1));
                 break;
-            case 'Este Ano':
+            case 'Este ano':
                 startUTC = new Date(Date.UTC(now.getFullYear(), 0, 1));
                 break;
             default:
@@ -451,7 +443,6 @@ const InvestmentsPage: React.FC = () => {
     };
 
     const activeAccounts = useMemo(() => accounts.filter(a => a.isActive), [accounts]);
-
     const accountMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.name])), [accounts]);
     
     const investmentCategoryOptions = useMemo(() => {
@@ -478,7 +469,6 @@ const InvestmentsPage: React.FC = () => {
         return '';
     }, [categories]);
 
-    // Totais considerando o filtro
     const { filteredTotalProfit, filteredCDBs } = useMemo(() => {
         let totalProfitInPeriod = 0;
         const start = dateRange.start ? dateRange.start.getTime() : 0;
@@ -527,8 +517,6 @@ const InvestmentsPage: React.FC = () => {
         setRate(cdb.rateDescription);
         setMaturity(cdb.maturityDate || '');
         setAccountId(cdb.linkedAccountId);
-        
-        // Tentar encontrar a categoria original se existir
         setCategoryId(''); 
         setView('form');
     };
@@ -546,7 +534,6 @@ const InvestmentsPage: React.FC = () => {
             const existing = cdbs.find(c => c.id === editingCdbId);
             if (!existing) return;
 
-            // Se mudou o valor principal ou a conta, precisamos atualizar a transação inicial
             if (principal !== existing.principalAmount || accountId !== existing.linkedAccountId || date !== existing.applicationDate) {
                 if (existing.initialTransactionId) {
                     await updateTransaction({
@@ -572,7 +559,6 @@ const InvestmentsPage: React.FC = () => {
                 rateDescription: rate,
                 currentGrossBalance: newGrossBalance,
                 linkedAccountId: accountId,
-                // FIX: use null instead of undefined to satisfy Firestore update constraints
                 maturityDate: maturity || null
             };
 
@@ -581,7 +567,6 @@ const InvestmentsPage: React.FC = () => {
             return;
         }
 
-        // NOVO INVESTIMENTO
         let selectedItemId = categoryId;
         if (!selectedItemId && investmentCategoryOptions.length > 0) {
             const smartDefault = investmentCategoryOptions.find(i => i.name.toLowerCase().includes('investimento')) || investmentCategoryOptions[0];
@@ -614,7 +599,12 @@ const InvestmentsPage: React.FC = () => {
                 maturityDate: maturity || null
             };
             await addCDB(newCDB);
-            setView('dashboard');
+            
+            if (onNavigateToAccount) {
+                onNavigateToAccount(accountId, 'investments');
+            } else {
+                setView('dashboard');
+            }
         }
     };
 
@@ -641,7 +631,7 @@ const InvestmentsPage: React.FC = () => {
             
             const txs: Omit<Transaction, 'id'>[] = [
                 {
-                    description: `Resgate Principal: ${redemptionCdb.name}`,
+                    description: `Resgate principal: ${redemptionCdb.name}`,
                     amount: principalPart,
                     date: redeemDate,
                     type: TransactionType.INCOME,
@@ -652,7 +642,7 @@ const InvestmentsPage: React.FC = () => {
 
             if (profitPart > 0.01) {
                 txs.push({
-                    description: `Rendimento CDB (Resgate): ${redemptionCdb.name}`,
+                    description: `Rendimento CDB (resgate): ${redemptionCdb.name}`,
                     amount: profitPart,
                     date: redeemDate,
                     type: TransactionType.INCOME,
@@ -673,78 +663,33 @@ const InvestmentsPage: React.FC = () => {
         let newGrossBalance = 0;
         let finalHistory = [...(updateBalanceCdb.yieldHistory || [])];
         
-        const targetAccId = updateBalanceCdb.linkedAccountId || activeAccounts[0]?.id || '';
-
         if (mode === 'yield') {
             diff = value;
             newGrossBalance = updateBalanceCdb.currentGrossBalance + value;
             
-            const txId = await addTransaction({
-                description: `Rendimento Único: ${updateBalanceCdb.name}`,
-                amount: Math.abs(diff),
-                date: txDate,
-                type: diff >= 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
-                accountId: targetAccId,
-                itemId: yieldCategoryId
-            });
-
             finalHistory.push({
                 id: crypto.randomUUID(),
                 date: txDate,
-                amount: diff,
-                transactionId: txId || undefined
+                amount: diff
             });
         } else {
             diff = value - updateBalanceCdb.currentGrossBalance;
             newGrossBalance = value;
-
             if (Math.abs(diff) < 0.01) return;
-
-            let startDateStr = updateBalanceCdb.applicationDate;
-            if (finalHistory.length > 0) {
-                const lastDateInHistory = finalHistory.reduce((max, h) => h.date > max ? h.date : max, finalHistory[0].date);
-                if (lastDateInHistory > startDateStr) startDateStr = lastDateInHistory;
-            }
-
-            const workDays = getWorkDaysInRange(startDateStr, txDate);
-            const yieldingDays = workDays.filter(day => day !== updateBalanceCdb.applicationDate);
+            const existingDates = new Set(finalHistory.map(h => h.date));
+            const allWorkDays = getWorkDaysInRange(updateBalanceCdb.applicationDate, txDate);
+            const newYieldingDays = allWorkDays.filter(day => 
+                !existingDates.has(day) && 
+                day !== updateBalanceCdb.applicationDate
+            );
             
-            if (yieldingDays.length > 0) {
-                const dailyYield = diff / yieldingDays.length;
-                
-                for (const day of yieldingDays) {
-                    const txId = await addTransaction({
-                        description: `Rendimento (Distribuição): ${updateBalanceCdb.name}`,
-                        amount: Math.abs(dailyYield),
-                        date: day,
-                        type: dailyYield >= 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
-                        accountId: targetAccId,
-                        itemId: yieldCategoryId
-                    });
-
-                    finalHistory.push({
-                        id: crypto.randomUUID(),
-                        date: day,
-                        amount: dailyYield,
-                        transactionId: txId || undefined
-                    });
+            if (newYieldingDays.length > 0) {
+                const dailyYield = diff / newYieldingDays.length;
+                for (const day of newYieldingDays) {
+                    finalHistory.push({ id: crypto.randomUUID(), date: day, amount: dailyYield });
                 }
             } else {
-                const txId = await addTransaction({
-                    description: `Correção Saldo: ${updateBalanceCdb.name}`,
-                    amount: Math.abs(diff),
-                    date: txDate,
-                    type: diff >= 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
-                    accountId: targetAccId,
-                    itemId: yieldCategoryId
-                });
-
-                finalHistory.push({
-                    id: crypto.randomUUID(),
-                    date: txDate,
-                    amount: diff,
-                    transactionId: txId || undefined
-                });
+                finalHistory.push({ id: crypto.randomUUID(), date: txDate, amount: diff });
             }
         }
 
@@ -760,21 +705,10 @@ const InvestmentsPage: React.FC = () => {
 
     const handleDeleteHistoryEntry = async (entry: YieldEntry) => {
         if (!historyCdb) return;
-        if (!window.confirm('Deseja excluir este rendimento? O saldo do investimento e a transação financeira serão revertidos.')) return;
-
+        if (!window.confirm('Deseja excluir este rendimento do histórico do CDB?')) return;
         const newBalance = historyCdb.currentGrossBalance - entry.amount;
         const newHistory = (historyCdb.yieldHistory || []).filter(h => h.id !== entry.id);
-
-        if (entry.transactionId) {
-            await deleteTransaction(entry.transactionId);
-        }
-
-        const updatedCDB = {
-            ...historyCdb,
-            currentGrossBalance: Math.max(0, newBalance),
-            yieldHistory: newHistory
-        };
-
+        const updatedCDB = { ...historyCdb, currentGrossBalance: Math.max(0, newBalance), yieldHistory: newHistory };
         await updateCDB(updatedCDB);
         setHistoryCdb(updatedCDB);
     };
@@ -783,29 +717,8 @@ const InvestmentsPage: React.FC = () => {
         if (!historyCdb) return;
         const diff = newAmount - entry.amount;
         const newBalance = historyCdb.currentGrossBalance + diff;
-        
-        if (entry.transactionId) {
-            await updateTransaction({
-                id: entry.transactionId,
-                amount: Math.abs(newAmount),
-                date: newDate,
-                type: newAmount >= 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
-                description: `Rendimento CDB (Editado): ${historyCdb.name}`,
-                accountId: historyCdb.linkedAccountId || activeAccounts[0]?.id || '',
-                itemId: yieldCategoryId
-            } as any);
-        }
-
-        const newHistory = (historyCdb.yieldHistory || []).map(h => 
-            h.id === entry.id ? { ...h, amount: newAmount, date: newDate } : h
-        );
-
-        const updatedCDB = {
-            ...historyCdb,
-            currentGrossBalance: Math.max(0, newBalance),
-            yieldHistory: newHistory
-        };
-
+        const newHistory = (historyCdb.yieldHistory || []).map(h => h.id === entry.id ? { ...h, amount: newAmount, date: newDate } : h);
+        const updatedCDB = { ...historyCdb, currentGrossBalance: Math.max(0, newBalance), yieldHistory: newHistory };
         await updateCDB(updatedCDB);
         setHistoryCdb(updatedCDB);
     };
@@ -813,9 +726,7 @@ const InvestmentsPage: React.FC = () => {
     const handleDelete = async (id: string) => {
         const cdb = cdbs.find(c => c.id === id);
         if (!cdb) return;
-        if (window.confirm('Excluir este investimento permanentemente? Todas as transações associadas serão apagadas.')) {
-            const txIds = [cdb.initialTransactionId, ...(cdb.yieldHistory?.map(h => h.transactionId) || [])].filter(Boolean) as string[];
-            if (txIds.length > 0) await deleteTransactions(txIds);
+        if (window.confirm('Excluir este investimento permanentemente? Apenas as movimentações reais (aportes/resgates) na conta bancária serão preservadas.')) {
             await deleteCDB(id);
         }
     };
@@ -823,56 +734,56 @@ const InvestmentsPage: React.FC = () => {
     if (view === 'form') {
         return (
             <div className="max-w-3xl mx-auto">
-                <button onClick={() => setView('dashboard')} className="mb-4 text-sm text-blue-600 hover:underline flex items-center">
-                    <ArrowUturnLeftIcon className="w-4 h-4 mr-1" /> Voltar ao Dashboard
+                <button onClick={() => setView('dashboard')} className="mb-4 text-sm text-blue-600 hover:underline flex items-center tracking-normal font-normal">
+                    <ArrowUturnLeftIcon className="w-4 h-4 mr-1" /> Voltar ao dashboard
                 </button>
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                    <h2 className="text-2xl font-bold text-slate-800 mb-6">{editingCdbId ? 'Editar Investimento' : 'Novo Investimento em CDB'}</h2>
+                    <h2 className="text-2xl font-bold text-slate-800 mb-6 tracking-normal">{editingCdbId ? 'Editar investimento' : 'Novo investimento em CDB'}</h2>
                     <form onSubmit={handleSubmitCDB} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Nome do CDB *</label>
+                                <label className="block text-sm font-normal text-slate-500 mb-1 tracking-normal">Nome do CDB *</label>
                                 <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: CDB Liquidez Diária" required className="input-style" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Banco / Corretora *</label>
+                                <label className="block text-sm font-normal text-slate-500 mb-1 tracking-normal">Banco / corretora *</label>
                                 <input type="text" value={bank} onChange={e => setBank(e.target.value)} placeholder="Ex: XP, NuInvest..." required className="input-style" />
                             </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Valor Aplicado *</label>
+                                <label className="block text-sm font-normal text-slate-500 mb-1 tracking-normal">Valor aplicado *</label>
                                 <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0,00" step="0.01" required className="input-style" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Data da Aplicação *</label>
+                                <label className="block text-sm font-normal text-slate-500 mb-1 tracking-normal">Data da aplicação *</label>
                                 <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="input-style" />
                             </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Taxa de Rendimento</label>
+                                <label className="block text-sm font-normal text-slate-500 mb-1 tracking-normal">Taxa de rendimento</label>
                                 <input type="text" value={rate} onChange={e => setRate(e.target.value)} placeholder="Ex: 110% do CDI" className="input-style" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Vencimento (Opcional)</label>
+                                <label className="block text-sm font-normal text-slate-500 mb-1 tracking-normal">Vencimento (opcional)</label>
                                 <input type="date" value={maturity} onChange={e => setMaturity(e.target.value)} className="input-style" />
                             </div>
                         </div>
                         <div className="pt-4 border-t border-slate-100">
-                            <h3 className="text-sm font-semibold text-slate-800 mb-3">Vinculação Financeira</h3>
+                            <h3 className="text-sm font-bold text-slate-800 mb-3 tracking-normal">Vinculação financeira</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Conta Vinculada *</label>
+                                  <div>
+                                    <label className="block text-sm font-normal text-slate-500 mb-1 tracking-normal">Conta vinculada *</label>
                                     <select value={accountId} onChange={e => setAccountId(e.target.value)} required className="input-style">
                                         <option value="">Selecione...</option>
                                         {activeAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
                                     </select>
-                                    <p className="text-[10px] text-slate-500 mt-1">Os rendimentos e resgates serão lançados nesta conta.</p>
+                                    <p className="text-[10px] text-slate-500 mt-1 font-normal tracking-normal">Os rendimentos e resgates serão lançados nesta conta.</p>
                                 </div>
                                 {!editingCdbId && (
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Categoria (Despesa)</label>
+                                        <label className="block text-sm font-normal text-slate-500 mb-1 tracking-normal">Categoria (despesa)</label>
                                         <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="input-style">
                                             <option value="">Selecione...</option>
                                             {investmentCategoryOptions.map(opt => <option key={opt.id} value={opt.id}>{opt.fullName}</option>)}
@@ -882,7 +793,7 @@ const InvestmentsPage: React.FC = () => {
                             </div>
                         </div>
                         <div className="flex justify-end pt-4">
-                            <button type="submit" className="btn-primary">{editingCdbId ? 'Salvar Alterações' : 'Registrar Investimento'}</button>
+                            <button type="submit" className="btn-primary">{editingCdbId ? 'Salvar alterações' : 'Registrar investimento'}</button>
                         </div>
                     </form>
                 </div>
@@ -893,11 +804,11 @@ const InvestmentsPage: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="flex flex-wrap gap-2">
-                {['Mês Atual', 'Mês Passado', 'Últimos 3 meses', 'Últimos 6 meses', 'Este Ano', 'Personalizado'].map(f => (
+                {['Mês atual', 'Mês passado', 'Últimos 3 meses', 'Últimos 6 meses', 'Este ano', 'Personalizado'].map(f => (
                     <button 
                         key={f} 
                         onClick={() => handleFilterClick(f)} 
-                        className={`px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${activeFilter === f ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-gray-100 border border-slate-200'}`}
+                        className={`px-4 py-2 rounded-full text-sm font-normal transition-all tracking-normal ${activeFilter === f ? 'bg-blue-600 text-white font-bold' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
                     >
                         {f}
                     </button>
@@ -905,69 +816,60 @@ const InvestmentsPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-slate-500 text-sm font-medium">Patrimônio em CDB</p>
-                    <p className="text-3xl font-bold text-slate-800"><PrivateValue>{formatCurrency(totalEquity)}</PrivateValue></p>
-                </div>
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-slate-500 text-sm font-medium">Total Investido</p>
-                    <p className="text-3xl font-bold text-blue-600"><PrivateValue>{formatCurrency(totalInvested)}</PrivateValue></p>
-                </div>
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-slate-500 text-sm font-medium">Lucro no Período</p>
-                    <p className="text-3xl font-bold text-green-600"><PrivateValue>{formatCurrency(filteredTotalProfit)}</PrivateValue></p>
-                </div>
+                <KpiCardInvest title="Patrimônio em CDB" value={totalEquity} />
+                <KpiCardInvest title="Total investido" value={totalInvested} colorClass="text-blue-600" />
+                <KpiCardInvest title="Lucro no período" value={filteredTotalProfit} colorClass={filteredTotalProfit >= 0 ? 'text-green-600' : 'text-red-600'} />
             </div>
 
-            <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-slate-800">Meus CDBs</h2>
+            <div className="flex justify-between items-center pt-4">
+                <h2 className="text-xl font-bold text-slate-800 tracking-normal">Meus CDBs</h2>
                 <button onClick={handleOpenCreate} className="btn-primary flex items-center gap-2">
-                    <PlusIcon className="w-5 h-5" /> Novo Aporte
+                    <PlusIcon className="w-5 h-5" /> Novo aporte
                 </button>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 text-slate-500 uppercase text-xs">
-                            <tr>
-                                <th className="px-6 py-3">Nome / Banco</th>
-                                <th className="px-6 py-3">Aplicação</th>
-                                <th className="px-6 py-3 text-right">Valor Aplicado</th>
-                                <th className="px-6 py-3 text-right">Saldo Bruto</th>
-                                <th className="px-6 py-3 text-right">Lucro no Período</th>
-                                <th className="px-6 py-3 text-center">Ações</th>
+                        <thead className="bg-gray-50 text-slate-500">
+                            <tr className="text-xs font-normal tracking-normal">
+                                <th className="px-6 py-4 font-normal">Nome / banco</th>
+                                <th className="px-6 py-4 font-normal">Aplicação</th>
+                                <th className="px-6 py-4 text-right font-normal">Valor aplicado</th>
+                                <th className="px-6 py-4 text-right font-normal">Saldo bruto</th>
+                                <th className="px-6 py-4 text-right font-normal">Lucro no período</th>
+                                <th className="px-6 py-4 text-center font-normal">Ações</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-200">
+                        <tbody className="divide-y divide-slate-100">
                             {filteredCDBs.length === 0 ? (
-                                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">Nenhum investimento.</td></tr>
+                                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500 font-normal tracking-normal">Nenhum investimento encontrado.</td></tr>
                             ) : (
                                 filteredCDBs.filter(c => c.isActive).map(cdb => {
                                     const profit = cdb.profitInPeriod;
                                     return (
                                         <tr key={cdb.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-4">
-                                                <p className="font-bold text-slate-800">{cdb.name}</p>
-                                                <p className="text-xs text-slate-500">{cdb.bank} • {cdb.rateDescription}</p>
-                                                <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Conta: {accountMap.get(cdb.linkedAccountId) || 'Não vinculada'}</p>
+                                                <p className="font-bold text-slate-800 tracking-normal">{cdb.name}</p>
+                                                <p className="text-xs text-slate-500 font-normal tracking-normal">{cdb.bank} • {cdb.rateDescription}</p>
+                                                <p className="text-[10px] text-slate-500 font-normal mt-1 tracking-normal">Conta: {accountMap.get(cdb.linkedAccountId) || 'Não vinculada'}</p>
                                             </td>
-                                            <td className="px-6 py-4 text-slate-600">
+                                            <td className="px-6 py-4 text-slate-600 font-normal tracking-normal">
                                                 {formatDate(cdb.applicationDate)}
-                                                {cdb.maturityDate && <span className="block text-xs text-slate-400">Vence: {formatDate(cdb.maturityDate)}</span>}
+                                                {cdb.maturityDate && <span className="block text-xs text-slate-400 font-normal mt-0.5">Vence: {formatDate(cdb.maturityDate)}</span>}
                                             </td>
-                                            <td className="px-6 py-4 text-right font-medium text-slate-700"><PrivateValue>{formatCurrency(cdb.principalAmount)}</PrivateValue></td>
-                                            <td className="px-6 py-4 text-right font-bold text-slate-800"><PrivateValue>{formatCurrency(cdb.currentGrossBalance)}</PrivateValue></td>
+                                            <td className="px-6 py-4 text-right font-normal text-slate-600 tracking-normal"><PrivateValue>{formatCurrency(cdb.principalAmount)}</PrivateValue></td>
+                                            <td className="px-6 py-4 text-right font-bold text-slate-800 tracking-normal"><PrivateValue>{formatCurrency(cdb.currentGrossBalance)}</PrivateValue></td>
                                             <td className="px-6 py-4 text-right">
-                                                <p className={`font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}><PrivateValue>{formatCurrency(profit)}</PrivateValue></p>
+                                                <p className={`font-bold tracking-normal ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}><PrivateValue>{formatCurrency(profit)}</PrivateValue></p>
                                             </td>
                                             <td className="px-6 py-4 text-center">
                                                 <div className="flex justify-center gap-2">
-                                                    <button onClick={() => setUpdateBalanceCdb(cdb)} className="px-3 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-full text-xs font-semibold flex items-center gap-1" title="Adicionar rendimento ou corrigir saldo"><UpArrowIcon className="w-3 h-3"/> Atualizar</button>
-                                                    <button onClick={() => setHistoryCdb(cdb)} className="px-2 py-1 bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-full text-xs font-semibold">Histórico</button>
-                                                    <button onClick={() => setRedemptionCdb(cdb)} className="px-3 py-1 bg-green-100 text-green-700 hover:bg-green-200 rounded-full text-xs font-semibold">Resgatar</button>
-                                                    <button onClick={() => handleOpenEdit(cdb)} className="p-1.5 text-slate-400 hover:text-blue-500 rounded-full" title="Editar dados básicos"><PencilIcon className="w-4 h-4"/></button>
-                                                    <button onClick={() => handleDelete(cdb.id)} className="p-1.5 text-slate-400 hover:text-red-500 rounded-full"><TrashIcon className="w-4 h-4"/></button>
+                                                    <button onClick={() => setUpdateBalanceCdb(cdb)} className="px-3 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-full text-xs font-normal flex items-center gap-1 tracking-normal" title="Atualizar saldo"><UpArrowIcon className="w-3 h-3"/> Atualizar</button>
+                                                    <button onClick={() => setHistoryCdb(cdb)} className="px-3 py-1 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-full text-xs font-normal tracking-normal">Histórico</button>
+                                                    <button onClick={() => setRedemptionCdb(cdb)} className="px-3 py-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-full text-xs font-normal tracking-normal">Resgatar</button>
+                                                    <button onClick={() => handleOpenEdit(cdb)} className="p-1.5 text-slate-500 hover:text-blue-500 rounded-full transition-colors" title="Editar"><PencilIcon className="w-4 h-4"/></button>
+                                                    <button onClick={() => handleDelete(cdb.id)} className="p-1.5 text-slate-500 hover:text-red-500 rounded-full transition-colors"><TrashIcon className="w-4 h-4"/></button>
                                                 </div>
                                             </td>
                                         </tr>

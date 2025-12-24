@@ -29,7 +29,6 @@ import BalancesIcon from './components/icons/BalancesIcon';
 import EyeIcon from './components/icons/EyeIcon';
 import EyeSlashIcon from './components/icons/EyeSlashIcon';
 
-
 const AppContent: React.FC = () => {
   const [activePage, setActivePage] = useState('Dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -40,6 +39,9 @@ const AppContent: React.FC = () => {
   const [userName, setUserName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   
+  // Parâmetros para abrir a página de contas em um estado específico
+  const [accountsPageParams, setAccountsPageParams] = useState<{ accountId: string, filterType: 'overview' | 'card' | 'investments' } | null>(null);
+
   const { isPrivacyMode, togglePrivacy } = usePrivacy();
 
   useEffect(() => {
@@ -90,7 +92,13 @@ const AppContent: React.FC = () => {
         setIsAuthenticated(false);
         setUserName('');
         setActivePage('Dashboard');
+        setAccountsPageParams(null);
     }
+  };
+
+  const navigateToAccount = (accountId: string, filterType: 'overview' | 'card' | 'investments') => {
+    setAccountsPageParams({ accountId, filterType });
+    setActivePage('Contas');
   };
 
   const renderPage = () => {
@@ -98,13 +106,17 @@ const AppContent: React.FC = () => {
       case 'Dashboard':
         return <DashboardPage />;
       case 'Contas':
-        return <AccountsPage addAccountTrigger={addAccountTrigger} />;
+        return <AccountsPage 
+                  addAccountTrigger={addAccountTrigger} 
+                  initialParams={accountsPageParams}
+                  onParamsProcessed={() => setAccountsPageParams(null)}
+               />;
       case 'Categorias':
         return <CategoriesPage addCategoryTrigger={addCategoryTrigger}/>;
       case 'Lançamentos':
         return <TransactionsPage addTransactionTrigger={addTransactionTrigger} />;
       case 'Investimentos':
-        return <InvestmentsPage />;
+        return <InvestmentsPage onNavigateToAccount={navigateToAccount} />;
       case 'Empréstimos':
         return <LoansPage />;
       case 'Metas':
