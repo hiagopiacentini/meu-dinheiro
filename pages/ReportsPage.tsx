@@ -209,6 +209,7 @@ const ReportsPage: React.FC = () => {
     const { isPrivacyMode } = usePrivacy();
 
     const [period, setPeriod] = useState<'currentMonth' | 'lastMonth' | '3months' | '6months' | 'year' | 'all' | 'custom'>('currentMonth');
+    const [sourceFilter, setSourceFilter] = useState<string>('all'); // 'all', 'investments', accountId, 'card|cardId'
     const [customDateRange, setCustomDateRange] = useState<{start: Date | null, end: Date | null}>({ start: null, end: null });
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [breakdownModal, setBreakdownModal] = useState<{ open: boolean, title: string, txs: any[] }>({ open: false, title: '', txs: [] });
@@ -286,23 +287,46 @@ const ReportsPage: React.FC = () => {
 
     const { reportTransactions, reportYields } = useMemo(() => {
         const { start, end } = dateBoundaries;
-        const filteredTxs = transactions.filter(t => {
+        
+        let txs = transactions.filter(t => {
             const tDate = getUTCDate(t.date);
             return tDate >= start && tDate <= end;
         });
 
+        // Aplicar Filtro de Origem
+        if (sourceFilter !== 'all') {
+            if (sourceFilter === 'investments') {
+                txs = txs.filter(t => t.itemId && yieldItemInfo && t.itemId === yieldItemInfo.id);
+            } else if (sourceFilter.startsWith('card|')) {
+                const cardId = sourceFilter.split('|')[1];
+                txs = txs.filter(t => t.cardId === cardId);
+            } else {
+                // Conta específica (excluindo o que for de cartão para não duplicar se for transferência de pagamento)
+                txs = txs.filter(t => (t.accountId === sourceFilter || t.destinationAccountId === sourceFilter) && !t.cardId);
+            }
+        }
+
         const yields: { date: string, amount: number, cdbName: string, id: string }[] = [];
         cdbs.forEach(cdb => {
-            (cdb.yieldHistory || []).forEach(entry => {
-                const eDate = getUTCDate(entry.date);
-                if (eDate >= start && eDate <= end) {
-                    yields.push({ date: entry.date, amount: entry.amount, cdbName: cdb.name, id: entry.id });
-                }
-            });
+            let shouldIncludeYield = false;
+            if (sourceFilter === 'all' || sourceFilter === 'investments') {
+                shouldIncludeYield = true;
+            } else if (cdb.linkedAccountId === sourceFilter) {
+                shouldIncludeYield = true;
+            }
+
+            if (shouldIncludeYield) {
+                (cdb.yieldHistory || []).forEach(entry => {
+                    const eDate = getUTCDate(entry.date);
+                    if (eDate >= start && eDate <= end) {
+                        yields.push({ date: entry.date, amount: entry.amount, cdbName: cdb.name, id: entry.id });
+                    }
+                });
+            }
         });
 
-        return { reportTransactions: filteredTxs, reportYields: yields };
-    }, [transactions, cdbs, dateBoundaries]);
+        return { reportTransactions: txs, reportYields: yields };
+    }, [transactions, cdbs, dateBoundaries, sourceFilter, yieldItemInfo]);
 
     const dreData = useMemo(() => {
         const incomeGroups = new Map<string, { total: number, txs: any[], subcategories: Map<string, { total: number, txs: any[], items: Map<string, { total: number, txs: any[] }> }> }>();
@@ -416,41 +440,156 @@ const ReportsPage: React.FC = () => {
         return Array.from(data.values()).sort((a, b) => a.sortKey - b.sortKey);
     }, [reportTransactions, reportYields, itemBalanceMap, yieldItemInfo]);
 
+    const dailyChartData = useMemo(() => {
+        const dailyMap = new Map<string, { name: string, Entradas: number, Saídas: number, sortKey: number }>();
+        
+        // Gerar todos os dias do período para garantir barras contínuas
+        const { start, end } = dateBoundaries;
+        let current = new Date(start);
+        while (current <= end) {
+            const key = current.toISOString().split('T')[0];
+            const label = current.getUTCDate().toString().padStart(2, '0');
+            // Se o período for longo (> 31 dias), adicionamos o mês no label
+            const labelFinal = (end.getTime() - start.getTime() > 32 * 24 * 60 * 60 * 1000) 
+                ? `${label}/${(current.getUTCMonth() + 1).toString().padStart(2, '0')}`
+                : label;
+
+            dailyMap.set(key, { name: labelFinal, Entradas: 0, Saídas: 0, sortKey: current.getTime() });
+            current.setUTCDate(current.getUTCDate() + 1);
+        }
+
+        reportTransactions.forEach(t => {
+            if (t.itemId && itemBalanceMap.get(t.itemId) === false) return;
+            if (yieldItemInfo && t.itemId === yieldItemInfo.id) return;
+
+            const key = t.date;
+            if (dailyMap.has(key)) {
+                const entry = dailyMap.get(key)!;
+                if (t.type === TransactionType.INCOME) entry.Entradas += t.amount;
+                else if (t.type === TransactionType.EXPENSE) entry.Saídas += t.amount;
+            }
+        });
+
+        reportYields.forEach(y => {
+            const key = y.date;
+            if (dailyMap.has(key)) {
+                const entry = dailyMap.get(key)!;
+                entry.Entradas += y.amount;
+            }
+        });
+
+        return Array.from(dailyMap.values()).sort((a, b) => a.sortKey - b.sortKey);
+    }, [reportTransactions, reportYields, itemBalanceMap, yieldItemInfo, dateBoundaries]);
+
     const periods = [
         {id:'currentMonth', l:'Mês atual'}, 
         {id:'lastMonth', l:'Mês passado'}, 
         {id:'3months', l:'3 meses'}, 
-        {id:'6months', l:'6 meses'}, 
         {id:'year', l:'Este ano'}, 
         {id:'all', l:'Tudo'}, 
         {id:'custom', l:'Personalizado'}
     ];
 
+    const sourceOptions = useMemo(() => {
+        const options = [{ label: 'Consolidado (Tudo)', value: 'all' }];
+        options.push({ label: 'Apenas Investimentos', value: 'investments' });
+        
+        accounts.filter(a => a.isActive).forEach(acc => {
+            options.push({ label: `Conta: ${acc.name}`, value: acc.id });
+            acc.cards?.forEach(card => {
+                options.push({ label: `Cartão: ${card.name}`, value: `card|${card.id}` });
+            });
+        });
+        return options;
+    }, [accounts]);
+
     return (
         <div className="space-y-8 pb-12">
-            <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
-                {periods.map(item => (
-                    <button 
-                        key={item.id} 
-                        onClick={() => item.id === 'custom' ? setIsPickerOpen(true) : setPeriod(item.id as any)} 
-                        className={`px-4 py-2 rounded-full text-sm transition-all whitespace-nowrap tracking-normal font-medium ${period === item.id ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide flex-1">
+                    {periods.map(item => (
+                        <button 
+                            key={item.id} 
+                            onClick={() => item.id === 'custom' ? setIsPickerOpen(true) : setPeriod(item.id as any)} 
+                            className={`px-4 py-2 rounded-full text-sm transition-all whitespace-nowrap tracking-normal font-medium ${period === item.id ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+                        >
+                            {item.l}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="relative w-full md:w-72">
+                    <select 
+                        value={sourceFilter}
+                        onChange={(e) => setSourceFilter(e.target.value)}
+                        className="input-style text-sm font-medium h-10 bg-white border-slate-200"
                     >
-                        {item.l}
-                    </button>
-                ))}
+                        {sourceOptions.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
             <DateRangePickerModal isOpen={isPickerOpen} onClose={() => setIsPickerOpen(false)} value={customDateRange} onChange={handleDateChange} />
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <KpiCard title="Resultado" value={dreData.netResult} colorClass={dreData.netResult >= 0 ? 'text-emerald-500' : 'text-rose-500'} subtext="Líquido final" />
-                <KpiCard title="Margem" value={`${dreData.margin.toFixed(1)}%`} isCurrency={false} colorClass="text-emerald-500" subtext="Eficiência do período" />
+                <KpiCard title="Margem" value={`${dreData.margin.toFixed(1)}%`} isCurrency={false} colorClass="text-blue-600" subtext="Eficiência do período" />
                 <KpiCard title="Receitas totais" value={dreData.totalIncome} subtext="Entradas e rendimentos" />
                 <KpiCard title="Despesas totais" value={dreData.totalExpense} subtext="Saídas operacionais" />
             </div>
 
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Gráfico de Saídas Diárias */}
+                <div className={`bg-white p-6 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-md' : ''}`}>
+                    <h3 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2 tracking-normal">
+                        <div className="w-1.5 h-4 rounded-full bg-rose-500"></div>
+                        Saídas Diárias
+                    </h3>
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={dailyChartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} stroke="#94a3b8" />
+                                <YAxis fontSize={10} tickLine={false} axisLine={false} stroke="#94a3b8" tickFormatter={(v) => `R$${v/1000}k`} />
+                                <Tooltip 
+                                    cursor={{fill: 'rgba(241, 245, 249, 0.4)'}} 
+                                    contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.75rem' }} 
+                                    formatter={(v: number) => formatCurrency(v)} 
+                                />
+                                <Bar name="Saídas" dataKey="Saídas" fill="#ef4444" radius={[3, 3, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Gráfico de Entradas Diárias */}
+                <div className={`bg-white p-6 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-md' : ''}`}>
+                    <h3 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2 tracking-normal">
+                        <div className="w-1.5 h-4 rounded-full bg-emerald-500"></div>
+                        Entradas Diárias
+                    </h3>
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={dailyChartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} stroke="#94a3b8" />
+                                <YAxis fontSize={10} tickLine={false} axisLine={false} stroke="#94a3b8" tickFormatter={(v) => `R$${v/1000}k`} />
+                                <Tooltip 
+                                    cursor={{fill: 'rgba(241, 245, 249, 0.4)'}} 
+                                    contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.75rem' }} 
+                                    formatter={(v: number) => formatCurrency(v)} 
+                                />
+                                <Bar name="Entradas" dataKey="Entradas" fill="#10b981" radius={[3, 3, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+
             <div className={`bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-md' : ''}`}>
-                <h3 className="text-lg font-bold text-slate-800 mb-8 tracking-normal">Evolução financeira</h3>
+                <h3 className="text-lg font-bold text-slate-800 mb-8 tracking-normal">Evolução financeira (Mensal)</h3>
                 <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={evolutionData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
