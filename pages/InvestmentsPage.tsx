@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useCDBs, useTransactions, useAccounts, useCategories } from '../hooks/useFirestore';
 import { CDBContract, Transaction, TransactionType, YieldEntry } from '../types';
@@ -364,7 +363,7 @@ const YieldHistoryModal: React.FC<{
 
 const KpiCardInvest: React.FC<{ title: string, value: string | number, colorClass?: string, isCurrency?: boolean }> = ({ title, value, colorClass = "text-slate-800", isCurrency = true }) => (
     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-1 transition-shadow hover:shadow-md">
-        <h3 className="text-sm font-normal text-slate-500 tracking-normal">{title}</h3>
+        <h3 className="text-sm font-medium text-slate-500 tracking-normal">{title}</h3>
         <p className={`text-2xl md:text-3xl font-bold tracking-tight ${colorClass}`}>
             <PrivateValue>{typeof value === 'number' || isCurrency ? formatCurrency(Number(value)) : value}</PrivateValue>
         </p>
@@ -808,7 +807,7 @@ const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 
                     <button 
                         key={f} 
                         onClick={() => handleFilterClick(f)} 
-                        className={`px-4 py-2 rounded-full text-sm font-normal transition-all tracking-normal ${activeFilter === f ? 'bg-blue-600 text-white font-bold' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all tracking-normal ${activeFilter === f ? 'bg-blue-600 text-white font-bold' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
                     >
                         {f}
                     </button>
@@ -832,13 +831,13 @@ const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-gray-50 text-slate-500">
-                            <tr className="text-xs font-normal tracking-normal">
-                                <th className="px-6 py-4 font-normal">Nome / banco</th>
-                                <th className="px-6 py-4 font-normal">Aplicação</th>
-                                <th className="px-6 py-4 text-right font-normal">Valor aplicado</th>
-                                <th className="px-6 py-4 text-right font-normal">Saldo bruto</th>
-                                <th className="px-6 py-4 text-right font-normal">Lucro no período</th>
-                                <th className="px-6 py-4 text-center font-normal">Ações</th>
+                            <tr className="text-xs font-medium tracking-normal">
+                                <th className="px-6 py-4">Nome / banco</th>
+                                <th className="px-6 py-4">Aplicação</th>
+                                <th className="px-6 py-4 text-right">Valor aplicado</th>
+                                <th className="px-6 py-4 text-right">Saldo bruto</th>
+                                <th className="px-6 py-4 text-right">Lucro no período</th>
+                                <th className="px-6 py-4 text-center">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">

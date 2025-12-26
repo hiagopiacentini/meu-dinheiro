@@ -1,4 +1,3 @@
-
 import React from 'react';
 import XIcon from '../icons/XIcon';
 
@@ -57,7 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({ menuItems, activeItem, setActiveItem,
                   className={`flex items-center px-4 py-2.5 rounded-lg transition-all duration-200 text-sm tracking-normal ${
                     activeItem === item.name
                       ? 'bg-blue-600 text-white font-bold shadow-sm'
-                      : 'text-slate-600 font-normal hover:bg-slate-50 hover:text-slate-900'
+                      : 'text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
                   <item.icon className={`w-5 h-5 mr-3 ${activeItem === item.name ? 'opacity-100' : 'text-slate-500'}`} />

@@ -149,6 +149,9 @@ const AppContent: React.FC = () => {
       'Categorias': 'Organize suas receitas e despesas com categorias e subcategorias.',
       'Lançamentos': 'Adicione, edite e visualize todas as suas transações.',
       'Investimentos': 'Gerencie seus contratos de CDB e acompanhe rendimentos.',
+      'Empréstimos': 'Gerencie transferências internas e acompanhe o fluxo de quitações.',
+      'Relatórios': 'Análises detalhadas, DRE e evolução do seu fluxo de caixa.',
+      'Metas': 'Planeje suas economias anuais e monitore seu desempenho.',
   }
 
   if (isLoading) {

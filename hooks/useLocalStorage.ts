@@ -1,39 +1,36 @@
-
 import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 
+/**
+ * Serializa um objeto para JSON de forma segura, tratando referências circulares
+ * e omitindo instâncias de classes complexas que podem causar erros de recursão.
+ */
 const safeStringify = (obj: any) => {
-  const cache = new Set();
+  const cache = new WeakSet();
   try {
     return JSON.stringify(obj, (key, value) => {
-      if (typeof value !== 'object' || value === null) {
-        return value;
-      }
+      if (typeof value === 'object' && value !== null) {
+        // Detecta circularidade real
+        if (cache.has(value)) {
+          return '[Circular]';
+        }
+        cache.add(value);
 
-      if (cache.has(value)) {
-        return '[Circular]';
-      }
-      
-      // Detect circularity
-      cache.add(value);
+        // Verifica se é um objeto plano ou array.
+        // Instâncias de classes (como as do Firebase) costumam ter protótipos customizados.
+        const proto = Object.getPrototypeOf(value);
+        const isPlain = proto === Object.prototype || proto === null || Array.isArray(value);
 
-      // Robust check to only serialize plain objects and arrays.
-      // This prevents issues with internal library instances (Firebase, Recharts, DOM nodes)
-      // which often contain circular references and are minified with short names (Y, Ka, etc.)
-      const proto = Object.getPrototypeOf(value);
-      const isPlainObject = proto === Object.prototype || proto === null;
-      const isArray = Array.isArray(value);
-
-      if (!isPlainObject && !isArray) {
-        return undefined; // Omit complex/class instances
+        if (!isPlain) {
+          // Se o objeto tem toJSON, usamos. Senão, omitimos para evitar erros.
+          if (typeof value.toJSON === 'function') return value.toJSON();
+          return undefined; 
+        }
       }
-      
       return value;
     });
   } catch (error) {
-    console.error("Error stringifying object in safeStringify:", error);
+    console.error("Falha crítica ao serializar objeto:", error);
     return "[]"; 
-  } finally {
-      cache.clear();
   }
 };
 
@@ -43,7 +40,7 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, Dispatch<S
       const item = window.localStorage.getItem(key);
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
-      console.error("Error reading from localStorage:", error);
+      console.error("Erro ao ler do localStorage:", error);
       return initialValue;
     }
   });
@@ -53,7 +50,7 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, Dispatch<S
       const stringified = safeStringify(storedValue);
       window.localStorage.setItem(key, stringified);
     } catch (error) {
-      console.error("Error saving to localStorage:", error);
+      console.error("Erro ao salvar no localStorage:", error);
     }
   }, [key, storedValue]);
 

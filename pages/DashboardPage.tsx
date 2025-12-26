@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTransactions, useCategories, useAccounts, useGoals, useManualSavings, useCDBs } from '../hooks/useFirestore';
 import { TransactionType, Transaction } from '../types';
@@ -30,7 +29,7 @@ const getUTCDate = (dateString: string) => {
 
 const StatCard: React.FC<{title: string, amount: number, percentage?: number, isPositive?: boolean, info?: string}> = ({title, amount, percentage, isPositive, info}) => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h3 className="text-slate-500 mb-2 flex justify-between text-sm font-normal tracking-normal">
+        <h3 className="text-slate-500 mb-2 flex justify-between text-sm font-semibold tracking-normal">
             {title}
             {info && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-normal">{info}</span>}
         </h3>
@@ -51,7 +50,7 @@ const SavingsGoalCard: React.FC<{title: string, goal: number, current: number, l
     return (
         <div>
           <div className="flex justify-between items-baseline mb-1">
-            <h4 className="font-normal text-slate-700 text-sm tracking-normal">{label}</h4>
+            <h4 className="font-semibold text-slate-700 text-sm tracking-normal">{label}</h4>
             <span className="text-sm font-bold text-blue-600 tracking-normal">{percentage.toFixed(0)}%</span>
           </div>
           <div className="w-full bg-slate-200 rounded-full h-2">
@@ -70,38 +69,26 @@ const RecentActivityItem: React.FC<{color?: string, description: string, categor
     <div className="flex items-center">
       <div className="w-10 h-10 rounded-lg mr-3" style={{ backgroundColor: color || '#cbd5e1' }}></div>
       <div>
-        <p className="font-bold text-slate-800 text-sm tracking-normal">{description}</p>
-        <p className="text-xs text-slate-500 font-normal tracking-normal">{category}</p>
+        <p className="font-medium text-slate-700 text-sm tracking-normal">{description}</p>
+        <p className="text-xs text-slate-700 font-normal tracking-normal">{category}</p>
       </div>
     </div>
     <div className="text-right">
       <p className={`text-sm font-bold tracking-normal ${amount.startsWith('-') ? 'text-red-500' : 'text-green-500'}`}>
         <PrivateValue>{amount}</PrivateValue>
       </p>
-      <p className="text-[10px] text-slate-500 font-normal tracking-normal">{time}</p>
+      <p className="text-[10px] text-slate-700 font-normal tracking-normal">{time}</p>
     </div>
   </div>
-);
-
-const MyAccountItem: React.FC<{ name: string, type: string, balance: number}> = ({name, type, balance}) => (
-    <div className="flex items-center justify-between py-2">
-        <div>
-            <p className="font-bold text-slate-800 text-sm tracking-normal">{name}</p>
-            <p className="text-xs text-slate-500 font-normal tracking-normal">{type}</p>
-        </div>
-        <p className={`font-bold text-sm tracking-normal ${balance < 0 ? 'text-red-500': 'text-slate-800'}`}>
-            <PrivateValue>{formatCurrency(balance)}</PrivateValue>
-        </p>
-    </div>
 );
 
 const TopListItem: React.FC<{ index: number, description: string, percentage: string, amount: number}> = ({index, description, percentage, amount}) => (
     <div className="flex items-center justify-between text-sm py-2">
       <div className="flex items-center">
-        <span className="text-slate-500 mr-3 font-normal">{index}.</span>
+        <span className="text-slate-700 mr-3 font-normal">{index}.</span>
         <div>
-            <p className="font-bold text-slate-800 tracking-normal">{description}</p>
-            <p className="text-[10px] text-slate-500 font-normal tracking-normal">{percentage}</p>
+            <p className="font-medium text-slate-700 tracking-normal">{description}</p>
+            <p className="text-[10px] text-slate-700 font-normal tracking-normal">{percentage}</p>
         </div>
       </div>
       <p className="font-bold text-slate-800 tracking-normal"><PrivateValue>{formatCurrency(amount)}</PrivateValue></p>
@@ -477,15 +464,22 @@ const DashboardPage: React.FC = () => {
           else if (t.type === TransactionType.EXPENSE) entry.Despesas += t.amount;
       });
 
+      // Correção de variáveis indefinidas (start, end) e soma de rendimentos CDB no gráfico
+      const start = dateRange.start;
+      const end = dateRange.end;
+
       cdbs.forEach(cdb => {
           (cdb.yieldHistory || []).forEach(y => {
              const yDate = getUTCDate(y.date);
-             const monthIndex = yDate.getUTCMonth();
-             const year = yDate.getUTCFullYear();
-             const key = `${monthNames[monthIndex]}/${year}`;
-             if (dataMap.has(key)) {
-                const entry = dataMap.get(key)!;
-                entry.Receitas += y.amount;
+             if (start && end && yDate >= start && yDate <= end) {
+                 const monthIndex = yDate.getUTCMonth();
+                 const year = yDate.getUTCFullYear();
+                 const key = `${monthNames[monthIndex]}/${year}`;
+                 
+                 const entry = dataMap.get(key);
+                 if (entry) {
+                     entry.Receitas += y.amount;
+                 }
              }
           });
       });
@@ -628,7 +622,7 @@ const DashboardPage: React.FC = () => {
     <div className="space-y-6 relative">
       <div className="flex space-x-2">
         {['Mês atual', 'Este ano', 'Personalizado'].map(f => (
-            <button key={f} onClick={() => handleFilterClick(f)} className={`px-4 py-2 rounded-full text-sm font-normal transition-all tracking-normal ${activeFilter === f ? 'bg-blue-600 text-white font-bold' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}>
+            <button key={f} onClick={() => handleFilterClick(f)} className={`px-4 py-2 rounded-full text-sm font-medium transition-all tracking-normal ${activeFilter === f ? 'bg-blue-600 text-white shadow-sm font-bold' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}>
                 {f}
             </button>
         ))}
@@ -675,7 +669,7 @@ const DashboardPage: React.FC = () => {
             goal={annualPeriodGoal} 
             current={annualSavingsToDate} 
             label={annualPeriodLabel} 
-            color="bg-green-500" 
+            color="bg-emerald-500" 
           />
         </div>
       </div>
@@ -704,34 +698,24 @@ const DashboardPage: React.FC = () => {
           </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-             <h3 className="font-bold text-lg mb-2 text-slate-800 tracking-normal">Atividade recente</h3>
-             <div className="divide-y divide-slate-100">
-                 {recentTransactionsForDashboard.length > 0 ? (
-                    recentTransactionsForDashboard.map(({ transaction: t, category }) => (
-                        <RecentActivityItem 
-                            key={t.id}
-                            color={category?.color}
-                            description={t.description}
-                            category={category?.name || 'Sem categoria'}
-                            amount={`${t.type === TransactionType.EXPENSE ? '-' : '+'} ${formatCurrency(t.amount)}`}
-                            time={formatDate(t.date)}
-                        />
-                    ))
-                ) : (
-                     <p className="text-center text-slate-500 py-4 font-normal text-sm">Nenhuma atividade recente.</p>
-                )}
-             </div>
-          </div>
-           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-             <h3 className="font-bold text-lg mb-2 text-slate-800 tracking-normal">Minhas contas</h3>
-              <div className="divide-y divide-slate-100">
-                  {accounts.slice(0,3).map(acc => (
-                      <MyAccountItem key={acc.id} name={acc.name} type={acc.bank || 'Conta corrente'} balance={accountBalances.get(acc.id) || 0} />
-                  ))}
-              </div>
-          </div>
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+         <h3 className="font-bold text-lg mb-2 text-slate-800 tracking-normal">Atividade recente</h3>
+         <div className="divide-y divide-slate-100">
+             {recentTransactionsForDashboard.length > 0 ? (
+                recentTransactionsForDashboard.map(({ transaction: t, category }) => (
+                    <RecentActivityItem 
+                        key={t.id}
+                        color={category?.color}
+                        description={t.description}
+                        category={category?.name || 'Sem categoria'}
+                        amount={`${t.type === TransactionType.EXPENSE ? '-' : '+'} ${formatCurrency(t.amount)}`}
+                        time={formatDate(t.date)}
+                    />
+                ))
+            ) : (
+                 <p className="text-center text-slate-500 py-4 font-normal text-sm">Nenhuma atividade recente.</p>
+            )}
+         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

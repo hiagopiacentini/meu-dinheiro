@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { 
   collection, 
@@ -37,7 +36,6 @@ export const useAccounts = () => {
     const q = query(collection(db, `users/${userId}/accounts`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Account));
-      // Sort accounts by order field
       data.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       setAccounts(data);
     }, (error) => {
@@ -49,35 +47,26 @@ export const useAccounts = () => {
 
   const addAccount = async (account: Omit<Account, 'id'>) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) {
-        alert("Erro: Usuário não autenticado.");
-        return null;
-    }
+    if (!currentUid) return null;
     try {
-        // Assign a default order (last in list)
         const newOrder = accounts.length > 0 ? (Math.max(...accounts.map(a => a.order || 0)) + 1) : 0;
         const docRef = await addDoc(collection(db, `users/${currentUid}/accounts`), { ...account, order: newOrder });
         return docRef.id;
     } catch (error: any) {
         console.error("Erro ao adicionar conta:", error.message);
-        alert(`Erro ao criar conta: ${error.message}`);
         return null;
     }
   };
 
   const updateAccount = async (account: Account) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) {
-        alert("Erro: Usuário não autenticado.");
-        return false;
-    }
+    if (!currentUid) return false;
     try {
         const { id, ...data } = account;
         await updateDoc(doc(db, `users/${currentUid}/accounts`, id), data);
         return true;
     } catch (error: any) {
         console.error("Erro ao atualizar conta:", error.message);
-        alert(`Erro ao atualizar conta: ${error.message}`);
         return false;
     }
   };
@@ -85,7 +74,6 @@ export const useAccounts = () => {
   const reorderAccounts = async (updatedOrderAccounts: { id: string, order: number }[]) => {
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) return false;
-
     try {
         const batch = writeBatch(db);
         updatedOrderAccounts.forEach((acc) => {
@@ -102,18 +90,12 @@ export const useAccounts = () => {
 
   const deleteAccount = async (id: string) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) {
-        alert("Erro: Usuário não autenticado.");
-        return false;
-    }
+    if (!currentUid) return false;
     try {
-        const path = `users/${currentUid}/accounts/${id}`;
-        console.log(`[DEBUG] Tentando excluir conta em: ${path}`);
         await deleteDoc(doc(db, `users/${currentUid}/accounts`, id));
         return true;
     } catch (error: any) {
         console.error("Erro ao excluir conta:", error.message);
-        alert(`Erro ao excluir conta (Firebase): ${error.code} - ${error.message}`);
         return false;
     }
   };
@@ -152,30 +134,20 @@ export const useTransactions = () => {
 
   const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) {
-        alert("Erro: Usuário não autenticado.");
-        return null;
-    }
+    if (!currentUid) return null;
     try {
-        const dataToSave = {
-          ...transaction,
-          createdAt: new Date().toISOString()
-        };
+        const dataToSave = { ...transaction, createdAt: new Date().toISOString() };
         const docRef = await addDoc(collection(db, `users/${currentUid}/transactions`), dataToSave);
         return docRef.id;
     } catch (error: any) {
         console.error("Erro ao adicionar transação:", error.message);
-        alert(`Erro ao salvar transação: ${error.message}`);
         return null;
     }
   };
   
   const addTransactions = async (newTransactions: Omit<Transaction, 'id'>[]) => {
       const currentUid = auth.currentUser?.uid;
-      if (!currentUid) {
-          alert("Erro: Usuário não autenticado.");
-          return false;
-      }
+      if (!currentUid) return false;
       try {
           const timestamp = new Date().toISOString();
           const batchPromises = newTransactions.map(t => addDoc(collection(db, `users/${currentUid}/transactions`), { ...t, createdAt: timestamp }));
@@ -183,60 +155,44 @@ export const useTransactions = () => {
           return true;
       } catch (error: any) {
           console.error("Erro ao adicionar múltiplas transações:", error.message);
-          alert(`Erro ao salvar transações em lote: ${error.message}`);
           return false;
       }
   };
 
   const updateTransaction = async (transaction: Transaction) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) {
-        alert("Erro: Usuário não autenticado.");
-        return false;
-    }
+    if (!currentUid) return false;
     try {
         const { id, ...data } = transaction;
         await updateDoc(doc(db, `users/${currentUid}/transactions`, id), data);
         return true;
     } catch (error: any) {
         console.error("Erro ao atualizar transação:", error.message);
-        alert(`Erro ao atualizar transação: ${error.message}`);
         return false;
     }
   };
 
   const deleteTransaction = async (id: string) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) {
-        alert("Erro: Usuário não autenticado.");
-        return false;
-    }
+    if (!currentUid) return false;
     try {
-        const path = `users/${currentUid}/transactions/${id}`;
-        console.log(`[DEBUG] Tentando excluir transação em: ${path}`);
         await deleteDoc(doc(db, `users/${currentUid}/transactions`, id));
         return true;
     } catch (error: any) {
         console.error("Erro ao excluir transação:", error.message);
-        alert(`Erro ao excluir transação (Firebase): ${error.code} - ${error.message}`);
         return false;
     }
   };
   
   const deleteTransactions = async (ids: string[]) => {
       const currentUid = auth.currentUser?.uid;
-      if (!currentUid) {
-          alert("Erro: Usuário não autenticado.");
-          return false;
-      }
+      if (!currentUid) return false;
       try {
-          console.log(`[DEBUG] Tentando excluir ${ids.length} transações em lote.`);
           const batchPromises = ids.map(id => deleteDoc(doc(db, `users/${currentUid}/transactions`, id)));
           await Promise.all(batchPromises);
           return true;
       } catch (error: any) {
           console.error("Erro ao excluir múltiplas transações:", error.message);
-          alert(`Erro ao excluir transações em lote: ${error.message}`);
           return false;
       }
   }
@@ -258,14 +214,11 @@ export const useCategories = () => {
 
   useEffect(() => {
     if (!userId) return;
-
     const docRef = doc(db, `users/${userId}/settings/categories`);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         const list = data?.list;
-        
-        // Deep sanitization to ensure structure is correct even if DB is corrupted
         if (Array.isArray(list)) {
           const sanitizedList = list.map((cat: any) => ({
             ...cat,
@@ -277,8 +230,6 @@ export const useCategories = () => {
               : []
           }));
           setCategoriesState(sanitizedList);
-        } else {
-          setCategoriesState([]);
         }
       } else {
         setDoc(docRef, { list: sampleCategories }).catch(err => console.error("Erro init categories", err.message));
@@ -286,22 +237,17 @@ export const useCategories = () => {
     }, (error) => {
       console.error("Error fetching categories:", error.message);
     });
-
     return () => unsubscribe();
   }, [userId]);
 
   const setCategories = async (newCategories: Category[]) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) {
-        alert("Erro: Usuário não autenticado.");
-        return false;
-    }
+    if (!currentUid) return false;
     try {
         await setDoc(doc(db, `users/${currentUid}/settings/categories`), { list: newCategories });
         return true;
     } catch (error: any) {
         console.error("Erro ao salvar categorias:", error.message);
-        alert(`Erro ao salvar categorias: ${error.message}`);
         return false;
     }
   };
@@ -326,7 +272,6 @@ export const useLoans = () => {
       setLoans([]);
       return;
     }
-
     const q = query(collection(db, `users/${userId}/loans`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Loan));
@@ -334,7 +279,6 @@ export const useLoans = () => {
     }, (error) => {
       console.error("Error fetching loans:", error.message);
     });
-
     return () => unsubscribe();
   }, [userId]);
 
@@ -346,7 +290,6 @@ export const useLoans = () => {
         return docRef.id;
     } catch (error: any) {
         console.error("Erro ao adicionar empréstimo:", error.message);
-        alert(`Erro ao salvar empréstimo: ${error.message}`);
         return null;
     }
   };
@@ -360,7 +303,6 @@ export const useLoans = () => {
         return true;
     } catch (error: any) {
         console.error("Erro ao atualizar empréstimo:", error.message);
-        alert(`Erro ao atualizar empréstimo: ${error.message}`);
         return false;
     }
   };
@@ -369,12 +311,10 @@ export const useLoans = () => {
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) return false;
     try {
-        console.log(`[DEBUG] Tentando excluir empréstimo em: users/${currentUid}/loans/${id}`);
         await deleteDoc(doc(db, `users/${currentUid}/loans`, id));
         return true;
     } catch (error: any) {
         console.error("Erro ao excluir empréstimo:", error.message);
-        alert(`Erro ao excluir empréstimo: ${error.message}`);
         return false;
     }
   };
@@ -396,7 +336,6 @@ export const useGoals = () => {
 
   useEffect(() => {
     if (!userId) return;
-
     const docRef = doc(db, `users/${userId}/settings/goals`);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -405,7 +344,6 @@ export const useGoals = () => {
     }, (error) => {
       console.error("Error fetching goals:", error.message);
     });
-
     return () => unsubscribe();
   }, [userId]);
 
@@ -417,7 +355,6 @@ export const useGoals = () => {
         return true;
     } catch (error: any) {
         console.error("Erro ao salvar metas:", error.message);
-        alert(`Erro ao salvar metas: ${error.message}`);
         return false;
     }
   };
@@ -439,7 +376,6 @@ export const useManualSavings = () => {
 
   useEffect(() => {
     if (!userId) return;
-
     const docRef = doc(db, `users/${userId}/settings/manual_savings`);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -450,7 +386,6 @@ export const useManualSavings = () => {
     }, (error) => {
       console.error("Error fetching manual savings:", error.message);
     });
-
     return () => unsubscribe();
   }, [userId]);
 
@@ -462,7 +397,6 @@ export const useManualSavings = () => {
         return true;
     } catch (error: any) {
         console.error("Erro ao salvar economias manuais:", error.message);
-        alert(`Erro ao salvar economias manuais: ${error.message}`);
         return false;
     }
   };
@@ -487,7 +421,6 @@ export const useCDBs = () => {
       setCdbs([]);
       return;
     }
-
     const q = query(collection(db, `users/${userId}/cdb_contracts`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CDBContract));
@@ -495,7 +428,6 @@ export const useCDBs = () => {
     }, (error) => {
       console.error("Error fetching CDBs:", error.message);
     });
-
     return () => unsubscribe();
   }, [userId]);
 
@@ -507,7 +439,6 @@ export const useCDBs = () => {
         return docRef.id;
     } catch (error: any) {
         console.error("Erro ao adicionar CDB:", error.message);
-        alert(`Erro ao salvar CDB: ${error.message}`);
         return null;
     }
   };
@@ -521,7 +452,6 @@ export const useCDBs = () => {
         return true;
     } catch (error: any) {
         console.error("Erro ao atualizar CDB:", error.message);
-        alert(`Erro ao atualizar CDB: ${error.message}`);
         return false;
     }
   };
@@ -534,7 +464,6 @@ export const useCDBs = () => {
         return true;
     } catch (error: any) {
         console.error("Erro ao excluir CDB:", error.message);
-        alert(`Erro ao excluir CDB: ${error.message}`);
         return false;
     }
   };

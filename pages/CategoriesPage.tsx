@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useCategories } from '../hooks/useFirestore';
 import { Category, Subcategory, CategoryItem, TransactionType } from '../types';
@@ -357,19 +356,19 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
         <div className="space-y-6 pb-12">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-xs font-normal text-slate-500 tracking-normal">Categorias</p>
+                    <p className="text-xs font-medium text-slate-500 tracking-normal">Categorias</p>
                     <p className="text-xl font-bold text-slate-700 tracking-normal">{stats.catCount}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-xs font-normal text-slate-500 tracking-normal">Subcategorias</p>
+                    <p className="text-xs font-medium text-slate-500 tracking-normal">Subcategorias</p>
                     <p className="text-xl font-bold text-slate-700 tracking-normal">{stats.subCount}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-xs font-normal text-slate-500 tracking-normal">Total de itens</p>
+                    <p className="text-xs font-medium text-slate-500 tracking-normal">Total de itens</p>
                     <p className="text-xl font-bold text-slate-700 tracking-normal">{stats.itemCount}</p>
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-xs font-normal text-slate-500 tracking-normal">Itens fixos</p>
+                    <p className="text-xs font-medium text-slate-500 tracking-normal">Itens fixos</p>
                     <p className="text-xl font-bold text-slate-700 tracking-normal">{stats.fixedCount}</p>
                 </div>
             </div>
@@ -379,13 +378,13 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                     <div className="inline-flex p-1 bg-slate-100 rounded-xl">
                         <button 
                             onClick={() => setActiveTab(TransactionType.EXPENSE)} 
-                            className={`px-6 py-2 text-sm font-normal rounded-lg transition-all tracking-normal ${activeTab === TransactionType.EXPENSE ? 'bg-white text-red-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`px-6 py-2 text-sm font-medium rounded-lg transition-all tracking-normal ${activeTab === TransactionType.EXPENSE ? 'bg-white text-red-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             Despesas
                         </button>
                         <button 
                             onClick={() => setActiveTab(TransactionType.INCOME)} 
-                            className={`px-6 py-2 text-sm font-normal rounded-lg transition-all tracking-normal ${activeTab === TransactionType.INCOME ? 'bg-white text-green-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`px-6 py-2 text-sm font-medium rounded-lg transition-all tracking-normal ${activeTab === TransactionType.INCOME ? 'bg-white text-green-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             Receitas
                         </button>
@@ -465,7 +464,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                                         <div className={`transition-transform duration-200 ${expandedItems[subcategory.id] ? 'rotate-0' : '-rotate-90'}`}>
                                                             {subcategory.items.length > 0 ? <ChevronDownIcon className="w-3.5 h-3.5 text-slate-500" /> : <div className="w-3.5" />}
                                                         </div>
-                                                        <span className="text-sm font-normal text-slate-700 select-none tracking-normal">{subcategory.name}</span>
+                                                        <span className="text-sm font-medium text-slate-700 select-none tracking-normal">{subcategory.name}</span>
                                                     </div>
                                                     <ActionButtons 
                                                         onAdd={() => openModal('item', 'add', { parentId: subcategory.id, categoryId: category.id })}

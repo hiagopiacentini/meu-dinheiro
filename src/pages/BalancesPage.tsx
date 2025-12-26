@@ -95,12 +95,11 @@ const BalancesPage: React.FC = () => {
 
     return (
         <div className="space-y-10 w-full max-w-7xl mx-auto pb-10">
-            {/* Cards de Resumo Estilo Dashboard */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-36">
                     <div>
                         <div className="flex justify-between items-center mb-2">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Patrimônio Líquido</p>
+                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Patrimônio Líquido</p>
                             <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><BalancesIcon className="w-5 h-5"/></div>
                         </div>
                         <p className={`text-3xl font-bold tracking-tight ${totalNetWorth >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
@@ -113,7 +112,7 @@ const BalancesPage: React.FC = () => {
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-36">
                     <div>
                         <div className="flex justify-between items-center mb-2">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Disponível em Conta</p>
+                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Disponível em Conta</p>
                             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><MoneyIcon className="w-5 h-5"/></div>
                         </div>
                         <p className="text-3xl font-bold text-emerald-600 tracking-tight">
@@ -126,7 +125,7 @@ const BalancesPage: React.FC = () => {
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-36">
                     <div>
                         <div className="flex justify-between items-center mb-2">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Comprometido</p>
+                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Comprometido</p>
                             <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><CreditCardIcon className="w-5 h-5"/></div>
                         </div>
                         <p className="text-3xl font-bold text-rose-600 tracking-tight">
@@ -150,7 +149,7 @@ const BalancesPage: React.FC = () => {
                                 <BankLogo account={acc} />
                                 <div>
                                     <h3 className="font-bold text-lg text-slate-800 leading-tight">{acc.name}</h3>
-                                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-0.5">
+                                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-0.5">
                                         {acc.bank || 'Conta Manual'}
                                     </p>
                                 </div>
@@ -158,21 +157,21 @@ const BalancesPage: React.FC = () => {
 
                             <div className="grid grid-cols-2 md:flex items-center gap-10 md:gap-16">
                                 <div className="text-right md:text-left">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Na Conta</p>
+                                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Na Conta</p>
                                     <p className={`font-bold tracking-tight text-base ${acc.accountBalance >= 0 ? 'text-slate-600' : 'text-rose-500'}`}>
                                         <PrivateValue>{formatCurrency(acc.accountBalance)}</PrivateValue>
                                     </p>
                                 </div>
                                 {acc.cardsBalance !== 0 && (
                                     <div className="text-right md:text-left">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">No Cartão</p>
+                                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">No Cartão</p>
                                         <p className={`font-bold tracking-tight text-base ${acc.cardsBalance >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                                             <PrivateValue>{formatCurrency(acc.cardsBalance)}</PrivateValue>
                                         </p>
                                     </div>
                                 )}
                                 <div className="col-span-2 md:col-span-1 text-right border-t border-slate-50 md:border-0 pt-4 md:pt-0">
-                                    <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-1">Consolidado</p>
+                                    <p className="text-[10px] font-medium text-blue-500 uppercase tracking-widest mb-1">Consolidado</p>
                                     <p className={`text-2xl font-bold tracking-tight ${acc.consolidated >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
                                         <PrivateValue>{formatCurrency(acc.consolidated)}</PrivateValue>
                                     </p>

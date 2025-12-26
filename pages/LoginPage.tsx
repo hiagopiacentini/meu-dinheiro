@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { sampleAccounts, sampleTransactions, sampleCategories, sampleLoans, sampleGoals } from '../data/demoData';
 import { auth } from '../services/firebase';
@@ -8,38 +7,29 @@ interface LoginPageProps {
   onLogin: () => void;
 }
 
-// Robust stringify to avoid crashes from circular references and complex objects
 const safeStringify = (obj: any) => {
-  const cache = new Set();
+  const cache = new WeakSet();
   try {
     return JSON.stringify(obj, (key, value) => {
-      if (typeof value !== 'object' || value === null) {
-        return value;
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) {
+          return '[Circular]';
+        }
+        cache.add(value);
+
+        const proto = Object.getPrototypeOf(value);
+        const isPlain = proto === Object.prototype || proto === null || Array.isArray(value);
+
+        if (!isPlain) {
+          if (typeof value.toJSON === 'function') return value.toJSON();
+          return undefined; 
+        }
       }
-
-      if (cache.has(value)) {
-        return '[Circular]';
-      }
-      
-      cache.add(value);
-
-      // Robust check to only serialize plain objects and arrays
-      // This prevents issues with Firebase internal objects (often minified as 'Y', 'Ka', etc.)
-      const proto = Object.getPrototypeOf(value);
-      const isPlainObject = proto === Object.prototype || proto === null;
-      const isArray = Array.isArray(value);
-
-      if (!isPlainObject && !isArray) {
-        return undefined; // Strips out internal library instances that cause circularity errors
-      }
-
       return value;
     });
   } catch (error) {
-    console.error("Error stringifying object in safeStringify:", error);
+    console.error("Erro na serialização segura:", error);
     return "[]"; 
-  } finally {
-      cache.clear();
   }
 };
 
@@ -51,10 +41,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
 
-  // Function to clean up demo data from LocalStorage without deleting user data
   const cleanupDemoData = () => {
     try {
-      // 1. Clean Accounts (remove ids containing '-demo')
       const storedAccountsStr = localStorage.getItem('accounts');
       if (storedAccountsStr) {
           const storedAccounts = JSON.parse(storedAccountsStr);
@@ -64,7 +52,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           }
       }
 
-      // 2. Clean Transactions (remove ids starting with 't-demo')
       const storedTransactionsStr = localStorage.getItem('transactions');
       if (storedTransactionsStr) {
           const storedTransactions = JSON.parse(storedTransactionsStr);
@@ -74,7 +61,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           }
       }
 
-      // 3. Clean Categories 
       const storedCategoriesStr = localStorage.getItem('categories');
       if (storedCategoriesStr) {
           const storedCategories = JSON.parse(storedCategoriesStr);
@@ -85,7 +71,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             }
           }
       }
-
     } catch (e) {
       console.error("Erro ao limpar dados de demonstração", e);
     }
@@ -94,7 +79,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const handleDemoLogin = () => {
     if (window.confirm("Atenção: Entrar no modo Demonstração irá substituir os dados atuais do navegador pelos dados de exemplo. Deseja continuar?")) {
       try {
-        // Clear existing data and set demo data using safeStringify
         localStorage.setItem('accounts', safeStringify(sampleAccounts));
         localStorage.setItem('transactions', safeStringify(sampleTransactions));
         localStorage.setItem('categories', safeStringify(sampleCategories));
@@ -116,7 +100,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     const trimmedEmail = email.trim();
     const trimmedName = name.trim();
 
-    // Keep legacy local demo login if specifically used
     if (!isSignUp && trimmedEmail === 'alebarros.vha@gmail.com' && password === 'nbt1515') {
       handleDemoLogin();
       setLoading(false);
@@ -134,12 +117,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         await updateProfile(userCredential.user, {
             displayName: trimmedName
         });
-        // On successful creation, we also clean demo data to start fresh
         cleanupDemoData();
         onLogin();
       } else {
         await signInWithEmailAndPassword(auth, trimmedEmail, password);
-        cleanupDemoData(); // Ensure clean state for real users
+        cleanupDemoData();
         onLogin();
       }
     } catch (err: any) {
@@ -230,7 +212,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError('');
-                setName(''); // Reset name when toggling
+                setName('');
               }}
               className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors focus:outline-none"
             >

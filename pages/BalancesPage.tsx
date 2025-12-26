@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { useTransactions, useAccounts, useCDBs, useCategories } from '../hooks/useFirestore';
 import { TransactionType, Account } from '../types';
@@ -114,7 +113,7 @@ const BalancesPage: React.FC = () => {
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-36">
                     <div>
                         <div className="flex justify-between items-center mb-2">
-                            <p className="text-sm font-normal text-slate-500 tracking-normal">Patrimônio líquido</p>
+                            <p className="text-sm font-medium text-slate-500 tracking-normal">Patrimônio líquido</p>
                             <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><BalancesIcon className="w-5 h-5"/></div>
                         </div>
                         <p className={`text-3xl font-bold tracking-normal ${totalNetWorth >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
@@ -126,7 +125,7 @@ const BalancesPage: React.FC = () => {
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-36">
                     <div>
                         <div className="flex justify-between items-center mb-2">
-                            <p className="text-sm font-normal text-slate-500 tracking-normal">Disponível em conta</p>
+                            <p className="text-sm font-medium text-slate-500 tracking-normal">Disponível em conta</p>
                             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><MoneyIcon className="w-5 h-5"/></div>
                         </div>
                         <p className="text-3xl font-bold text-emerald-600 tracking-normal">
@@ -138,7 +137,7 @@ const BalancesPage: React.FC = () => {
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-36">
                     <div>
                         <div className="flex justify-between items-center mb-2">
-                            <p className="text-sm font-normal text-slate-500 tracking-normal">Investido (CDB)</p>
+                            <p className="text-sm font-medium text-slate-500 tracking-normal">Investido (CDB)</p>
                             <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><BalancesIcon className="w-5 h-5 transform rotate-180"/></div>
                         </div>
                         <p className="text-3xl font-bold text-purple-600 tracking-normal">
@@ -150,7 +149,7 @@ const BalancesPage: React.FC = () => {
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-36">
                     <div>
                         <div className="flex justify-between items-center mb-2">
-                            <p className="text-sm font-normal text-slate-500 tracking-normal">Comprometido</p>
+                            <p className="text-sm font-medium text-slate-500 tracking-normal">Comprometido</p>
                             <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><CreditCardIcon className="w-5 h-5"/></div>
                         </div>
                         <p className="text-3xl font-bold text-rose-600 tracking-normal">
@@ -181,14 +180,14 @@ const BalancesPage: React.FC = () => {
 
                             <div className="grid grid-cols-2 md:flex items-center gap-10 md:gap-16">
                                 <div className="text-right md:text-left">
-                                    <p className="text-[11px] font-normal text-slate-500 tracking-normal mb-1">Na conta</p>
+                                    <p className="text-[11px] font-medium text-slate-500 tracking-normal mb-1">Na conta</p>
                                     <p className={`font-bold tracking-normal text-base ${acc.accountBalance >= 0 ? 'text-slate-600' : 'text-rose-500'}`}>
                                         <PrivateValue>{formatCurrency(acc.accountBalance)}</PrivateValue>
                                     </p>
                                 </div>
                                 {acc.investmentBalance > 0 && (
                                     <div className="text-right md:text-left">
-                                        <p className="text-[11px] font-normal text-slate-500 tracking-normal mb-1">Investido</p>
+                                        <p className="text-[11px] font-medium text-slate-500 tracking-normal mb-1">Investido</p>
                                         <p className="font-bold tracking-normal text-base text-purple-600">
                                             <PrivateValue>{formatCurrency(acc.investmentBalance)}</PrivateValue>
                                         </p>
@@ -196,14 +195,14 @@ const BalancesPage: React.FC = () => {
                                 )}
                                 {acc.cardsBalance !== 0 && (
                                     <div className="text-right md:text-left">
-                                        <p className="text-[11px] font-normal text-slate-500 tracking-normal mb-1">No cartão</p>
+                                        <p className="text-[11px] font-medium text-slate-500 tracking-normal mb-1">No cartão</p>
                                         <p className={`font-bold tracking-normal text-base ${acc.cardsBalance >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                                             <PrivateValue>{formatCurrency(acc.cardsBalance)}</PrivateValue>
                                         </p>
                                     </div>
                                 )}
                                 <div className="col-span-2 md:col-span-1 text-right border-t border-slate-50 md:border-0 pt-4 md:pt-0">
-                                    <p className="text-[11px] font-normal text-slate-500 tracking-normal mb-1">Consolidado</p>
+                                    <p className="text-[11px] font-medium text-slate-500 tracking-normal mb-1">Consolidado</p>
                                     <p className={`font-bold tracking-normal text-base ${acc.consolidated >= 0 ? 'text-slate-600' : 'text-rose-500'}`}>
                                         <PrivateValue>{formatCurrency(acc.consolidated)}</PrivateValue>
                                     </p>

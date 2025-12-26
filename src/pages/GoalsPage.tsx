@@ -223,11 +223,12 @@ const GoalsPage: React.FC = () => {
         return { transactionSavings: totalSavings };
     }, [transactions, selectedYear, itemBalanceMap]);
     
-    const manualSavingsTotal = useMemo(() => {
+    // Fix: Explicitly type useMemo to number to resolve 'unknown' type comparison errors at line 322
+    const manualSavingsTotal = useMemo<number>(() => {
         if (!manualSavings) return 0;
         const yearData = manualSavings[String(selectedYear)];
         if (!yearData) return 0;
-        return Object.values(yearData).reduce((sum: number, val: number) => sum + (val || 0), 0);
+        return (Object.values(yearData) as number[]).reduce((sum: number, val: number) => sum + (val || 0), 0);
     }, [manualSavings, selectedYear]);
 
     const totalSavings = transactionSavings + manualSavingsTotal;

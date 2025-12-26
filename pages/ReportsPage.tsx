@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useTransactions, useCategories, useAccounts, useCDBs } from '../hooks/useFirestore';
 import { TransactionType, Transaction } from '../types';
@@ -30,12 +29,12 @@ const getUTCDate = (dateString: string) => {
 
 const KpiCard: React.FC<{ title: string, value: string | number, subtext?: string, colorClass?: string, isCurrency?: boolean }> = ({ title, value, subtext, colorClass = "text-slate-800", isCurrency = true }) => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-1 hover:shadow-md transition-all">
-        <h3 className="text-sm font-medium text-slate-400 tracking-normal">{title}</h3>
+        <h3 className="text-sm font-semibold text-slate-700 tracking-normal">{title}</h3>
         <div>
-            <p className={`text-3xl md:text-4xl font-bold tracking-normal ${colorClass}`}>
+            <p className={`text-3xl font-bold tracking-normal ${colorClass}`}>
                 <PrivateValue>{typeof value === 'number' || isCurrency ? formatCurrency(Number(value)) : value}</PrivateValue>
             </p>
-            {subtext && <p className="text-xs text-slate-400 font-normal tracking-normal mt-1">{subtext}</p>}
+            {subtext && <p className="text-[11px] text-slate-600 font-medium tracking-normal mt-1">{subtext}</p>}
         </div>
     </div>
 );
@@ -119,7 +118,7 @@ const DreSubcategoryRow: React.FC<{
     return (
         <>
             <tr className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors group" onClick={() => hasItems && setIsExpanded(!isExpanded)}>
-                <td className="py-3 px-4 pl-10 flex items-center text-slate-600 text-sm font-medium tracking-normal">
+                <td className="py-3 px-4 pl-10 flex items-center text-slate-600 text-sm font-semibold tracking-normal">
                     <button className={`mr-2 p-0.5 rounded transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'} ${!hasItems ? 'invisible' : ''}`}>
                         <ChevronDownIcon className="w-3.5 h-3.5 text-slate-400"/>
                     </button>
@@ -136,17 +135,17 @@ const DreSubcategoryRow: React.FC<{
                         <PrivateValue>{formatCurrency(data.value)}</PrivateValue>
                     </div>
                 </td>
-                <td className="py-3 pl-2 pr-6 text-right text-slate-400 text-xs font-medium tracking-normal w-24">
+                <td className="py-3 pl-2 pr-6 text-right text-slate-400 text-xs font-semibold tracking-normal w-24">
                     {totalIncome > 0 ? ((data.value / totalIncome) * 100).toFixed(1) + '%' : '-'}
                 </td>
             </tr>
             {isExpanded && data.items.map((item, idx) => (
                 <tr key={`${data.name}-item-${idx}`} className="bg-slate-50/20 border-b border-slate-50/50 group">
-                    <td className="py-2.5 px-4 pl-16 text-slate-500 text-[11px] font-normal flex items-center tracking-normal">
+                    <td className="py-2.5 px-4 pl-16 text-slate-500 text-[11px] font-medium flex items-center tracking-normal">
                         <span className="w-1 h-1 rounded-full bg-slate-200 mr-3"></span>
                         {item.name}
                     </td>
-                    <td className="py-2.5 px-2 text-right text-slate-500 text-[11px] font-normal tracking-normal">
+                    <td className="py-2.5 px-2 text-right text-slate-500 text-[11px] font-medium tracking-normal">
                         <div className="flex items-center justify-end gap-2">
                             <button 
                                 onClick={(e) => { e.stopPropagation(); onShowBreakdown(item.name, item.txs); }}
@@ -173,13 +172,13 @@ const DreCategoryRow: React.FC<{
     return (
         <React.Fragment>
             <tr className="bg-white hover:bg-slate-50 cursor-pointer transition-colors group border-b border-slate-100" onClick={() => setIsExpanded(!isExpanded)}>
-                <td className="py-4 px-4 pl-4 flex items-center font-bold text-slate-800 text-sm tracking-normal">
+                <td className="py-4 px-4 pl-4 flex items-center font-semibold text-slate-800 text-sm tracking-normal">
                     <button className={`mr-2 p-1 text-slate-400 transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`}>
                         <ChevronDownIcon className="w-4 h-4"/>
                     </button>
                     {data.name}
                 </td>
-                <td className="py-4 px-2 text-right font-bold text-slate-800 text-base tracking-normal">
+                <td className="py-4 px-2 text-right font-semibold text-slate-800 text-base tracking-normal">
                     <div className="flex items-center justify-end gap-2">
                         <button 
                             onClick={(e) => { e.stopPropagation(); onShowBreakdown(data.name, data.txs); }}
@@ -190,7 +189,7 @@ const DreCategoryRow: React.FC<{
                         <PrivateValue>{formatCurrency(data.value)}</PrivateValue>
                     </div>
                 </td>
-                <td className="py-4 pl-2 pr-6 text-right text-slate-500 text-sm font-bold tracking-normal w-24">
+                <td className="py-4 pl-2 pr-6 text-right text-slate-500 text-sm font-semibold tracking-normal w-24">
                     {totalIncome > 0 ? ((data.value / totalIncome) * 100).toFixed(1) + '%' : '-'}
                 </td>
             </tr>
@@ -209,12 +208,12 @@ const ReportsPage: React.FC = () => {
     const { isPrivacyMode } = usePrivacy();
 
     const [period, setPeriod] = useState<'currentMonth' | 'lastMonth' | '3months' | '6months' | 'year' | 'all' | 'custom'>('currentMonth');
-    const [sourceFilter, setSourceFilter] = useState<string>('all'); // 'all', 'investments', accountId, 'card|cardId'
+    const [sourceFilter, setSourceFilter] = useState<string>('all');
     const [customDateRange, setCustomDateRange] = useState<{start: Date | null, end: Date | null}>({ start: null, end: null });
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [breakdownModal, setBreakdownModal] = useState<{ open: boolean, title: string, txs: any[] }>({ open: false, title: '', txs: [] });
 
-    const accountMap = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.name])), [accounts]);
+    const accountMap = useMemo(() => new Map<string, string>(accounts.map(acc => [acc.id, acc.name])), [accounts]);
 
     const handleDateChange = (range: { start: Date | null, end: Date | null }) => {
         setCustomDateRange(range);
@@ -287,13 +286,11 @@ const ReportsPage: React.FC = () => {
 
     const { reportTransactions, reportYields } = useMemo(() => {
         const { start, end } = dateBoundaries;
-        
         let txs = transactions.filter(t => {
             const tDate = getUTCDate(t.date);
             return tDate >= start && tDate <= end;
         });
 
-        // Aplicar Filtro de Origem
         if (sourceFilter !== 'all') {
             if (sourceFilter === 'investments') {
                 txs = txs.filter(t => t.itemId && yieldItemInfo && t.itemId === yieldItemInfo.id);
@@ -301,7 +298,6 @@ const ReportsPage: React.FC = () => {
                 const cardId = sourceFilter.split('|')[1];
                 txs = txs.filter(t => t.cardId === cardId);
             } else {
-                // Conta específica (excluindo o que for de cartão para não duplicar se for transferência de pagamento)
                 txs = txs.filter(t => (t.accountId === sourceFilter || t.destinationAccountId === sourceFilter) && !t.cardId);
             }
         }
@@ -314,7 +310,6 @@ const ReportsPage: React.FC = () => {
             } else if (cdb.linkedAccountId === sourceFilter) {
                 shouldIncludeYield = true;
             }
-
             if (shouldIncludeYield) {
                 (cdb.yieldHistory || []).forEach(entry => {
                     const eDate = getUTCDate(entry.date);
@@ -324,7 +319,6 @@ const ReportsPage: React.FC = () => {
                 });
             }
         });
-
         return { reportTransactions: txs, reportYields: yields };
     }, [transactions, cdbs, dateBoundaries, sourceFilter, yieldItemInfo]);
 
@@ -336,7 +330,6 @@ const ReportsPage: React.FC = () => {
         reportTransactions.forEach(t => {
             if (t.itemId && itemBalanceMap.get(t.itemId) === false) return;
             if (yieldItemInfo && t.itemId === yieldItemInfo.id) return;
-
             const catInfo = categoryMap.get(t.itemId || '');
             if (!catInfo) return;
 
@@ -345,7 +338,6 @@ const ReportsPage: React.FC = () => {
             else if (t.type === TransactionType.EXPENSE) totalExpense += t.amount;
 
             const { name: catName, subName, itemName } = catInfo;
-
             if (!targetMap.has(catName)) targetMap.set(catName, { total: 0, txs: [], subcategories: new Map() });
             const catGroup = targetMap.get(catName)!;
             catGroup.total += t.amount;
@@ -366,17 +358,14 @@ const ReportsPage: React.FC = () => {
             reportYields.forEach(y => {
                 totalIncome += y.amount;
                 const { catName, subName, itemName } = yieldItemInfo;
-
                 if (!incomeGroups.has(catName)) incomeGroups.set(catName, { total: 0, txs: [], subcategories: new Map() });
                 const catGroup = incomeGroups.get(catName)!;
                 catGroup.total += y.amount;
                 catGroup.txs.push(y);
-
                 if (!catGroup.subcategories.has(subName)) catGroup.subcategories.set(subName, { total: 0, txs: [], items: new Map() });
                 const subGroup = catGroup.subcategories.get(subName)!;
                 subGroup.total += y.amount;
                 subGroup.txs.push(y);
-
                 if (!subGroup.items.has(itemName)) subGroup.items.set(itemName, { total: 0, txs: [] });
                 const itemGroup = subGroup.items.get(itemName)!;
                 itemGroup.total += y.amount;
@@ -408,60 +397,47 @@ const ReportsPage: React.FC = () => {
 
     const evolutionData = useMemo(() => {
         const data = new Map<string, { name: string, Receitas: number, Despesas: number, Saldo: number, sortKey: number }>();
-        
         reportTransactions.forEach(t => {
             if (t.itemId && itemBalanceMap.get(t.itemId) === false) return;
             if (yieldItemInfo && t.itemId === yieldItemInfo.id) return;
-
             const date = new Date(t.date);
             const key = `${date.getUTCMonth()}/${date.getUTCFullYear()}`;
             const label = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit', timeZone: 'UTC' });
             const sortKey = date.getUTCFullYear() * 100 + date.getUTCMonth();
-            
             if (!data.has(key)) data.set(key, { name: label, Receitas: 0, Despesas: 0, Saldo: 0, sortKey });
             const entry = data.get(key)!;
-            
             if (t.type === TransactionType.INCOME) { entry.Receitas += t.amount; entry.Saldo += t.amount; }
             else if (t.type === TransactionType.EXPENSE) { entry.Despesas += t.amount; entry.Saldo -= t.amount; }
         });
-
         reportYields.forEach(y => {
             const date = new Date(y.date);
             const key = `${date.getUTCMonth()}/${date.getUTCFullYear()}`;
             const label = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit', timeZone: 'UTC' });
             const sortKey = date.getUTCFullYear() * 100 + date.getUTCMonth();
-            
             if (!data.has(key)) data.set(key, { name: label, Receitas: 0, Despesas: 0, Saldo: 0, sortKey });
             const entry = data.get(key)!;
             entry.Receitas += y.amount;
             entry.Saldo += y.amount;
         });
-
         return Array.from(data.values()).sort((a, b) => a.sortKey - b.sortKey);
     }, [reportTransactions, reportYields, itemBalanceMap, yieldItemInfo]);
 
     const dailyChartData = useMemo(() => {
         const dailyMap = new Map<string, { name: string, Entradas: number, Saídas: number, sortKey: number }>();
-        
-        // Gerar todos os dias do período para garantir barras contínuas
         const { start, end } = dateBoundaries;
         let current = new Date(start);
         while (current <= end) {
             const key = current.toISOString().split('T')[0];
             const label = current.getUTCDate().toString().padStart(2, '0');
-            // Se o período for longo (> 31 dias), adicionamos o mês no label
             const labelFinal = (end.getTime() - start.getTime() > 32 * 24 * 60 * 60 * 1000) 
                 ? `${label}/${(current.getUTCMonth() + 1).toString().padStart(2, '0')}`
                 : label;
-
             dailyMap.set(key, { name: labelFinal, Entradas: 0, Saídas: 0, sortKey: current.getTime() });
             current.setUTCDate(current.getUTCDate() + 1);
         }
-
         reportTransactions.forEach(t => {
             if (t.itemId && itemBalanceMap.get(t.itemId) === false) return;
             if (yieldItemInfo && t.itemId === yieldItemInfo.id) return;
-
             const key = t.date;
             if (dailyMap.has(key)) {
                 const entry = dailyMap.get(key)!;
@@ -469,7 +445,6 @@ const ReportsPage: React.FC = () => {
                 else if (t.type === TransactionType.EXPENSE) entry.Saídas += t.amount;
             }
         });
-
         reportYields.forEach(y => {
             const key = y.date;
             if (dailyMap.has(key)) {
@@ -477,7 +452,6 @@ const ReportsPage: React.FC = () => {
                 entry.Entradas += y.amount;
             }
         });
-
         return Array.from(dailyMap.values()).sort((a, b) => a.sortKey - b.sortKey);
     }, [reportTransactions, reportYields, itemBalanceMap, yieldItemInfo, dateBoundaries]);
 
@@ -493,7 +467,6 @@ const ReportsPage: React.FC = () => {
     const sourceOptions = useMemo(() => {
         const options = [{ label: 'Consolidado (Tudo)', value: 'all' }];
         options.push({ label: 'Apenas Investimentos', value: 'investments' });
-        
         accounts.filter(a => a.isActive).forEach(acc => {
             options.push({ label: `Conta: ${acc.name}`, value: acc.id });
             acc.cards?.forEach(card => {
@@ -505,24 +478,24 @@ const ReportsPage: React.FC = () => {
 
     return (
         <div className="space-y-8 pb-12">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide flex-1">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <div className="flex space-x-2 overflow-x-auto pb-1 scrollbar-hide flex-1">
                     {periods.map(item => (
                         <button 
                             key={item.id} 
                             onClick={() => item.id === 'custom' ? setIsPickerOpen(true) : setPeriod(item.id as any)} 
-                            className={`px-4 py-2 rounded-full text-sm transition-all whitespace-nowrap tracking-normal font-medium ${period === item.id ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+                            className={`px-4 py-2 rounded-full text-sm transition-all whitespace-nowrap tracking-normal font-medium ${period === item.id ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'}`}
                         >
                             {item.l}
                         </button>
                     ))}
                 </div>
 
-                <div className="relative w-full md:w-72">
+                <div className="relative w-full md:w-80">
                     <select 
                         value={sourceFilter}
                         onChange={(e) => setSourceFilter(e.target.value)}
-                        className="input-style text-sm font-medium h-10 bg-white border-slate-200"
+                        className="input-style text-sm font-medium h-10 bg-white border-slate-200 tracking-normal w-full"
                     >
                         {sourceOptions.map(opt => (
                             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -541,9 +514,8 @@ const ReportsPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Gráfico de Saídas Diárias */}
                 <div className={`bg-white p-6 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-md' : ''}`}>
-                    <h3 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2 tracking-normal">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-6 flex items-center gap-2 tracking-normal">
                         <div className="w-1.5 h-4 rounded-full bg-rose-500"></div>
                         Saídas Diárias
                     </h3>
@@ -564,9 +536,8 @@ const ReportsPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Gráfico de Entradas Diárias */}
                 <div className={`bg-white p-6 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-md' : ''}`}>
-                    <h3 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2 tracking-normal">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-6 flex items-center gap-2 tracking-normal">
                         <div className="w-1.5 h-4 rounded-full bg-emerald-500"></div>
                         Entradas Diárias
                     </h3>
@@ -588,8 +559,8 @@ const ReportsPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className={`bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-md' : ''}`}>
-                <h3 className="text-lg font-bold text-slate-800 mb-8 tracking-normal">Evolução financeira (Mensal)</h3>
+            <div className={`bg-white p-6 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-md' : ''}`}>
+                <h3 className="text-lg font-semibold text-slate-700 mb-8 tracking-normal">Evolução financeira (Mensal)</h3>
                 <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={evolutionData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -616,7 +587,7 @@ const ReportsPage: React.FC = () => {
                 <div className="p-6 md:p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between md:items-center gap-2 bg-slate-800 text-white">
                     <div>
                         <h3 className="text-xl font-bold tracking-normal">Demonstrativo de resultado (DRE)</h3>
-                        <p className="text-sm text-slate-300 font-normal tracking-normal">Análise estruturada do período</p>
+                        <p className="text-sm text-slate-300 font-semibold tracking-normal">Análise estruturada do período</p>
                     </div>
                 </div>
                 <div className="p-0 overflow-x-auto">
@@ -630,23 +601,23 @@ const ReportsPage: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             <tr className="bg-emerald-50/30 text-emerald-900">
-                                <td className="py-4 px-6 tracking-normal text-sm font-bold">1. Receitas operacionais e rendimentos</td>
-                                <td className="py-4 px-2 text-right font-bold tracking-normal text-base"><PrivateValue>{formatCurrency(dreData.totalIncome)}</PrivateValue></td>
-                                <td className="py-4 pl-2 pr-6 text-right text-sm tracking-normal font-bold opacity-80 w-24">100%</td>
+                                <td className="py-4 px-6 tracking-normal text-sm font-semibold">1. Receitas operacionais e rendimentos</td>
+                                <td className="py-4 px-2 text-right font-semibold tracking-normal text-base"><PrivateValue>{formatCurrency(dreData.totalIncome)}</PrivateValue></td>
+                                <td className="py-4 pl-2 pr-6 text-right text-sm tracking-normal font-semibold opacity-80 w-24">100%</td>
                             </tr>
                             {dreData.incomes.map((category, idx) => (<DreCategoryRow key={`inc-${idx}`} data={category} totalIncome={dreData.totalIncome} onShowBreakdown={openBreakdown} />))}
                             
                             <tr className="bg-rose-50/30 text-rose-900">
-                                <td className="py-4 px-6 tracking-normal text-sm font-bold pt-10">2. (-) Despesas e saídas operacionais</td>
-                                <td className="py-4 px-2 text-right pt-10 font-bold tracking-normal text-base"><PrivateValue>{formatCurrency(dreData.totalExpense)}</PrivateValue></td>
-                                <td className="py-4 pl-2 pr-6 text-right pt-10 text-sm tracking-normal font-bold opacity-80 w-24">{dreData.totalIncome > 0 ? ((dreData.totalExpense / dreData.totalIncome) * 100).toFixed(1) + '%' : '-'}</td>
+                                <td className="py-4 px-6 tracking-normal text-sm font-semibold pt-10">2. (-) Despesas e saídas operacionais</td>
+                                <td className="py-4 px-2 text-right pt-10 font-semibold tracking-normal text-base"><PrivateValue>{formatCurrency(dreData.totalExpense)}</PrivateValue></td>
+                                <td className="py-4 pl-2 pr-6 text-right pt-10 text-sm tracking-normal font-semibold opacity-80 w-24">{dreData.totalIncome > 0 ? ((dreData.totalExpense / dreData.totalIncome) * 100).toFixed(1) + '%' : '-'}</td>
                             </tr>
                             {dreData.expenses.map((category, idx) => (<DreCategoryRow key={`exp-${idx}`} data={category} totalIncome={dreData.totalIncome} onShowBreakdown={openBreakdown} />))}
                             
                             <tr className={`border-t-4 ${dreData.netResult >= 0 ? 'bg-blue-50 text-blue-900 border-blue-100' : 'bg-rose-50 text-rose-900 border-rose-100'}`}>
-                                <td className="py-6 px-6 text-base tracking-normal font-bold">(=) Resultado líquido do exercício</td>
-                                <td className="py-6 px-2 text-right text-2xl tracking-normal font-bold"><PrivateValue>{formatCurrency(dreData.netResult)}</PrivateValue></td>
-                                <td className="py-6 pl-2 pr-6 text-right font-bold text-xl tracking-normal w-24">{(dreData.margin).toFixed(1)}%</td>
+                                <td className="py-6 px-6 text-base tracking-normal font-semibold">(=) Resultado líquido do exercício</td>
+                                <td className="py-6 px-2 text-right text-2xl tracking-normal font-semibold"><PrivateValue>{formatCurrency(dreData.netResult)}</PrivateValue></td>
+                                <td className="py-6 pl-2 pr-6 text-right font-semibold text-xl tracking-normal w-24">{(dreData.margin).toFixed(1)}%</td>
                             </tr>
                         </tbody>
                     </table>
