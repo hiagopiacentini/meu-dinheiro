@@ -15,6 +15,31 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract, ManualSavings } from '../types';
 import { sampleCategories } from '../data/demoData';
 
+/**
+ * Sanitiza dados vindos do Firestore para garantir que sejam objetos planos (POJOs)
+ * e converte objetos de Timestamp do Firebase para strings ISO.
+ */
+const sanitizeFirestoreData = (data: any): any => {
+  if (data === null || typeof data !== 'object') return data;
+  
+  if (Array.isArray(data)) {
+    return data.map(sanitizeFirestoreData);
+  }
+
+  // Verifica se é um Timestamp do Firebase (possui segundos e nanossegundos)
+  if (typeof data.toDate === 'function') {
+    return data.toDate().toISOString();
+  }
+
+  const sanitized: any = {};
+  for (const key in data) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+      sanitized[key] = sanitizeFirestoreData(data[key]);
+    }
+  }
+  return sanitized;
+};
+
 // --- ACCOUNTS HOOK ---
 export const useAccounts = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -35,7 +60,7 @@ export const useAccounts = () => {
 
     const q = query(collection(db, `users/${userId}/accounts`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Account));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...sanitizeFirestoreData(doc.data()) } as Account));
       data.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       setAccounts(data);
     }, (error) => {
@@ -123,7 +148,7 @@ export const useTransactions = () => {
 
     const q = query(collection(db, `users/${userId}/transactions`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...sanitizeFirestoreData(doc.data()) } as Transaction));
       setTransactions(data);
     }, (error) => {
       console.error("Error fetching transactions:", error.message);
@@ -217,19 +242,10 @@ export const useCategories = () => {
     const docRef = doc(db, `users/${userId}/settings/categories`);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        const data = docSnap.data();
+        const data = sanitizeFirestoreData(docSnap.data());
         const list = data?.list;
         if (Array.isArray(list)) {
-          const sanitizedList = list.map((cat: any) => ({
-            ...cat,
-            subcategories: Array.isArray(cat.subcategories) 
-              ? cat.subcategories.map((sub: any) => ({
-                  ...sub,
-                  items: Array.isArray(sub.items) ? sub.items : []
-                })) 
-              : []
-          }));
-          setCategoriesState(sanitizedList);
+          setCategoriesState(list);
         }
       } else {
         setDoc(docRef, { list: sampleCategories }).catch(err => console.error("Erro init categories", err.message));
@@ -274,7 +290,7 @@ export const useLoans = () => {
     }
     const q = query(collection(db, `users/${userId}/loans`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Loan));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...sanitizeFirestoreData(doc.data()) } as Loan));
       setLoans(data);
     }, (error) => {
       console.error("Error fetching loans:", error.message);
@@ -339,7 +355,7 @@ export const useGoals = () => {
     const docRef = doc(db, `users/${userId}/settings/goals`);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        setGoalsState(docSnap.data() as AnnualGoals);
+        setGoalsState(sanitizeFirestoreData(docSnap.data()) as AnnualGoals);
       }
     }, (error) => {
       console.error("Error fetching goals:", error.message);
@@ -379,7 +395,7 @@ export const useManualSavings = () => {
     const docRef = doc(db, `users/${userId}/settings/manual_savings`);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        setManualSavings(docSnap.data() as ManualSavings);
+        setManualSavings(sanitizeFirestoreData(docSnap.data()) as ManualSavings);
       } else {
         setManualSavings({});
       }
@@ -423,7 +439,7 @@ export const useCDBs = () => {
     }
     const q = query(collection(db, `users/${userId}/cdb_contracts`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CDBContract));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...sanitizeFirestoreData(doc.data()) } as CDBContract));
       setCdbs(data);
     }, (error) => {
       console.error("Error fetching CDBs:", error.message);

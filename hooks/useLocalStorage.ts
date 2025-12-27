@@ -22,6 +22,7 @@ const safeStringify = (obj: any) => {
 
         if (!isPlain) {
           // Se o objeto tem toJSON, usamos. Senão, omitimos para evitar erros.
+          // Isso evita tentar serializar instâncias de Auth ou Firestore.
           if (typeof value.toJSON === 'function') return value.toJSON();
           return undefined; 
         }

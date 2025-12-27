@@ -60,7 +60,7 @@ const DeleteConfirmationModal: React.FC<{
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl font-bold mb-4 text-slate-800">Excluir Lançamento Parcelado</h2>
+                <h2 className="text-xl font-bold text-slate-800">Excluir Lançamento Parcelado</h2>
                 <p className="text-slate-600 mb-6">Como você deseja excluir este lançamento?</p>
                 <div className="flex flex-col space-y-3">
                     <button onClick={() => onConfirm('single')} className="btn-secondary w-full">Excluir apenas esta parcela</button>
@@ -488,8 +488,22 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              const saleAmount = parseFloat(amount);
              const paidAmount = parseFloat(amountPaid);
              const changeAmount = paidAmount - saleAmount;
-             const newTxs = [{ ...transactionData, type: TransactionType.INCOME, cardId: cardId || null }];
-             if(changeAmount > 0) newTxs.push({ description: `Troco para: ${description}`, amount: changeAmount, date, type: TransactionType.EXPENSE, accountId: changeAccountId, itemId: changeItemId, cardId: null });
+             
+             // CORREÇÃO: A entrada principal na conta deve ser o valor pago (ex: 200), não o valor da venda (ex: 180)
+             // O "lucro" real da venda será mantido no DRE pelo confronto da Receita (200) com a Despesa do troco (20)
+             const newTxs = [{ ...transactionData, amount: paidAmount, type: TransactionType.INCOME, cardId: cardId || null }];
+             
+             if(changeAmount > 0) {
+                 newTxs.push({ 
+                     description: `Troco devolvido: ${description}`, 
+                     amount: changeAmount, 
+                     date, 
+                     type: TransactionType.EXPENSE, 
+                     accountId: changeAccountId, 
+                     itemId: changeItemId, 
+                     cardId: null 
+                 });
+             }
              success = await addTransactions(newTxs);
         }
         else if (editingInstallmentGroup) {
