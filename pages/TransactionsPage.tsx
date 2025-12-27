@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useTransactions, useAccounts, useCategories, useLoans } from '../hooks/useFirestore';
 import { Transaction, Account, Category, TransactionType, Loan, CategoryItem } from '../types';
@@ -15,10 +14,8 @@ import PrivateValue from '../components/PrivateValue';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-// Helper to get the current date in GMT-4
 const getNowGmtMinus4 = () => {
     const now = new Date();
-    // Offset in milliseconds for GMT-4
     const offset = -4 * 60 * 60 * 1000;
     const localOffset = now.getTimezoneOffset() * 60 * 1000;
     return new Date(now.getTime() + localOffset + offset);
@@ -32,7 +29,6 @@ const getUTCDate = (dateString: string) => {
 const formatDate = (dateString: string) => {
     return getUTCDate(dateString).toLocaleDateString('pt-BR');
 };
-
 
 const categoryColors: { [key: string]: string } = {
     'Salário': 'bg-blue-100 text-blue-800',
@@ -126,18 +122,7 @@ const checkmarkSvg = `data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white'
 const CustomCheckbox: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => (
     <input 
         type="checkbox" 
-        className="
-            appearance-none 
-            h-5 w-5 
-            border-2 border-slate-300 
-            rounded 
-            bg-white 
-            checked:bg-blue-600 checked:border-blue-600 
-            focus:ring-2 focus:ring-blue-500 focus:outline-none 
-            cursor-pointer 
-            transition-all 
-            relative
-        "
+        className="appearance-none h-5 w-5 border-2 border-slate-300 rounded bg-white checked:bg-blue-600 checked:border-blue-600 focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer transition-all relative"
         style={{
             backgroundImage: props.checked ? `url("${checkmarkSvg}")` : 'none',
             backgroundPosition: 'center',
@@ -148,19 +133,13 @@ const CustomCheckbox: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (p
     />
 );
 
-
 const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTransactionTrigger }) => {
     const { transactions, addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions } = useTransactions();
     const { accounts } = useAccounts();
     const { categories } = useCategories();
     const { loans } = useLoans();
     
-    const [lastUsedDetails, setLastUsedDetails] = useState({
-        accountId: '',
-        cardId: '',
-        type: TransactionType.EXPENSE,
-    });
-
+    const [lastUsedDetails, setLastUsedDetails] = useState({ accountId: '', cardId: '', type: TransactionType.EXPENSE });
     const [accountFilter, setAccountFilter] = useState('Todos');
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [editingInstallmentGroup, setEditingInstallmentGroup] = useState<Transaction | null>(null);
@@ -193,9 +172,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
-
     const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean, transaction: Transaction | null }>({ isOpen: false, transaction: null });
-    
     const descriptionInputRef = useRef<HTMLInputElement>(null);
 
     const activeAccounts = useMemo(() => accounts.filter(a => a.isActive), [accounts]);
@@ -223,7 +200,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             setAccountId(lastUsedDetails.accountId || (activeAccounts.length > 0 ? activeAccounts[0].id : ''));
             setCardId(lastUsedDetails.cardId || '');
         }
-        
         setItemId('');
         setIsInstallment(false);
         setInstallmentsCount('2');
@@ -237,9 +213,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     }, [activeAccounts, lastUsedDetails, accountFilter]);
 
     useEffect(() => {
-        if (addTransactionTrigger > 0) {
-            handleClearForm();
-        }
+        if (addTransactionTrigger > 0) handleClearForm();
     }, [addTransactionTrigger, handleClearForm]);
 
     useEffect(() => {
@@ -299,12 +273,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         categories.filter(c => c.type === type).forEach(cat => {
             cat.subcategories.forEach(sub => {
                 sub.items.forEach(item => {
-                    options.push({
-                        id: item.id,
-                        name: item.name,
-                        subName: sub.name,
-                        catName: cat.name
-                    });
+                    options.push({ id: item.id, name: item.name, subName: sub.name, catName: cat.name });
                 });
             });
         });
@@ -344,29 +313,19 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const handleDateFilterChange = (value: string) => {
         setDateFilter(value);
-        if (value === 'Personalizado') {
-            setIsPickerOpen(true);
-        }
+        if (value === 'Personalizado') setIsPickerOpen(true);
     };
     
-    const handleCustomDateChange = (range: { start: Date | null, end: Date | null }) => {
-        setCustomDateRange(range);
-    };
+    const handleCustomDateChange = (range: { start: Date | null, end: Date | null }) => setCustomDateRange(range);
     
     const handleDescriptionBlur = () => {
         if (!description.trim() || isSplit) return;
-        const lastTransactionWithDescription = [...transactions]
-            .reverse()
-            .find(t => t.description.toLowerCase() === description.toLowerCase());
-
-        if (lastTransactionWithDescription && lastTransactionWithDescription.itemId) {
-            setItemId(lastTransactionWithDescription.itemId);
-        }
+        const lastTransactionWithDescription = [...transactions].reverse().find(t => t.description.toLowerCase() === description.toLowerCase());
+        if (lastTransactionWithDescription && lastTransactionWithDescription.itemId) setItemId(lastTransactionWithDescription.itemId);
     };
 
     const filteredTransactions = useMemo(() => {
         let items = [...transactions];
-        
         const now = getNowGmtMinus4();
         if (dateFilter === 'Este Mês') {
             const startOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
@@ -406,29 +365,19 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                 items = items.filter(t => {
                     const isSource = t.accountId === accountFilter;
                     const isDest = t.destinationAccountId === accountFilter;
-                    
                     if (!isSource && !isDest) return false;
-                    
-                    // Ajuste solicitado: Qualquer transação ligada a um cartão (incluindo pagamentos)
-                    // deve aparecer apenas no filtro do cartão, e nunca na visão da conta pura.
                     if (t.cardId) return false;
-                    
                     return true;
                 });
             }
         }
 
-        if (installmentFilter) {
-            items = items.filter(t => !!t.installmentGroupId);
-        }
+        if (installmentFilter) items = items.filter(t => !!t.installmentGroupId);
 
         if (searchTerm) {
             const lowerSearchTerm = searchTerm.toLowerCase();
             const normalizedSearchTerm = lowerSearchTerm.replace(',', '.');
-            items = items.filter(t => 
-                t.description.toLowerCase().includes(lowerSearchTerm) ||
-                t.amount.toFixed(2).includes(normalizedSearchTerm)
-            );
+            items = items.filter(t => t.description.toLowerCase().includes(lowerSearchTerm) || t.amount.toFixed(2).includes(normalizedSearchTerm));
         }
 
         return items.sort((a, b) => {
@@ -454,10 +403,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         }, { periodIncome: 0, periodExpenses: 0 });
     }, [filteredTransactions, itemBalanceMap]);
 
-    const splitSum = useMemo(() => {
-        return splitItems.reduce((acc, item) => acc + (parseFloat(item.amount) || 0), 0);
-    }, [splitItems]);
-
+    const splitSum = useMemo(() => splitItems.reduce((acc, item) => acc + (parseFloat(item.amount) || 0), 0), [splitItems]);
     const totalAmountValue = parseFloat(amount) || 0;
     const splitDiff = Math.abs(totalAmountValue - splitSum);
     const isSplitValid = isSplit ? splitDiff < 0.01 : true;
@@ -466,7 +412,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         e.preventDefault();
         setLastUsedDetails({ accountId, cardId, type });
         let success = false;
-        
         const commonData = { description, date, accountId, type, cardId: cardId || null };
         const transactionData = { ...commonData, amount: parseFloat(amount), itemId };
 
@@ -476,40 +421,21 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              const destAccId = type === TransactionType.EXPENSE ? peerAccountId : accountId;
              const expenseTx: Omit<Transaction, 'id'> = { description: `Transferência para ${accountMap.get(destAccId)}`, amount: transferAmount, date, type: TransactionType.EXPENSE, accountId: sourceAccId, itemId, cardId: (type === TransactionType.EXPENSE && cardId) ? cardId : null };
              const incomeTx: Omit<Transaction, 'id'> = { description: `Transferência de ${accountMap.get(sourceAccId)}`, amount: transferAmount, date, type: TransactionType.INCOME, accountId: destAccId, itemId, cardId: null };
-             
              if (editingTransaction) {
                  const partnerTx = transactions.find(t => t.id !== editingTransaction.id && t.date === editingTransaction.date && t.amount === editingTransaction.amount && t.itemId === editingTransaction.itemId && t.type !== editingTransaction.type);
                  const idsToRemove = [editingTransaction.id]; if(partnerTx) idsToRemove.push(partnerTx.id);
                  await deleteTransactions(idsToRemove);
              }
              success = await addTransactions([expenseTx, incomeTx]);
-        } 
-        else if (type === TransactionType.INCOME && isChange) {
-             const saleAmount = parseFloat(amount);
+        } else if (type === TransactionType.INCOME && isChange) {
              const paidAmount = parseFloat(amountPaid);
-             const changeAmount = paidAmount - saleAmount;
-             
-             // CORREÇÃO: A entrada principal na conta deve ser o valor pago (ex: 200), não o valor da venda (ex: 180)
-             // O "lucro" real da venda será mantido no DRE pelo confronto da Receita (200) com a Despesa do troco (20)
+             const changeAmount = paidAmount - parseFloat(amount);
              const newTxs = [{ ...transactionData, amount: paidAmount, type: TransactionType.INCOME, cardId: cardId || null }];
-             
-             if(changeAmount > 0) {
-                 newTxs.push({ 
-                     description: `Troco devolvido: ${description}`, 
-                     amount: changeAmount, 
-                     date, 
-                     type: TransactionType.EXPENSE, 
-                     accountId: changeAccountId, 
-                     itemId: changeItemId, 
-                     cardId: null 
-                 });
-             }
+             if(changeAmount > 0) newTxs.push({ description: `Troco devolvido: ${description}`, amount: changeAmount, date, type: TransactionType.EXPENSE, accountId: changeAccountId, itemId: changeItemId, cardId: null });
              success = await addTransactions(newTxs);
-        }
-        else if (editingInstallmentGroup) {
+        } else if (editingInstallmentGroup) {
              const groupId = editingInstallmentGroup.installmentGroupId!;
-             const idsToRemove = transactions.filter(t => t.installmentGroupId === groupId).map(t => t.id);
-             await deleteTransactions(idsToRemove);
+             await deleteTransactions(transactions.filter(t => t.installmentGroupId === groupId).map(t => t.id));
              const totalInstallments = parseInt(installmentsCount, 10);
              const originalDate = getUTCDate(date);
              const newTransactions = [];
@@ -549,7 +475,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              if (editingTransaction) success = await updateTransaction({ ...editingTransaction, ...transactionData });
              else success = !!await addTransaction(transactionData);
         }
-
         if (success) handleClearForm();
     };
     
@@ -557,11 +482,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         const t = deleteModalState.transaction;
         if (!t) return;
         if (option === 'single') await deleteTransaction(t.id);
-        else {
-            const group = transactions.filter(tx => tx.installmentGroupId === t.installmentGroupId);
-            const toDelete = group.filter(tx => (tx.currentInstallment || 0) >= (t.currentInstallment || 0)).map(tx => tx.id);
-            await deleteTransactions(toDelete);
-        }
+        else await deleteTransactions(transactions.filter(tx => tx.installmentGroupId === t.installmentGroupId && (tx.currentInstallment || 0) >= (t.currentInstallment || 0)).map(tx => tx.id));
         setDeleteModalState({ isOpen: false, transaction: null });
     };
 
@@ -569,11 +490,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         const t = transactions.find(tx => tx.id === id);
         if (t) {
             if (t.installmentGroupId) setDeleteModalState({ isOpen: true, transaction: t });
-            else if (t.splitGroupId) {
-                if (window.confirm('Esta transação faz parte de um grupo dividido. Deseja excluir todo o grupo?')) {
-                     deleteTransactions(transactions.filter(tx => tx.splitGroupId === t.splitGroupId).map(tx => tx.id));
-                }
-            } else if (window.confirm('Tem certeza que deseja excluir esta transação?')) deleteTransaction(id);
+            else if (t.splitGroupId) { if (window.confirm('Esta transação faz parte de um grupo dividido. Deseja excluir todo o grupo?')) deleteTransactions(transactions.filter(tx => tx.splitGroupId === t.splitGroupId).map(tx => tx.id)); }
+            else if (window.confirm('Tem certeza que deseja excluir esta transação?')) deleteTransaction(id);
         }
     };
 
@@ -583,56 +501,31 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setAccountId(transaction.accountId);
         setCardId(transaction.cardId || '');
         setDate(transaction.date);
-        
         if (transaction.installmentGroupId) {
-            setEditingInstallmentGroup(transaction);
-            setIsInstallment(true);
-            setInstallmentsCount(String(transaction.totalInstallments));
-            const baseDesc = transaction.description.replace(/\s\(\d+\/\d+\)(\s-\s.*)?$/, '');
-            setDescription(baseDesc);
-            setAmount(String(transaction.amount));
-            setItemId(transaction.itemId || '');
+            setEditingInstallmentGroup(transaction); setIsInstallment(true); setInstallmentsCount(String(transaction.totalInstallments));
+            setDescription(transaction.description.replace(/\s\(\d+\/\d+\)(\s-\s.*)?$/, '')); setAmount(String(transaction.amount)); setItemId(transaction.itemId || '');
         } else if (transaction.splitGroupId) {
-            setEditingSplitGroupId(transaction.splitGroupId);
-            setIsSplit(true);
+            setEditingSplitGroupId(transaction.splitGroupId); setIsSplit(true);
             const group = transactions.filter(t => t.splitGroupId === transaction.splitGroupId);
             setSplitItems(group.map((g, i) => ({ id: i, itemId: g.itemId || '', amount: String(g.amount) })));
-            const firstPart = transaction.description.split(' - ')[0]; 
-            setDescription(firstPart);
-            const total = group.reduce((acc, curr) => acc + curr.amount, 0);
-            setAmount(String(total));
-            setItemId(''); 
+            setDescription(transaction.description.split(' - ')[0]); setAmount(String(group.reduce((acc, curr) => acc + curr.amount, 0))); setItemId(''); 
         } else {
-            setEditingInstallmentGroup(null);
-            setEditingSplitGroupId(null);
-            setIsInstallment(false);
-            setIsSplit(false);
-            setDescription(transaction.description);
-            setAmount(String(transaction.amount));
-            setItemId(transaction.itemId || '');
+            setEditingInstallmentGroup(null); setEditingSplitGroupId(null); setIsInstallment(false); setIsSplit(false);
+            setDescription(transaction.description); setAmount(String(transaction.amount)); setItemId(transaction.itemId || '');
         }
-        const formElement = document.querySelector('form');
-        if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
+        document.querySelector('form')?.scrollIntoView({ behavior: 'smooth' });
     };
 
     const accountOptions = useMemo(() => {
         const options: { value: string; label: string; isCard: boolean }[] = [];
         activeAccounts.forEach(acc => {
             options.push({ value: acc.id, label: acc.name, isCard: false });
-            if (acc.cards && acc.cards.length > 0) {
-                acc.cards.forEach(card => {
-                    options.push({ value: `${acc.id}|${card.id}`, label: `${acc.name} -> ${card.name}`, isCard: true });
-                });
-            }
+            if (acc.cards) acc.cards.forEach(card => options.push({ value: `${acc.id}|${card.id}`, label: `${acc.name} -> ${card.name}`, isCard: true }));
         });
         return options;
     }, [activeAccounts]);
 
-    const filterOptions: FilterOption[] = useMemo(() => [
-        { label: 'Todas as Contas', value: 'Todos' },
-        ...accountOptions.map(opt => ({ label: opt.label, value: opt.value }))
-    ], [accountOptions]);
-
+    const filterOptions: FilterOption[] = useMemo(() => [{ label: 'Todas as Contas', value: 'Todos' }, ...accountOptions.map(opt => ({ label: opt.label, value: opt.value }))], [accountOptions]);
     const currentAccountSelectValue = cardId ? `${accountId}|${cardId}` : accountId;
 
     return (
@@ -641,12 +534,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm sticky top-6">
                     <form onSubmit={handleSubmit}>
                         <h2 className="text-xl font-bold text-slate-800 mb-4">{isEditing ? 'Editar Transação' : 'Nova Transação'}</h2>
-                        
                         <div className="p-1 bg-slate-100 rounded-lg flex space-x-1 mb-4">
-                            <button type="button" onClick={() => { setType(TransactionType.EXPENSE); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.EXPENSE ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Saídas</button>
+                            <button type="button" onClick={() => setType(TransactionType.EXPENSE)} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.EXPENSE ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Saídas</button>
                             <button type="button" onClick={() => { setType(TransactionType.INCOME); setIsInstallment(false); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.INCOME ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Entradas</button>
                         </div>
-
                         <div className="space-y-4 max-h-[calc(100vh-22rem)] overflow-y-auto pr-2">
                             <div>
                                 <label className="text-sm font-medium text-slate-600 mb-1 block">Descrição</label>
@@ -662,7 +553,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="input-style" max={maxDate} />
                                 </div>
                             </div>
-                            
                              <div className="flex space-x-6">
                                 {type === TransactionType.EXPENSE && (
                                     <div className="flex items-center">
@@ -675,7 +565,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     <label htmlFor="split-check" className="ml-2 block text-sm text-slate-800 cursor-pointer">Dividir</label>
                                 </div>
                             </div>
-
                             {isInstallment && type === TransactionType.EXPENSE && (
                                 <div>
                                     <label className="text-sm font-medium text-slate-600 mb-1 block">Número de Parcelas</label>
@@ -684,28 +573,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                             )}
                              <div>
                                 <label className="text-sm font-medium text-slate-600 mb-1 block">Conta / Cartão</label>
-                                <select 
-                                    value={currentAccountSelectValue} 
-                                    onChange={e => {
-                                        const val = e.target.value;
-                                        if (val.includes('|')) {
-                                            const [accId, cId] = val.split('|');
-                                            setAccountId(accId);
-                                            setCardId(cId);
-                                        } else {
-                                            setAccountId(val);
-                                            setCardId('');
-                                        }
-                                    }} 
-                                    required 
-                                    className="input-style"
-                                >
+                                <select value={currentAccountSelectValue} onChange={e => { const val = e.target.value; if (val.includes('|')) { const [accId, cId] = val.split('|'); setAccountId(accId); setCardId(cId); } else { setAccountId(val); setCardId(''); } }} required className="input-style">
                                     <option value="" disabled>Selecione uma conta...</option>
-                                    {accountOptions.map(opt => (
-                                        <option key={opt.value} value={opt.value}>
-                                            {opt.label}
-                                        </option>
-                                    ))}
+                                    {accountOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                                 </select>
                             </div>
                             {isSplit ? (
@@ -729,16 +599,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                         </div>
                                     ))}
                                     <button type="button" onClick={addSplitItem} className="btn-secondary text-xs py-1 px-3 flex items-center gap-1"><PlusIcon className="w-4 h-4"/> Adicionar Item</button>
-                                    
                                     <div className={`mt-3 p-2 rounded-lg text-sm border flex justify-between items-center ${isSplitValid ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
-                                        <div>
-                                            <span className="font-semibold block">Total Declarado: {formatCurrency(totalAmountValue)}</span>
-                                            <span className="block text-xs mt-0.5">Soma dos Itens: {formatCurrency(splitSum)}</span>
-                                        </div>
-                                        <div className="text-right">
-                                            <span className="font-bold block">{isSplitValid ? 'OK' : formatCurrency(Math.abs(splitDiff))}</span>
-                                            <span className="text-xs block">{isSplitValid ? 'Igual' : (splitSum > totalAmountValue ? 'Passou' : 'Falta')}</span>
-                                        </div>
+                                        <div><span className="font-semibold block">Total Declarado: {formatCurrency(totalAmountValue)}</span><span className="block text-xs mt-0.5">Soma dos Itens: {formatCurrency(splitSum)}</span></div>
+                                        <div className="text-right"><span className="font-bold block">{isSplitValid ? 'OK' : formatCurrency(Math.abs(splitDiff))}</span><span className="text-xs block">{isSplitValid ? 'Igual' : (splitSum > totalAmountValue ? 'Passou' : 'Falta')}</span></div>
                                     </div>
                                 </div>
                             ) : (
@@ -752,19 +615,10 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                             )}
                              {isTransfer && (
                                 <div>
-                                    <label className="text-sm font-medium text-slate-600 mb-1 block">
-                                        {type === TransactionType.EXPENSE ? 'Conta de Destino' : 'Conta de Origem'}
-                                    </label>
-                                    <select 
-                                        value={peerAccountId} 
-                                        onChange={e => setPeerAccountId(e.target.value)} 
-                                        required 
-                                        className="input-style"
-                                    >
+                                    <label className="text-sm font-medium text-slate-600 mb-1 block">{type === TransactionType.EXPENSE ? 'Conta de Destino' : 'Conta de Origem'}</label>
+                                    <select value={peerAccountId} onChange={e => setPeerAccountId(e.target.value)} required className="input-style">
                                         <option value="" disabled>Selecione a outra conta...</option>
-                                        {activeAccounts
-                                            .filter(acc => acc.id !== accountId)
-                                            .map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                                        {activeAccounts.filter(acc => acc.id !== accountId).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
                                     </select>
                                 </div>
                             )}
@@ -794,9 +648,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                             {expenseCategoryOptions.map(opt => <option key={opt.id} value={opt.id}>{`${opt.catName} > ${opt.subName} > ${opt.name}`}</option>)}
                                         </select>
                                     </div>
-                                    <div>
-                                        <p className="text-sm text-slate-500">Valor do Troco: <span className="font-semibold">{formatCurrency(Math.max(0, parseFloat(amountPaid || '0') - parseFloat(amount || '0')))}</span></p>
-                                    </div>
+                                    <div><p className="text-sm text-slate-500">Valor do Troco: <span className="font-semibold">{formatCurrency(Math.max(0, parseFloat(amountPaid || '0') - parseFloat(amount || '0')))}</span></p></div>
                                 </div>
                             )}
                         </div>
@@ -814,35 +666,16 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
                         <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10 h-full" placeholder="" />
                     </div>
-                    <div className="md:col-span-3">
-                        <FilterDropdown 
-                            options={filterOptions}
-                            value={accountFilter}
-                            onChange={setAccountFilter}
-                        />
-                    </div>
-                    <div className="md:col-span-2">
-                        <FilterDropdown 
-                            options={['Este Mês', 'Mês Passado', 'Próximo Mês', 'Este Ano', 'Personalizado'].map(o => ({label: o, value: o}))}
-                            value={dateFilter}
-                            onChange={handleDateFilterChange}
-                        />
-                    </div>
+                    <div className="md:col-span-3"><FilterDropdown options={filterOptions} value={accountFilter} onChange={setAccountFilter} /></div>
+                    <div className="md:col-span-2"><FilterDropdown options={['Este Mês', 'Mês Passado', 'Próximo Mês', 'Este Ano', 'Personalizado'].map(o => ({label: o, value: o}))} value={dateFilter} onChange={handleDateFilterChange} /></div>
                     <div className="md:col-span-4 grid grid-cols-2 gap-2">
-                         <FilterDropdown 
-                            options={['Todos', 'Entradas', 'Saídas', 'Movimentações'].map(o => ({label: o, value: o}))}
-                            value={typeFilter}
-                            onChange={setTypeFilter}
-                        />
-                        <button onClick={() => setInstallmentFilter(s => !s)} className={`btn-secondary w-full h-full flex justify-center items-center px-3 py-2 text-sm font-medium ${installmentFilter ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600'}`}>
-                            Parceladas
-                        </button>
+                         <FilterDropdown options={['Todos', 'Entradas', 'Saídas', 'Movimentações'].map(o => ({label: o, value: o}))} value={typeFilter} onChange={setTypeFilter} />
+                        <button onClick={() => setInstallmentFilter(s => !s)} className={`btn-secondary w-full h-full flex justify-center items-center px-3 py-2 text-sm font-medium ${installmentFilter ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600'}`}>Parceladas</button>
                     </div>
                 </div>
                 
                 <DateRangePickerModal isOpen={isPickerOpen} onClose={() => setIsPickerOpen(false)} value={customDateRange} onChange={handleCustomDateChange} />
                 <DeleteConfirmationModal isOpen={deleteModalState.isOpen} onClose={() => setDeleteModalState({isOpen: false, transaction: null})} onConfirm={handleConfirmDelete} />
-
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -855,23 +688,21 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     </div>
                     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                         <p className="text-sm text-slate-500 font-medium">Saldo</p>
-                        <p className={`text-2xl font-bold ${periodIncome - periodExpenses >= 0 ? 'text-slate-800' : 'text-red-600'}`}>
-                            <PrivateValue>{formatCurrency(periodIncome - periodExpenses)}</PrivateValue>
-                        </p>
+                        <p className={`text-2xl font-bold ${periodIncome - periodExpenses >= 0 ? 'text-slate-800' : 'text-red-600'}`}><PrivateValue>{formatCurrency(periodIncome - periodExpenses)}</PrivateValue></p>
                     </div>
                 </div>
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                    <div className="overflow-x-auto w-full">
+                        <table className="min-w-full text-sm">
                             <thead className="bg-gray-50 text-slate-500 uppercase text-xs">
                                 <tr>
                                     <th className="px-4 py-3 font-semibold text-left w-[110px]">Data</th>
-                                    <th className="px-4 py-3 font-semibold text-left min-w-[200px]">Descrição</th>
+                                    <th className="px-4 py-3 font-semibold text-left min-w-[180px]">Descrição</th>
                                     <th className="px-4 py-3 font-semibold text-left w-[150px]">Conta</th>
-                                    <th className="px-4 py-3 font-semibold text-center w-[160px]">Item</th>
-                                    <th className="px-4 py-3 font-semibold text-right w-[160px]">Valor</th>
-                                    <th className="px-4 py-3 font-semibold text-center w-[100px]">Ações</th>
+                                    <th className="px-4 py-3 font-semibold text-center w-[140px]">Item</th>
+                                    <th className="px-4 py-3 font-semibold text-right w-[150px]">Valor</th>
+                                    <th className="px-4 py-3 font-semibold text-center w-[90px]">Ações</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200">
@@ -883,51 +714,39 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                         const accountName = accountMap.get(t.accountId);
                                         const cardName = t.cardId ? cardMap.get(t.cardId) : null;
                                         const displayAccount = cardName ? `${accountName} -> ${cardName}` : accountName;
-
                                         let displayProps = { color: 'text-slate-800', sign: '' };
-                                        if (t.type === TransactionType.INCOME) {
-                                            displayProps = { color: 'text-green-600', sign: '+ ' };
-                                        } else if (t.type === TransactionType.EXPENSE) {
-                                            displayProps = { color: 'text-red-600', sign: '- ' };
-                                        } else if (t.type === TransactionType.TRANSFER) {
+                                        if (t.type === TransactionType.INCOME) displayProps = { color: 'text-green-600', sign: '+ ' };
+                                        else if (t.type === TransactionType.EXPENSE) displayProps = { color: 'text-red-600', sign: '- ' };
+                                        else if (t.type === TransactionType.TRANSFER) {
                                             if (accountFilter !== 'Todos') {
                                                 const viewingId = accountFilter.includes('|') ? accountFilter.split('|')[0] : accountFilter;
-                                                const isCardView = accountFilter.includes('|');
-                                                
-                                                if (isCardView) {
+                                                if (accountFilter.includes('|')) {
                                                     const viewingCardId = accountFilter.split('|')[1];
-                                                    // Na visão do cartão, o pagamento de fatura é uma "entrada" de crédito.
-                                                    if (t.cardId === viewingCardId && t.destinationAccountId === viewingId) {
-                                                        displayProps = { color: 'text-green-600', sign: '+ ' };
-                                                    } else {
-                                                        displayProps = { color: 'text-red-600', sign: '- ' };
-                                                    }
+                                                    if (t.cardId === viewingCardId && t.destinationAccountId === viewingId) displayProps = { color: 'text-green-600', sign: '+ ' };
+                                                    else displayProps = { color: 'text-red-600', sign: '- ' };
                                                 } else {
                                                     if (t.accountId === viewingId) displayProps = { color: 'text-red-600', sign: '- ' };
                                                     else if (t.destinationAccountId === viewingId) displayProps = { color: 'text-green-600', sign: '+ ' };
                                                 }
-                                            } else {
-                                                displayProps = { color: 'text-slate-500', sign: '' };
-                                            }
+                                            } else displayProps = { color: 'text-slate-500', sign: '' };
                                         }
-
                                         return (
-                                        <tr key={t.id} className="hover:bg-gray-50">
+                                        <tr key={t.id} className="hover:bg-gray-50 border-b border-slate-100 last:border-0 transition-colors">
                                             <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(t.date)}</td>
-                                            <td className="px-4 py-3 text-slate-800 font-medium truncate max-w-xs" title={t.description}>{t.description}</td>
+                                            <td className="px-4 py-3 text-slate-800 font-medium truncate max-w-[200px]" title={t.description}>{t.description}</td>
                                             <td className="px-4 py-3 text-slate-600 whitespace-nowrap truncate max-w-[150px]" title={displayAccount}>{displayAccount}</td>
                                             <td className="px-4 py-3 text-center align-middle">
-                                                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${categoryInfo ? (categoryColors[categoryInfo.cat] || defaultCategoryColor) : defaultCategoryColor}`}>
+                                                <span className={`px-2 py-1 text-[11px] capitalize font-medium rounded-md ${categoryInfo ? (categoryColors[categoryInfo.cat] || defaultCategoryColor) : defaultCategoryColor}`}>
                                                     {categoryInfo?.item || 'N/A'}
                                                 </span>
                                             </td>
-                                            <td className={`px-4 py-3 text-right font-bold ${displayProps.color} whitespace-nowrap tabular-nums min-w-[140px]`}>
+                                            <td className={`px-4 py-3 text-right font-bold ${displayProps.color} whitespace-nowrap tabular-nums`}>
                                                 <PrivateValue className="inline-block">{displayProps.sign}{formatCurrency(t.amount)}</PrivateValue>
                                             </td>
                                             <td className="px-4 py-3">
-                                                <div className="flex items-center justify-center space-x-1">
-                                                    <button onClick={() => handleEdit(t)} className="p-1.5 rounded-full hover:bg-gray-200 transition-colors" aria-label="Editar"><PencilIcon className="w-4 h-4 text-blue-500"/></button>
-                                                    <button onClick={() => handleDelete(t.id)} className="p-1.5 rounded-full hover:bg-gray-200 transition-colors" aria-label="Excluir"><TrashIcon className="w-4 h-4 text-red-500"/></button>
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <button onClick={() => handleEdit(t)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors" title="Editar"><PencilIcon className="w-4 h-4"/></button>
+                                                    <button onClick={() => handleDelete(t.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors" title="Excluir"><TrashIcon className="w-4 h-4"/></button>
                                                 </div>
                                             </td>
                                         </tr>
