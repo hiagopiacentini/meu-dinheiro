@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useTransactions, useCategories, useAccounts, useCDBs } from '../hooks/useFirestore';
 import { TransactionType, Transaction } from '../types';
@@ -236,7 +237,8 @@ const ReportsPage: React.FC = () => {
         for (const cat of categories) {
             for (const sub of cat.subcategories) {
                 for (const item of sub.items) {
-                    if (item.name.trim().toLowerCase() === 'rendimentos') {
+                    const itemName = item.name.toLowerCase().trim();
+                    if (itemName === 'rendimento' || itemName === 'rendimentos') {
                         return { id: item.id, catName: cat.name, subName: sub.name, itemName: item.name };
                     }
                 }

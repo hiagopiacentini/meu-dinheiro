@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTransactions, useCategories, useAccounts, useGoals, useManualSavings } from '../hooks/useFirestore';
 import { TransactionType, Transaction } from '../types';
@@ -128,6 +129,9 @@ const DashboardPage: React.FC = () => {
     if (activeFilter === 'Mês Atual') {
       startUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
       endUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
+    } else if (activeFilter === 'Mês Passado') {
+      startUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
+      endUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
     } else if (activeFilter === 'Este Ano') {
       startUTC = new Date(Date.UTC(now.getFullYear(), 0, 1));
       endUTC = new Date(Date.UTC(now.getFullYear(), 11, 31, 23, 59, 59, 999));
@@ -300,7 +304,7 @@ const DashboardPage: React.FC = () => {
             for (let m = startMonthInLoop; m <= endMonthInLoop; m++) {
                 const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
                 const isStartMonth = y === sYear && m === sMonth;
-                const isEndMonth = y === eYear && m === eMonth;
+                const isEndMonth = y === eYear && m === m;
 
                 if (isStartMonth && isEndMonth) {
                     const daysInRange = eDay - sDay + 1;
@@ -560,7 +564,7 @@ const DashboardPage: React.FC = () => {
   return (
     <div className="space-y-6 relative">
       <div className="flex space-x-2">
-        {['Mês Atual', 'Este Ano', 'Personalizado'].map(f => (
+        {['Mês Atual', 'Mês Passado', 'Este Ano', 'Personalizado'].map(f => (
             <button key={f} onClick={() => handleFilterClick(f)} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeFilter === f ? 'bg-blue-600 text-white font-bold shadow-sm' : 'bg-white text-slate-600 hover:bg-gray-100 border border-slate-200'}`}>
                 {f}
             </button>

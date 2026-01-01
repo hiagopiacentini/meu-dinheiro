@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { sampleAccounts, sampleTransactions, sampleCategories, sampleLoans, sampleGoals } from '../data/demoData';
 import { auth } from '../services/firebase';
@@ -7,8 +8,8 @@ interface LoginPageProps {
   onLogin: () => void;
 }
 
-const safeStringify = (obj: any) => {
-  const cache = new WeakSet();
+const safeStringify = (obj: any): string => {
+  const cache = new Set();
   try {
     return JSON.stringify(obj, (key, value) => {
       if (typeof value === 'object' && value !== null) {
@@ -16,20 +17,12 @@ const safeStringify = (obj: any) => {
           return '[Circular]';
         }
         cache.add(value);
-
-        const proto = Object.getPrototypeOf(value);
-        const isPlain = proto === Object.prototype || proto === null || Array.isArray(value);
-
-        if (!isPlain) {
-          if (typeof value.toJSON === 'function') return value.toJSON();
-          return undefined; 
-        }
       }
       return value;
     });
   } catch (error) {
     console.error("Erro na serialização segura:", error);
-    return "[]"; 
+    return "null"; 
   }
 };
 

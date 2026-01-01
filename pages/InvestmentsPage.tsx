@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useCDBs, useTransactions, useAccounts, useCategories } from '../hooks/useFirestore';
 import { CDBContract, Transaction, TransactionType, YieldEntry } from '../types';
@@ -42,7 +41,7 @@ const isFixedHoliday = (date: Date) => {
     const month = date.getUTCMonth() + 1;
     const day = date.getUTCDate();
     const holidays = [
-        '1-1', '21-4', '1-5', '9-7', '7-9', '12-10', '2-11', '15-11', '20-11', '25-12',
+        '1-1', '21-4', '1-5', '7-9', '12-10', '2-11', '15-11', '20-11', '25-12',
     ];
     return holidays.includes(`${day}-${month}`);
 };
@@ -50,15 +49,11 @@ const isFixedHoliday = (date: Date) => {
 const isWorkDay = (date: Date) => !isWeekend(date) && !isFixedHoliday(date);
 
 const getWorkDaysInRange = (startDateStr: string, endDateStr: string) => {
-    const [sy, sm, sd] = startDateStr.split('-').map(Number);
-    const [ey, em, ed] = endDateStr.split('-').map(Number);
-    
-    const start = new Date(Date.UTC(sy, sm - 1, sd));
-    const end = new Date(Date.UTC(ey, em - 1, ed));
-    
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
     const workDays: string[] = [];
-    let current = new Date(start);
     
+    let current = new Date(start);
     while (current <= end) {
         if (isWorkDay(current)) {
             workDays.push(current.toISOString().split('T')[0]);
@@ -272,7 +267,7 @@ const YieldHistoryModal: React.FC<{
 
     if (!isOpen) return null;
 
-    const history = [...(cdb.yieldHistory || [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const history = [...(cdb.yieldHistory || [])].sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime());
 
     const startEditing = (entry: YieldEntry) => {
         setEditingId(entry.id);
@@ -679,15 +674,13 @@ const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 
         } else {
             diff = value - updateBalanceCdb.currentGrossBalance;
             newGrossBalance = value;
-            
             if (Math.abs(diff) < 0.01) return;
-
-            const latestYieldDate = finalHistory.length > 0 
-                ? finalHistory.reduce((max, h) => h.date > max ? h.date : max, updateBalanceCdb.applicationDate)
-                : updateBalanceCdb.applicationDate;
-
-            const allWorkDays = getWorkDaysInRange(latestYieldDate, txDate);
-            const newYieldingDays = allWorkDays.filter(day => day > latestYieldDate);
+            const existingDates = new Set(finalHistory.map(h => h.date));
+            const allWorkDays = getWorkDaysInRange(updateBalanceCdb.applicationDate, txDate);
+            const newYieldingDays = allWorkDays.filter(day => 
+                !existingDates.has(day) && 
+                day !== updateBalanceCdb.applicationDate
+            );
             
             if (newYieldingDays.length > 0) {
                 const dailyYield = diff / newYieldingDays.length;

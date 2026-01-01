@@ -1,37 +1,25 @@
+
 import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 
 /**
- * Serializa um objeto para JSON de forma segura, tratando referências circulares
- * e omitindo instâncias de classes complexas que podem causar erros de recursão.
+ * Serializa um objeto para JSON de forma segura, removendo referências circulares.
+ * Se encontrar um ciclo, substitui o valor por "[Circular]".
  */
-const safeStringify = (obj: any) => {
-  const cache = new WeakSet();
+const safeStringify = (obj: any): string => {
+  const cache = new Set();
   try {
     return JSON.stringify(obj, (key, value) => {
       if (typeof value === 'object' && value !== null) {
-        // Detecta circularidade real
         if (cache.has(value)) {
           return '[Circular]';
         }
         cache.add(value);
-
-        // Verifica se é um objeto plano ou array.
-        // Instâncias de classes (como as do Firebase) costumam ter protótipos customizados.
-        const proto = Object.getPrototypeOf(value);
-        const isPlain = proto === Object.prototype || proto === null || Array.isArray(value);
-
-        if (!isPlain) {
-          // Se o objeto tem toJSON, usamos. Senão, omitimos para evitar erros.
-          // Isso evita tentar serializar instâncias de Auth ou Firestore.
-          if (typeof value.toJSON === 'function') return value.toJSON();
-          return undefined; 
-        }
       }
       return value;
     });
   } catch (error) {
     console.error("Falha crítica ao serializar objeto:", error);
-    return "[]"; 
+    return "null"; 
   }
 };
 

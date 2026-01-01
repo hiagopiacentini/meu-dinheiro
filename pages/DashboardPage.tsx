@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTransactions, useCategories, useAccounts, useGoals, useManualSavings, useCDBs } from '../hooks/useFirestore';
 import { TransactionType, Transaction } from '../types';
@@ -29,15 +30,15 @@ const getUTCDate = (dateString: string) => {
 
 const StatCard: React.FC<{title: string, amount: number, percentage?: number, isPositive?: boolean, info?: string}> = ({title, amount, percentage, isPositive, info}) => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h3 className="text-slate-500 mb-2 flex justify-between text-sm font-semibold tracking-normal">
+        <h3 className="text-slate-500 mb-2 flex justify-between font-semibold text-sm">
             {title}
             {info && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-normal">{info}</span>}
         </h3>
-        <p className="text-3xl font-bold text-slate-800 mb-2 tracking-normal">
+        <p className="text-3xl font-bold text-slate-800 mb-2 tracking-tight">
             <PrivateValue>{formatCurrency(amount)}</PrivateValue>
         </p>
         {percentage !== undefined && isPositive !== undefined && (
-            <div className="flex items-center text-sm font-normal tracking-normal">
+            <div className="flex items-center text-sm font-normal">
                 {isPositive ? <UpArrowIcon className="w-4 h-4 text-green-500 mr-1" /> : <DownArrowIcon className="w-4 h-4 text-red-500 mr-1" />}
                 <span className="text-green-500">{percentage.toFixed(1)}%</span>
             </div>
@@ -50,13 +51,13 @@ const SavingsGoalCard: React.FC<{title: string, goal: number, current: number, l
     return (
         <div>
           <div className="flex justify-between items-baseline mb-1">
-            <h4 className="font-semibold text-slate-700 text-sm tracking-normal">{label}</h4>
-            <span className="text-sm font-bold text-blue-600 tracking-normal">{percentage.toFixed(0)}%</span>
+            <h4 className="font-semibold text-slate-700 text-sm">{label}</h4>
+            <span className="text-sm font-bold text-blue-600">{percentage.toFixed(0)}%</span>
           </div>
-          <div className="w-full bg-slate-200 rounded-full h-2">
-            <div className={`${color} h-2 rounded-full`} style={{ width: `${percentage}%` }}></div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className={`${color} h-2 rounded-full transition-all duration-500`} style={{ width: `${percentage}%` }}></div>
           </div>
-          <div className="flex justify-between text-xs text-slate-500 mt-1 font-normal tracking-normal">
+          <div className="flex justify-between text-xs text-slate-500 mt-1">
             <span>Atingido: <PrivateValue>{formatCurrency(current)}</PrivateValue></span>
             <span>Meta: <PrivateValue>{formatCurrency(goal)}</PrivateValue></span>
           </div>
@@ -65,35 +66,46 @@ const SavingsGoalCard: React.FC<{title: string, goal: number, current: number, l
 }
 
 const RecentActivityItem: React.FC<{color?: string, description: string, category: string, amount: string, time: string}> = ({color, description, category, amount, time}) => (
-  <div className="flex items-center justify-between py-3">
-    <div className="flex items-center">
-      <div className="w-10 h-10 rounded-lg mr-3" style={{ backgroundColor: color || '#cbd5e1' }}></div>
-      <div>
-        <p className="font-medium text-slate-700 text-sm tracking-normal">{description}</p>
-        <p className="text-xs text-slate-700 font-normal tracking-normal">{category}</p>
+  <div className="flex items-center justify-between py-3.5 group">
+    <div className="flex items-center min-w-0">
+      <div className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-white font-bold text-base shadow-sm mr-3 transition-transform group-hover:scale-105" style={{ backgroundColor: color || '#94a3b8' }}>
+        {description.charAt(0).toUpperCase()}
+      </div>
+      <div className="min-w-0">
+        <p className="font-semibold text-slate-800 text-sm truncate tracking-tight">{description}</p>
+        <p className="text-[11px] text-slate-500 font-medium tracking-normal">{category}</p>
       </div>
     </div>
-    <div className="text-right">
-      <p className={`text-sm font-bold tracking-normal ${amount.startsWith('-') ? 'text-red-500' : 'text-green-500'}`}>
+    <div className="text-right flex-shrink-0 ml-4">
+      <p className={`text-sm font-bold tracking-tight ${amount.startsWith('-') ? 'text-rose-500' : 'text-emerald-500'}`}>
         <PrivateValue>{amount}</PrivateValue>
       </p>
-      <p className="text-[10px] text-slate-700 font-normal tracking-normal">{time}</p>
+      <p className="text-[10px] text-slate-400 font-medium tracking-normal uppercase">{time}</p>
     </div>
   </div>
 );
 
-const TopListItem: React.FC<{ index: number, description: string, percentage: string, amount: number}> = ({index, description, percentage, amount}) => (
-    <div className="flex items-center justify-between text-sm py-2">
-      <div className="flex items-center">
-        <span className="text-slate-700 mr-3 font-normal">{index}.</span>
-        <div>
-            <p className="font-medium text-slate-700 tracking-normal">{description}</p>
-            <p className="text-[10px] text-slate-700 font-normal tracking-normal">{percentage}</p>
+const TopListItem: React.FC<{ index: number, description: string, subcategory: string, percentage: string, amount: number}> = ({index, description, subcategory, percentage, amount}) => {
+    const formattedSub = subcategory.charAt(0).toUpperCase() + subcategory.slice(1).toLowerCase();
+    return (
+        <div className="flex items-center justify-between py-3 group">
+          <div className="flex items-center min-w-0">
+            <span className="w-6 text-xs font-bold text-slate-300 flex-shrink-0">{index}º</span>
+            <div className="min-w-0">
+                <p className="font-semibold text-slate-800 text-sm truncate tracking-tight">{description}</p>
+                <p className="text-[10px] text-slate-500 font-medium tracking-normal flex items-center gap-1.5 mt-0.5">
+                    <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[9px] font-bold">{formattedSub}</span>
+                    <span className="opacity-30">•</span>
+                    <span>{percentage}</span>
+                </p>
+            </div>
+          </div>
+          <p className="font-bold text-slate-900 text-sm tracking-tight whitespace-nowrap ml-4">
+            <PrivateValue>{formatCurrency(amount)}</PrivateValue>
+          </p>
         </div>
-      </div>
-      <p className="font-bold text-slate-800 tracking-normal"><PrivateValue>{formatCurrency(amount)}</PrivateValue></p>
-    </div>
-);
+    );
+};
 
 const DashboardPage: React.FC = () => {
   const { transactions } = useTransactions();
@@ -104,7 +116,7 @@ const DashboardPage: React.FC = () => {
   const { cdbs } = useCDBs();
   const { isPrivacyMode } = usePrivacy();
 
-  const [activeFilter, setActiveFilter] = useState('Mês atual');
+  const [activeFilter, setActiveFilter] = useState('Mês Atual');
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   
   const today = getNowGmtMinus4();
@@ -114,10 +126,11 @@ const DashboardPage: React.FC = () => {
   });
 
   const yieldCategoryId = useMemo(() => {
-        for (const cat of categories.filter(c => c.type === TransactionType.INCOME)) {
+        for (const cat of categories) {
             for (const sub of cat.subcategories) {
                 for (const item of sub.items) {
-                    if (item.name.toLowerCase().includes('rendimento')) return item.id;
+                    const itemName = item.name.toLowerCase().trim();
+                    if (itemName === 'rendimento' || itemName === 'rendimentos') return item.id;
                 }
             }
         }
@@ -125,12 +138,13 @@ const DashboardPage: React.FC = () => {
   }, [categories]);
 
   const itemInfoMap = useMemo(() => {
-    const map = new Map<string, { itemName: string, includeInBalance: boolean }>();
+    const map = new Map<string, { itemName: string, subName: string, includeInBalance: boolean }>();
     categories.forEach(cat => {
         cat.subcategories.forEach(sub => {
             sub.items.forEach(item => {
                 map.set(item.id, { 
                     itemName: item.name, 
+                    subName: sub.name,
                     includeInBalance: item.includeInBalance 
                 });
             });
@@ -144,10 +158,13 @@ const DashboardPage: React.FC = () => {
     let startUTC: Date;
     let endUTC: Date;
 
-    if (activeFilter === 'Mês atual') {
+    if (activeFilter === 'Mês Atual') {
       startUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
       endUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
-    } else if (activeFilter === 'Este ano') {
+    } else if (activeFilter === 'Mês Passado') {
+      startUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
+      endUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
+    } else if (activeFilter === 'Este Ano') {
       startUTC = new Date(Date.UTC(now.getFullYear(), 0, 1));
       endUTC = new Date(Date.UTC(now.getFullYear(), 11, 31, 23, 59, 59, 999));
     } else {
@@ -213,7 +230,7 @@ const DashboardPage: React.FC = () => {
       filtered.forEach(t => {
         const itemInfo = itemInfoMap.get(t.itemId || '');
         const shouldInclude = !t.itemId || (itemInfo ? itemInfo.includeInBalance : true);
-        const isRedemptionProfit = t.type === TransactionType.INCOME && t.itemId === yieldCategoryId;
+        const isRedemptionProfit = t.itemId === yieldCategoryId;
 
         if (shouldInclude) {
             if (t.type === TransactionType.INCOME && !isRedemptionProfit) income += t.amount;
@@ -228,14 +245,12 @@ const DashboardPage: React.FC = () => {
              if (yDate >= start && yDate <= end) investmentProfitInPeriod += y.amount;
           });
       });
-
-      const totalIncomeIncludingInvestments = income + investmentProfitInPeriod;
       
       return {
           filteredTransactions: filtered,
-          periodIncome: totalIncomeIncludingInvestments,
+          periodIncome: income + investmentProfitInPeriod,
           periodExpenses: expense,
-          periodSavings: (totalIncomeIncludingInvestments - expense) + manualSavingsInPeriod,
+          periodSavings: (income + investmentProfitInPeriod - expense) + manualSavingsInPeriod,
       };
   
   }, [transactions, cdbs, dateRange, itemInfoMap, manualSavingsInPeriod, yieldCategoryId]);
@@ -246,7 +261,7 @@ const DashboardPage: React.FC = () => {
     const currentMonth = now.getMonth();
     
     let isWithinCurrentMonth = false;
-    if (activeFilter === 'Mês atual') {
+    if (activeFilter === 'Mês Atual') {
         isWithinCurrentMonth = true;
     } else if (activeFilter === 'Personalizado' && dateRange.start && dateRange.end) {
         const start = dateRange.start;
@@ -293,7 +308,7 @@ const DashboardPage: React.FC = () => {
 
   const { periodSpecificGoal, periodSpecificLabel } = useMemo(() => {
     if (!dateRange.start || !dateRange.end) {
-        return { periodSpecificGoal: 0, periodSpecificLabel: 'Meta mensal' };
+        return { periodSpecificGoal: 0, periodSpecificLabel: 'Meta Mensal' };
     }
 
     const start = dateRange.start;
@@ -307,7 +322,7 @@ const DashboardPage: React.FC = () => {
         const monthName = start.toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' });
         return {
             periodSpecificGoal: goalValue / 12,
-            periodSpecificLabel: `Meta mensal (${monthName})`
+            periodSpecificLabel: `Meta Mensal (${monthName})`
         };
     }
 
@@ -359,7 +374,7 @@ const DashboardPage: React.FC = () => {
 
     return {
         periodSpecificGoal: calculatePeriodGoal(),
-        periodSpecificLabel: 'Meta do período'
+        periodSpecificLabel: 'Meta do Período'
     };
 
 }, [dateRange, goals]);
@@ -376,7 +391,7 @@ const DashboardPage: React.FC = () => {
     }).reduce((acc, t) => {
         const itemInfo = itemInfoMap.get(t.itemId || '');
         const shouldInclude = !t.itemId || (itemInfo ? itemInfo.includeInBalance : true);
-        const isRedemptionProfit = t.type === TransactionType.INCOME && t.itemId === yieldCategoryId;
+        const isRedemptionProfit = t.itemId === yieldCategoryId;
 
         if(shouldInclude){
             if (t.type === TransactionType.INCOME && !isRedemptionProfit) return acc + t.amount;
@@ -405,7 +420,7 @@ const DashboardPage: React.FC = () => {
   }, [transactions, cdbs, dateRange.start, itemInfoMap, manualSavings, yieldCategoryId]);
   
   const { annualPeriodGoal, annualPeriodLabel } = useMemo(() => {
-    if (!dateRange.start || !dateRange.end) return { annualPeriodGoal: 0, annualPeriodLabel: 'Meta do período' };
+    if (!dateRange.start || !dateRange.end) return { annualPeriodGoal: 0, annualPeriodLabel: 'Meta do Período' };
     
     const startYear = dateRange.start.getUTCFullYear();
     const endYear = dateRange.end.getUTCFullYear();
@@ -413,7 +428,7 @@ const DashboardPage: React.FC = () => {
     if (startYear === endYear) {
       return { 
         annualPeriodGoal: goals[String(startYear)] || 0,
-        annualPeriodLabel: `Meta anual ${startYear}`
+        annualPeriodLabel: `Meta Anual ${startYear}`
       };
     } else {
       let totalGoal = 0;
@@ -431,13 +446,14 @@ const DashboardPage: React.FC = () => {
         
       return {
         annualPeriodGoal: totalGoal,
-        annualPeriodLabel: 'Meta do período'
+        annualPeriodLabel: 'Meta do Período'
       };
     }
   }, [dateRange, goals]);
   
   const monthlyChartData = useMemo(() => {
       const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+      
       const dataMap = new Map<string, { Receitas: number, Despesas: number, monthIndex: number }>();
       const yearForAxis = dateRange.start?.getUTCFullYear() || getNowGmtMinus4().getFullYear();
 
@@ -450,7 +466,7 @@ const DashboardPage: React.FC = () => {
           const shouldInclude = !t.itemId || (itemInfo ? itemInfo.includeInBalance : true);
           if (!shouldInclude) return;
 
-          const isRedemptionProfit = t.type === TransactionType.INCOME && t.itemId === yieldCategoryId;
+          const isRedemptionProfit = t.itemId === yieldCategoryId;
           if (isRedemptionProfit) return;
 
           const tDate = getUTCDate(t.date);
@@ -458,13 +474,14 @@ const DashboardPage: React.FC = () => {
           const year = tDate.getUTCFullYear();
           const key = `${monthNames[monthIndex]}/${year}`;
           
-          if (!dataMap.has(key)) dataMap.set(key, { Receitas: 0, Despesas: 0, monthIndex });
+          if (!dataMap.has(key)) {
+              dataMap.set(key, { Receitas: 0, Despesas: 0, monthIndex });
+          }
           const entry = dataMap.get(key)!;
           if (t.type === TransactionType.INCOME) entry.Receitas += t.amount;
           else if (t.type === TransactionType.EXPENSE) entry.Despesas += t.amount;
       });
 
-      // Correção de variáveis indefinidas (start, end) e soma de rendimentos CDB no gráfico
       const start = dateRange.start;
       const end = dateRange.end;
 
@@ -490,36 +507,8 @@ const DashboardPage: React.FC = () => {
           .filter(d => (dateRange.end?.getUTCFullYear() || 0) > (dateRange.start?.getUTCFullYear() || 1) || d.Receitas > 0 || d.Despesas > 0); 
   }, [filteredTransactions, cdbs, dateRange, itemInfoMap, yieldCategoryId]);
 
-
-  const accountBalances = useMemo(() => {
-    const balances = new Map<string, number>();
-    accounts.forEach(acc => balances.set(acc.id, acc.initialBalance));
-    transactions.forEach(t => {
-        const updateBalance = (id: string, amount: number) => { 
-            const current = balances.get(id);
-            if(current !== undefined) {
-                balances.set(id, current + amount); 
-            }
-        };
-        
-        if (t.cardId) {
-             if (t.type === TransactionType.TRANSFER && t.destinationAccountId && t.cardId) {
-                 updateBalance(t.accountId, -t.amount);
-             }
-        } else {
-            if (t.type === TransactionType.INCOME) updateBalance(t.accountId, t.amount);
-            else if (t.type === TransactionType.EXPENSE) updateBalance(t.accountId, -t.amount);
-            else if (t.type === TransactionType.TRANSFER) {
-                updateBalance(t.accountId, -t.amount);
-                if(t.destinationAccountId) updateBalance(t.destinationAccountId, t.amount);
-            }
-        }
-    });
-    return balances;
-  }, [accounts, transactions]);
-
   const topExpenses = useMemo(() => {
-    const groupedExpenses = new Map<string, number>();
+    const groupedExpenses = new Map<string, { amount: number, subName: string, description: string }>();
     let total = 0;
 
     filteredTransactions.forEach(t => {
@@ -528,21 +517,25 @@ const DashboardPage: React.FC = () => {
         const itemInfo = itemInfoMap.get(t.itemId || '');
         if (itemInfo && itemInfo.includeInBalance === false) return;
 
+        const key = t.itemId || 'others';
         const name = itemInfo ? itemInfo.itemName : 'Outros';
+        const subName = itemInfo ? itemInfo.subName : 'Geral';
         
-        groupedExpenses.set(name, (groupedExpenses.get(name) || 0) + t.amount);
+        if (!groupedExpenses.has(key)) {
+            groupedExpenses.set(key, { amount: 0, subName, description: name });
+        }
+        groupedExpenses.get(key)!.amount += t.amount;
         total += t.amount;
     });
 
-    return Array.from(groupedExpenses.entries())
-        .map(([name, amount]) => ({ description: name, amount }))
+    return Array.from(groupedExpenses.values())
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 4)
-        .map(t => ({...t, percentage: total > 0 ? ((t.amount / total) * 100).toFixed(1) + '% do total' : '0% do total' }));
+        .map(t => ({...t, percentage: total > 0 ? ((t.amount / total) * 100).toFixed(1) + '%' : '0%' }));
   }, [filteredTransactions, itemInfoMap]);
   
   const topIncomes = useMemo(() => {
-    const groupedIncomes = new Map<string, number>();
+    const groupedIncomes = new Map<string, { amount: number, subName: string, description: string }>();
     let total = 0;
 
     filteredTransactions.forEach(t => {
@@ -551,18 +544,46 @@ const DashboardPage: React.FC = () => {
         const itemInfo = itemInfoMap.get(t.itemId || '');
         if (itemInfo && itemInfo.includeInBalance === false) return;
 
+        const isRedemptionProfit = t.itemId === yieldCategoryId;
+        if (isRedemptionProfit) return;
+
+        const key = t.itemId || 'others';
         const name = itemInfo ? itemInfo.itemName : 'Outros';
+        const subName = itemInfo ? itemInfo.subName : 'Geral';
         
-        groupedIncomes.set(name, (groupedIncomes.get(name) || 0) + t.amount);
+        if (!groupedIncomes.has(key)) {
+            groupedIncomes.set(key, { amount: 0, subName, description: name });
+        }
+        groupedIncomes.get(key)!.amount += t.amount;
         total += t.amount;
     });
 
-    return Array.from(groupedIncomes.entries())
-        .map(([name, amount]) => ({ description: name, amount }))
+    const start = dateRange.start;
+    const end = dateRange.end;
+    let investmentProfitInPeriod = 0;
+    cdbs.forEach(cdb => {
+        (cdb.yieldHistory || []).forEach(y => {
+            const yDate = getUTCDate(y.date);
+            if (start && end && yDate >= start && yDate <= end) {
+                investmentProfitInPeriod += y.amount;
+            }
+        });
+    });
+
+    if (investmentProfitInPeriod > 0) {
+        if (!groupedIncomes.has(yieldCategoryId)) {
+            groupedIncomes.set(yieldCategoryId, { amount: 0, subName: 'Investimentos', description: 'Rendimentos CDB' });
+        }
+        groupedIncomes.get(yieldCategoryId)!.amount += investmentProfitInPeriod;
+    }
+
+    const grandTotalIncome = Array.from(groupedIncomes.values()).reduce((sum, i) => sum + i.amount, 0);
+
+    return Array.from(groupedIncomes.values())
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 4)
-        .map(t => ({...t, percentage: total > 0 ? ((t.amount / total) * 100).toFixed(1) + '% do total' : '0% do total' }));
-  }, [filteredTransactions, itemInfoMap]);
+        .map(t => ({...t, percentage: grandTotalIncome > 0 ? ((t.amount / grandTotalIncome) * 100).toFixed(1) + '%' : '0%' }));
+  }, [filteredTransactions, itemInfoMap, cdbs, dateRange, yieldCategoryId]);
   
     const itemToCategoryMap = useMemo(() => {
         const map = new Map<string, { name: string, color?: string }>();
@@ -620,9 +641,9 @@ const DashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6 relative">
-      <div className="flex space-x-2">
-        {['Mês atual', 'Este ano', 'Personalizado'].map(f => (
-            <button key={f} onClick={() => handleFilterClick(f)} className={`px-4 py-2 rounded-full text-sm font-medium transition-all tracking-normal ${activeFilter === f ? 'bg-blue-600 text-white shadow-sm font-bold' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}>
+      <div className="flex space-x-2 overflow-x-auto pb-1 scrollbar-hide">
+        {['Mês Atual', 'Mês Passado', 'Este Ano', 'Personalizado'].map(f => (
+            <button key={f} onClick={() => handleFilterClick(f)} className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeFilter === f ? 'bg-blue-600 text-white font-bold shadow-sm' : 'bg-white text-slate-600 hover:bg-gray-100 border border-slate-200'}`}>
                 {f}
             </button>
         ))}
@@ -646,14 +667,14 @@ const DashboardPage: React.FC = () => {
       />
 
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h3 className="font-bold text-lg mb-4 text-slate-800 tracking-normal">Metas de economia</h3>
+        <h3 className="font-bold text-lg mb-4 text-slate-800 tracking-normal">Metas de Economia</h3>
         <div className="space-y-4">
           {showGoalUntilNow && (
             <SavingsGoalCard 
-              title="Meta até o momento" 
+              title="Meta até o Momento" 
               goal={goalUntilNow} 
               current={periodSavings} 
-              label="Meta até o momento" 
+              label="Meta até o Momento" 
               color="bg-purple-500" 
             />
           )}
@@ -665,18 +686,18 @@ const DashboardPage: React.FC = () => {
             color="bg-blue-500" 
           />
           <SavingsGoalCard 
-            title="Meta anual" 
+            title="Meta Anual" 
             goal={annualPeriodGoal} 
             current={annualSavingsToDate} 
             label={annualPeriodLabel} 
-            color="bg-emerald-500" 
+            color="bg-green-500" 
           />
         </div>
       </div>
 
        <div className={`grid grid-cols-1 lg:grid-cols-5 gap-6 ${isPrivacyMode ? 'filter blur-sm select-none' : ''}`}>
           <div className="lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-              <h3 className="font-bold text-lg mb-4 text-slate-800 tracking-normal">Receitas vs. despesas</h3>
+              <h3 className="font-bold text-lg mb-4 text-slate-800 tracking-normal">Receitas vs. Despesas</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={monthlyChartData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -720,15 +741,15 @@ const DashboardPage: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-               <h3 className="font-bold text-lg mb-2 text-slate-800 tracking-normal">Top despesas (por item)</h3>
+               <h3 className="font-bold text-lg mb-2 text-slate-800 tracking-normal">Top despesas</h3>
                <div className="divide-y divide-slate-100">
-                   {topExpenses.length > 0 ? topExpenses.map((item, index) => <TopListItem key={index} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4 font-normal text-sm">Nenhuma despesa no período.</p>}
+                   {topExpenses.length > 0 ? topExpenses.map((item, index) => <TopListItem key={index} index={index + 1} description={item.description} subcategory={item.subName} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4 font-normal text-sm">Nenhuma despesa no período.</p>}
                </div>
            </div>
            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="font-bold text-lg mb-2 text-slate-800 tracking-normal">Top receitas (por item)</h3>
+                <h3 className="font-bold text-lg mb-2 text-slate-800 tracking-normal">Top receitas</h3>
                 <div className="divide-y divide-slate-100">
-                   {topIncomes.length > 0 ? topIncomes.map((item, index) => <TopListItem key={index} index={index + 1} description={item.description} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4 font-normal text-sm">Nenhuma receita no período.</p>}
+                   {topIncomes.length > 0 ? topIncomes.map((item, index) => <TopListItem key={index} index={index + 1} description={item.description} subcategory={item.subName} percentage={item.percentage} amount={item.amount} />) : <p className="text-center text-slate-500 py-4 font-normal text-sm">Nenhuma receita no período.</p>}
                </div>
            </div>
       </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useTransactions, useAccounts, useCategories, useLoans } from '../hooks/useFirestore';
 import { Transaction, Account, Category, TransactionType, Loan, CategoryItem } from '../types';
@@ -428,6 +429,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              }
              success = await addTransactions([expenseTx, incomeTx]);
         } else if (type === TransactionType.INCOME && isChange) {
+             // Se estamos editando uma transação comum e ativamos o troco, precisamos remover a original antes de criar o par
+             if (editingTransaction) await deleteTransaction(editingTransaction.id);
+             
              const paidAmount = parseFloat(amountPaid);
              const changeAmount = paidAmount - parseFloat(amount);
              const newTxs = [{ ...transactionData, amount: paidAmount, type: TransactionType.INCOME, cardId: cardId || null }];
@@ -457,6 +461,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              }
              success = await addTransactions(allNewTransactions);
         } else if (isSplit) {
+             // Se estamos editando uma transação única e ativamos a divisão, removemos a original
+             if (editingTransaction && !editingSplitGroupId) await deleteTransaction(editingTransaction.id);
+             
              const finalSplitGroupId = editingSplitGroupId || crypto.randomUUID();
              if (editingSplitGroupId) await deleteTransactions(transactions.filter(t => t.splitGroupId === editingSplitGroupId).map(t => t.id));
              const newTransactions = splitItems.map(item => ({ ...commonData, amount: parseFloat(item.amount), itemId: item.itemId, description: `${description} - ${categoryMap.get(item.itemId)?.item || 'Item'}`, splitGroupId: finalSplitGroupId }));
@@ -561,7 +568,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     </div>
                                 )}
                                 <div className="flex items-center">
-                                    <CustomCheckbox id="split-check" checked={isSplit} onChange={e => { setIsSplit(e.target.checked); if(e.target.checked) setIsChange(false); }} disabled={!!editingTransaction || !!editingInstallmentGroup || isChange}/>
+                                    <CustomCheckbox id="split-check" checked={isSplit} onChange={e => { setIsSplit(e.target.checked); if(e.target.checked) setIsChange(false); }} disabled={!!editingInstallmentGroup || isChange}/>
                                     <label htmlFor="split-check" className="ml-2 block text-sm text-slate-800 cursor-pointer">Dividir</label>
                                 </div>
                             </div>
@@ -624,7 +631,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                             )}
                              {type === TransactionType.INCOME && !isSplit && (
                                 <div className="flex items-center pt-4 border-t border-slate-200 mt-4">
-                                    <CustomCheckbox id="change-check" checked={isChange} onChange={e => setIsChange(e.target.checked)} disabled={isEditing}/>
+                                    <CustomCheckbox id="change-check" checked={isChange} onChange={e => setIsChange(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId}/>
                                     <label htmlFor="change-check" className="ml-2 block text-sm text-slate-800 cursor-pointer">Devolver troco</label>
                                 </div>
                             )}

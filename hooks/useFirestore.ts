@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { 
   collection, 
@@ -16,28 +17,38 @@ import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract, ManualS
 import { sampleCategories } from '../data/demoData';
 
 /**
- * Sanitiza dados vindos do Firestore para garantir que sejam objetos planos (POJOs)
- * e converte objetos de Timestamp do Firebase para strings ISO.
+ * Limpeza profunda para garantir que apenas dados puros (POJOs) sejam enviados ao Firestore/JSON.
+ * Remove referências circulares e instâncias de classes complexas.
  */
-const sanitizeFirestoreData = (data: any): any => {
+const deepClean = (data: any, seen = new WeakSet()): any => {
   if (data === null || typeof data !== 'object') return data;
   
+  // Evita ciclos
+  if (seen.has(data)) return undefined;
+  
   if (Array.isArray(data)) {
-    return data.map(sanitizeFirestoreData);
+    return data.map(item => deepClean(item, seen));
   }
 
-  // Verifica se é um Timestamp do Firebase (possui segundos e nanossegundos)
-  if (typeof data.toDate === 'function') {
-    return data.toDate().toISOString();
-  }
+  // Tratamento especial para Datas (converte para string ISO)
+  if (data instanceof Date) return data.toISOString();
+  
+  // Tratamento para Timestamps do Firebase
+  if (typeof data.toDate === 'function') return data.toDate().toISOString();
 
-  const sanitized: any = {};
+  seen.add(data);
+  const cleaned: any = {};
   for (const key in data) {
     if (Object.prototype.hasOwnProperty.call(data, key)) {
-      sanitized[key] = sanitizeFirestoreData(data[key]);
+      const val = deepClean(data[key], seen);
+      if (val !== undefined) cleaned[key] = val;
     }
   }
-  return sanitized;
+  return cleaned;
+};
+
+const sanitizeFirestoreData = (data: any): any => {
+  return deepClean(data);
 };
 
 // --- ACCOUNTS HOOK ---
@@ -74,8 +85,9 @@ export const useAccounts = () => {
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) return null;
     try {
+        const cleanedData = deepClean(account);
         const newOrder = accounts.length > 0 ? (Math.max(...accounts.map(a => a.order || 0)) + 1) : 0;
-        const docRef = await addDoc(collection(db, `users/${currentUid}/accounts`), { ...account, order: newOrder });
+        const docRef = await addDoc(collection(db, `users/${currentUid}/accounts`), { ...cleanedData, order: newOrder });
         return docRef.id;
     } catch (error: any) {
         console.error("Erro ao adicionar conta:", error.message);
@@ -88,7 +100,8 @@ export const useAccounts = () => {
     if (!currentUid) return false;
     try {
         const { id, ...data } = account;
-        await updateDoc(doc(db, `users/${currentUid}/accounts`, id), data);
+        const cleanedData = deepClean(data);
+        await updateDoc(doc(db, `users/${currentUid}/accounts`, id), cleanedData);
         return true;
     } catch (error: any) {
         console.error("Erro ao atualizar conta:", error.message);
@@ -161,8 +174,8 @@ export const useTransactions = () => {
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) return null;
     try {
-        const dataToSave = { ...transaction, createdAt: new Date().toISOString() };
-        const docRef = await addDoc(collection(db, `users/${currentUid}/transactions`), dataToSave);
+        const cleanedData = deepClean({ ...transaction, createdAt: new Date().toISOString() });
+        const docRef = await addDoc(collection(db, `users/${currentUid}/transactions`), cleanedData);
         return docRef.id;
     } catch (error: any) {
         console.error("Erro ao adicionar transação:", error.message);
@@ -175,7 +188,10 @@ export const useTransactions = () => {
       if (!currentUid) return false;
       try {
           const timestamp = new Date().toISOString();
-          const batchPromises = newTransactions.map(t => addDoc(collection(db, `users/${currentUid}/transactions`), { ...t, createdAt: timestamp }));
+          const batchPromises = newTransactions.map(t => {
+              const cleaned = deepClean({ ...t, createdAt: timestamp });
+              return addDoc(collection(db, `users/${currentUid}/transactions`), cleaned);
+          });
           await Promise.all(batchPromises);
           return true;
       } catch (error: any) {
@@ -189,7 +205,8 @@ export const useTransactions = () => {
     if (!currentUid) return false;
     try {
         const { id, ...data } = transaction;
-        await updateDoc(doc(db, `users/${currentUid}/transactions`, id), data);
+        const cleanedData = deepClean(data);
+        await updateDoc(doc(db, `users/${currentUid}/transactions`, id), cleanedData);
         return true;
     } catch (error: any) {
         console.error("Erro ao atualizar transação:", error.message);
@@ -260,7 +277,8 @@ export const useCategories = () => {
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) return false;
     try {
-        await setDoc(doc(db, `users/${currentUid}/settings/categories`), { list: newCategories });
+        const cleaned = deepClean(newCategories);
+        await setDoc(doc(db, `users/${currentUid}/settings/categories`), { list: cleaned });
         return true;
     } catch (error: any) {
         console.error("Erro ao salvar categorias:", error.message);
@@ -302,7 +320,8 @@ export const useLoans = () => {
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) return null;
     try {
-        const docRef = await addDoc(collection(db, `users/${currentUid}/loans`), loan);
+        const cleanedData = deepClean(loan);
+        const docRef = await addDoc(collection(db, `users/${currentUid}/loans`), cleanedData);
         return docRef.id;
     } catch (error: any) {
         console.error("Erro ao adicionar empréstimo:", error.message);
@@ -315,7 +334,8 @@ export const useLoans = () => {
     if (!currentUid) return false;
     try {
         const { id, ...data } = loan;
-        await updateDoc(doc(db, `users/${currentUid}/loans`, id), data);
+        const cleanedData = deepClean(data);
+        await updateDoc(doc(db, `users/${currentUid}/loans`, id), cleanedData);
         return true;
     } catch (error: any) {
         console.error("Erro ao atualizar empréstimo:", error.message);
@@ -367,7 +387,8 @@ export const useGoals = () => {
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) return false;
     try {
-        await setDoc(doc(db, `users/${currentUid}/settings/goals`), newGoals);
+        const cleaned = deepClean(newGoals);
+        await setDoc(doc(db, `users/${currentUid}/settings/goals`), cleaned);
         return true;
     } catch (error: any) {
         console.error("Erro ao salvar metas:", error.message);
@@ -409,7 +430,8 @@ export const useManualSavings = () => {
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) return false;
     try {
-        await setDoc(doc(db, `users/${currentUid}/settings/manual_savings`), newManualSavings);
+        const cleaned = deepClean(newManualSavings);
+        await setDoc(doc(db, `users/${currentUid}/settings/manual_savings`), cleaned);
         return true;
     } catch (error: any) {
         console.error("Erro ao salvar economias manuais:", error.message);
@@ -451,7 +473,8 @@ export const useCDBs = () => {
     const currentUid = auth.currentUser?.uid;
     if (!currentUid) return null;
     try {
-        const docRef = await addDoc(collection(db, `users/${currentUid}/cdb_contracts`), cdb);
+        const cleanedData = deepClean(cdb);
+        const docRef = await addDoc(collection(db, `users/${currentUid}/cdb_contracts`), cleanedData);
         return docRef.id;
     } catch (error: any) {
         console.error("Erro ao adicionar CDB:", error.message);
@@ -464,7 +487,8 @@ export const useCDBs = () => {
     if (!currentUid) return false;
     try {
         const { id, ...data } = cdb;
-        await updateDoc(doc(db, `users/${currentUid}/cdb_contracts`, id), data);
+        const cleanedData = deepClean(data);
+        await updateDoc(doc(db, `users/${currentUid}/cdb_contracts`, id), cleanedData);
         return true;
     } catch (error: any) {
         console.error("Erro ao atualizar CDB:", error.message);
