@@ -3,14 +3,16 @@ import { useGoals, useTransactions, useCategories, useManualSavings } from '../h
 import { TransactionType } from '../types';
 import PencilIcon from '../components/icons/PencilIcon';
 import XIcon from '../components/icons/XIcon';
+import PrivateValue from '../components/PrivateValue';
+import CheckIcon from '../components/icons/CheckIcon';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-const ProgressBar: React.FC<{ value: number, color: string }> = ({ value, color }) => {
+const ProgressBar: React.FC<{ value: number, color: string, height?: string }> = ({ value, color, height = "h-2.5" }) => {
     const percentage = Math.max(0, Math.min(100, value));
     return (
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
-            <div className={`${color} h-2.5 rounded-full transition-all duration-500`} style={{ width: `${percentage}%` }}></div>
+        <div className={`w-full bg-gray-100 rounded-full ${height}`}>
+            <div className={`${color} ${height} rounded-full transition-all duration-500`} style={{ width: `${percentage}%` }}></div>
         </div>
     );
 };
@@ -43,9 +45,9 @@ const ManualHistoryModal: React.FC<{
     }, [isOpen, manualSavings]);
 
     const isMonthEditable = (monthIndex: number) => {
-        if (year < currentYear) return true; // Anos passados: todos os meses editáveis
-        if (year > currentYear) return false; // Anos futuros: nenhum editável
-        return monthIndex < currentMonth; // Ano atual: apenas meses estritamente anteriores
+        if (year < currentYear) return true; 
+        if (year > currentYear) return false; 
+        return monthIndex < currentMonth; 
     };
 
     const handleChange = (month: string, value: string) => {
@@ -53,7 +55,6 @@ const ManualHistoryModal: React.FC<{
     };
 
     const handleDistribute = () => {
-        // Safe string conversion before replace
         const valStr = String(distributeAmount || '');
         const total = parseFloat(valStr.replace(',', '.'));
         if (isNaN(total) || total <= 0) return;
@@ -103,7 +104,7 @@ const ManualHistoryModal: React.FC<{
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg m-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold text-slate-800">Histórico Manual ({year})</h2>
+                    <h2 className="text-xl font-bold text-slate-800">Histórico manual ({year})</h2>
                     <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100"><XIcon className="w-5 h-5 text-slate-500"/></button>
                 </div>
                 
@@ -131,12 +132,9 @@ const ManualHistoryModal: React.FC<{
                                 onClick={handleDistribute}
                                 className="px-4 py-2 bg-slate-700 text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors"
                             >
-                                Distribuir Média
+                                Distribuir média
                             </button>
                         </div>
-                        <p className="text-xs text-slate-400 mt-2">
-                            Isso irá dividir o valor igualmente entre os {activeMonthsCount} meses anteriores disponíveis.
-                        </p>
                     </div>
                 )}
 
@@ -165,7 +163,7 @@ const ManualHistoryModal: React.FC<{
 
                 <div className="flex justify-end pt-6">
                     <button onClick={onClose} className="btn-secondary mr-2">Cancelar</button>
-                    <button onClick={handleSave} className="btn-primary">Salvar Ajustes</button>
+                    <button onClick={handleSave} className="btn-primary">Salvar ajustes</button>
                 </div>
             </div>
         </div>
@@ -198,39 +196,42 @@ const GoalsPage: React.FC = () => {
         return map;
     }, [categories]);
 
-    const { transactionSavings } = useMemo(() => {
-        if (!transactions) return { transactionSavings: 0 };
+    // Cálculo detalhado por mês
+    const monthlyPerformance = useMemo(() => {
+        const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+        const yearManual = (manualSavings && manualSavings[String(selectedYear)]) || {};
+        
+        return months.map((name, index) => {
+            const startOfMonth = new Date(Date.UTC(selectedYear, index, 1));
+            const endOfMonth = new Date(Date.UTC(selectedYear, index + 1, 0, 23, 59, 59, 999));
 
-        const startOfYear = new Date(Date.UTC(selectedYear, 0, 1));
-        const endOfPeriod = new Date(Date.UTC(selectedYear, 11, 31, 23, 59, 59, 999));
+            const monthTransactions = transactions.filter(t => {
+                const date = new Date(t.date);
+                const tDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+                return tDate >= startOfMonth && tDate <= endOfMonth;
+            });
 
-        const yearTrans = transactions.filter(t => {
-            const date = new Date(t.date);
-            const tDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-            return tDate >= startOfYear && tDate <= endOfPeriod;
+            const transactionSavings = monthTransactions.reduce((acc, t) => {
+                const shouldInclude = !t.itemId || itemBalanceMap.get(t.itemId) !== false;
+                if (shouldInclude) {
+                    if (t.type === TransactionType.INCOME) return acc + t.amount;
+                    if (t.type === TransactionType.EXPENSE) return acc - t.amount;
+                }
+                return acc;
+            }, 0);
+
+            const manual = yearManual[String(index)] || 0;
+            return {
+                name,
+                fullName: ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][index],
+                realized: transactionSavings + manual,
+                isManualOnly: transactionSavings === 0 && manual !== 0,
+                isCurrent: new Date().getFullYear() === selectedYear && new Date().getMonth() === index
+            };
         });
+    }, [transactions, selectedYear, itemBalanceMap, manualSavings]);
 
-        const totalSavings = yearTrans.reduce((acc, t) => {
-            const shouldInclude = !t.itemId || itemBalanceMap.get(t.itemId) !== false;
-            
-            if (shouldInclude) {
-                if (t.type === TransactionType.INCOME) return acc + t.amount;
-                if (t.type === TransactionType.EXPENSE) return acc - t.amount;
-            }
-            return acc;
-        }, 0);
-
-        return { transactionSavings: totalSavings };
-    }, [transactions, selectedYear, itemBalanceMap]);
-    
-    const manualSavingsTotal = useMemo(() => {
-        if (!manualSavings) return 0;
-        const yearData = manualSavings[String(selectedYear)];
-        if (!yearData) return 0;
-        return Object.values(yearData).reduce((sum: number, val: number) => sum + (val || 0), 0);
-    }, [manualSavings, selectedYear]);
-
-    const totalSavings = transactionSavings + manualSavingsTotal;
+    const totalSavings = useMemo(() => monthlyPerformance.reduce((acc, m) => acc + m.realized, 0), [monthlyPerformance]);
 
     const handleInputBlur = () => {
         const value = parseFloat(annualInput);
@@ -259,17 +260,17 @@ const GoalsPage: React.FC = () => {
     const annualProgress = annualGoal > 0 ? (totalSavings / annualGoal) * 100 : 0;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 pb-10">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4">
-                    <h2 className="text-xl font-bold text-slate-800">Metas de Economia</h2>
+                    <h2 className="text-xl font-bold text-slate-800 tracking-tight">Metas de economia</h2>
                      <div className="flex items-center self-end md:self-center">
-                        <label htmlFor="year-select" className="text-sm font-medium mr-2 text-slate-600">Ano:</label>
+                        <label htmlFor="year-select" className="text-sm font-medium mr-2 text-slate-600 whitespace-nowrap">Ano de referência:</label>
                         <select 
                             id="year-select" 
                             value={selectedYear} 
                             onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
-                            className="input-style w-32 py-2"
+                            className="input-style w-32 py-2 font-bold"
                         >
                             {yearOptions.map(year => <option key={year} value={year}>{year}</option>)}
                         </select>
@@ -278,8 +279,8 @@ const GoalsPage: React.FC = () => {
 
                 <div className="max-w-md mx-auto">
                     <div className="mb-4">
-                        <label htmlFor="annual-goal" className="block text-lg font-semibold text-slate-800 mb-2 text-center">
-                            Definir Meta Anual de Economia para {selectedYear}
+                        <label htmlFor="annual-goal" className="block text-sm font-medium text-slate-500 mb-2 text-center tracking-normal">
+                            Meta de economia anual ({selectedYear})
                         </label>
                         <input 
                             type="number"
@@ -287,42 +288,87 @@ const GoalsPage: React.FC = () => {
                             value={annualInput}
                             onChange={(e) => setAnnualInput(e.target.value)}
                             onBlur={handleInputBlur}
-                            className="input-style w-full text-center text-xl py-3"
+                            className="input-style w-full text-center text-3xl font-bold py-4 text-blue-600"
                             placeholder="0"
                             min="0"
                         />
                     </div>
-                    <div className="text-center p-4 bg-gray-50 rounded-lg border border-slate-200">
-                        <p className="text-md text-slate-500">Meta Mensal (calculada)</p>
-                        <p className="font-bold text-2xl text-blue-600">{formatCurrency(monthlyGoal)}</p>
+                    <div className="text-center p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <p className="text-xs text-slate-400 font-medium tracking-normal mb-1">Esforço mensal necessário</p>
+                        <p className="font-bold text-xl text-slate-700">{formatCurrency(monthlyGoal)}</p>
                     </div>
                 </div>
             </div>
             
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-lg text-slate-800">Progresso Anual de {selectedYear}</h3>
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 className="font-bold text-lg text-slate-800">Progresso consolidado</h3>
+                        <p className="text-sm text-slate-500 font-normal">Soma de todos os meses do ano</p>
+                    </div>
                     <button 
                         onClick={() => setIsHistoryModalOpen(true)}
-                        className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                        className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-2 rounded-lg font-bold transition-all flex items-center gap-2"
                     >
                         <PencilIcon className="w-3.5 h-3.5" />
-                        Ajuste Manual / Histórico
+                        Ajuste manual
                     </button>
                 </div>
                 
-                <div className="mt-2 space-y-2">
-                    <div className="flex justify-between text-sm text-slate-700 font-medium">
-                        <span>{formatCurrency(totalSavings)}</span>
-                        <span className="text-slate-500">Meta: {formatCurrency(annualGoal)}</span>
+                <div className="space-y-4">
+                    <div className="flex justify-between items-end">
+                        <div>
+                            <p className="text-3xl font-bold text-slate-800"><PrivateValue>{formatCurrency(totalSavings)}</PrivateValue></p>
+                            <p className="text-sm text-slate-500">economizados de {formatCurrency(annualGoal)}</p>
+                        </div>
+                        <div className="text-right">
+                            <span className={`text-2xl font-bold ${annualProgress >= 100 ? 'text-green-600' : 'text-blue-600'}`}>
+                                {annualProgress.toFixed(1)}%
+                            </span>
+                        </div>
                     </div>
-                    <ProgressBar value={annualProgress} color="bg-green-500" />
-                    <div className="flex justify-between items-center mt-1">
-                        <p className="text-xs text-slate-400">
-                            {manualSavingsTotal > 0 && `(Inclui ${formatCurrency(manualSavingsTotal)} manual)`}
-                        </p>
-                        <p className="text-right text-sm font-semibold text-slate-800">{annualProgress.toFixed(1)}% atingido</p>
-                    </div>
+                    <ProgressBar value={annualProgress} color={annualProgress >= 100 ? "bg-green-500" : "bg-blue-600"} height="h-4" />
+                </div>
+            </div>
+
+            {/* Nova Seção: Desempenho Mensal */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 className="font-bold text-lg text-slate-800 mb-6">Desempenho mês a mês</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {monthlyPerformance.map((month, idx) => {
+                        const monthProgress = monthlyGoal > 0 ? (month.realized / monthlyGoal) * 100 : 0;
+                        const isGoalMet = month.realized >= monthlyGoal && monthlyGoal > 0;
+                        
+                        return (
+                            <div key={idx} className={`p-4 rounded-xl border transition-all ${month.isCurrent ? 'border-blue-200 bg-blue-50/30' : 'border-slate-100 hover:bg-slate-50'}`}>
+                                <div className="flex justify-between items-center mb-3">
+                                    <h4 className={`font-bold ${month.isCurrent ? 'text-blue-700' : 'text-slate-700'}`}>
+                                        {month.fullName}
+                                        {month.isCurrent && <span className="ml-2 text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Hoje</span>}
+                                    </h4>
+                                    {isGoalMet && <CheckIcon className="w-4 h-4 text-green-500" />}
+                                </div>
+
+                                <div className="flex justify-between items-baseline mb-1">
+                                    <span className="text-sm font-bold text-slate-800"><PrivateValue>{formatCurrency(month.realized)}</PrivateValue></span>
+                                    <span className={`text-xs font-bold ${isGoalMet ? 'text-green-600' : 'text-slate-400'}`}>
+                                        {monthProgress.toFixed(0)}%
+                                    </span>
+                                </div>
+
+                                <ProgressBar 
+                                    value={monthProgress} 
+                                    color={isGoalMet ? "bg-green-500" : month.realized < 0 ? "bg-red-500" : "bg-blue-400"} 
+                                    height="h-1.5"
+                                />
+                                
+                                <div className="flex justify-between mt-2 text-[10px] font-medium text-slate-400 tracking-normal">
+                                    <span>Realizado</span>
+                                    <span>Meta: {formatCurrency(monthlyGoal)}</span>
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 

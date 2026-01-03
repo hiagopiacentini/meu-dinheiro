@@ -17,34 +17,45 @@ import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract, ManualS
 import { sampleCategories } from '../data/demoData';
 
 /**
- * Limpeza profunda para garantir que apenas dados puros (POJOs) sejam enviados ao Firestore/JSON.
- * Remove referências circulares e instâncias de classes complexas.
+ * Limpeza profunda e cycle-proof para garantir que apenas dados puros (POJOs) sejam enviados ao Firestore.
+ * Utiliza WeakMap para rastrear objetos já processados e preservar referências compartilhadas sem recursão infinita.
  */
-const deepClean = (data: any, seen = new WeakSet()): any => {
+const deepClean = (data: any, seen = new WeakMap()): any => {
   if (data === null || typeof data !== 'object') return data;
   
-  // Evita ciclos
-  if (seen.has(data)) return undefined;
+  // Se já vimos este objeto, retornamos a versão limpa dele para evitar ciclos
+  if (seen.has(data)) return seen.get(data);
   
-  if (Array.isArray(data)) {
-    return data.map(item => deepClean(item, seen));
-  }
-
   // Tratamento especial para Datas (converte para string ISO)
   if (data instanceof Date) return data.toISOString();
   
-  // Tratamento para Timestamps do Firebase
+  // Tratamento para Timestamps do Firebase (se houver toDate disponível)
   if (typeof data.toDate === 'function') return data.toDate().toISOString();
 
-  seen.add(data);
-  const cleaned: any = {};
-  for (const key in data) {
-    if (Object.prototype.hasOwnProperty.call(data, key)) {
-      const val = deepClean(data[key], seen);
-      if (val !== undefined) cleaned[key] = val;
+  // Cria o contêiner de destino (Array ou Objeto)
+  const result: any = Array.isArray(data) ? [] : {};
+  
+  // Registra no mapa ANTES de recursar nos filhos
+  seen.set(data, result);
+
+  if (Array.isArray(data)) {
+    data.forEach((item, i) => {
+      result[i] = deepClean(item, seen);
+    });
+  } else {
+    // Itera sobre as propriedades do objeto
+    for (const key in data) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        const val = deepClean(data[key], seen);
+        // Remove valores undefined para compatibilidade com Firestore
+        if (val !== undefined) {
+          result[key] = val;
+        }
+      }
     }
   }
-  return cleaned;
+  
+  return result;
 };
 
 const sanitizeFirestoreData = (data: any): any => {

@@ -6,7 +6,7 @@ import { useState, useEffect, Dispatch, SetStateAction } from 'react';
  * Se encontrar um ciclo, substitui o valor por "[Circular]".
  */
 const safeStringify = (obj: any): string => {
-  const cache = new Set();
+  const cache = new WeakSet();
   try {
     return JSON.stringify(obj, (key, value) => {
       if (typeof value === 'object' && value !== null) {
@@ -18,7 +18,7 @@ const safeStringify = (obj: any): string => {
       return value;
     });
   } catch (error) {
-    console.error("Falha crítica ao serializar objeto:", error);
+    console.error("Falha crítica ao serializar objeto para localStorage:", error);
     return "null"; 
   }
 };

@@ -69,6 +69,40 @@ const DeleteConfirmationModal: React.FC<{
     );
 };
 
+const EditChoiceModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onChoice: (mode: 'single' | 'group') => void;
+    transaction: Transaction | null;
+}> = ({ isOpen, onClose, onChoice, transaction }) => {
+    if (!isOpen || !transaction) return null;
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex justify-center items-center" onClick={onClose}>
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
+                <h2 className="text-xl font-bold text-slate-800">Como deseja editar?</h2>
+                <p className="text-slate-600 mb-6 mt-2">
+                    Este lançamento é a parcela <span className="font-bold">{transaction.currentInstallment}/{transaction.totalInstallments}</span> do grupo <span className="font-bold">"{transaction.description.split(' (')[0]}"</span>.
+                </p>
+                <div className="flex flex-col space-y-3">
+                    <button 
+                        onClick={() => onChoice('single')} 
+                        className="btn-secondary w-full py-3 border-blue-200 text-blue-700 hover:bg-blue-50"
+                    >
+                        Editar APENAS esta parcela
+                    </button>
+                    <button 
+                        onClick={() => onChoice('group')} 
+                        className="btn-secondary w-full py-3"
+                    >
+                        Editar TODO o parcelamento (Geral)
+                    </button>
+                    <button onClick={onClose} className="btn-primary w-full bg-slate-600 hover:bg-slate-700">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 interface FilterOption {
     label: string;
     value: string;
@@ -145,6 +179,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [editingInstallmentGroup, setEditingInstallmentGroup] = useState<Transaction | null>(null);
     const [editingSplitGroupId, setEditingSplitGroupId] = useState<string | null>(null); 
+    const [isEditingSingleParcel, setIsEditingSingleParcel] = useState(false);
 
     const [type, setType] = useState<TransactionType>(lastUsedDetails.type);
     const [description, setDescription] = useState('');
@@ -174,6 +209,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
     const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean, transaction: Transaction | null }>({ isOpen: false, transaction: null });
+    const [editChoiceModal, setEditChoiceModal] = useState<{ isOpen: boolean, transaction: Transaction | null }>({ isOpen: false, transaction: null });
+    
     const descriptionInputRef = useRef<HTMLInputElement>(null);
 
     const activeAccounts = useMemo(() => accounts.filter(a => a.isActive), [accounts]);
@@ -184,6 +221,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setEditingTransaction(null);
         setEditingInstallmentGroup(null);
         setEditingSplitGroupId(null);
+        setIsEditingSingleParcel(false);
         setType(lastUsedDetails.type);
         setDescription('');
         setAmount('');
@@ -429,7 +467,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              }
              success = await addTransactions([expenseTx, incomeTx]);
         } else if (type === TransactionType.INCOME && isChange) {
-             // Se estamos editando uma transação comum e ativamos o troco, precisamos remover a original antes de criar o par
              if (editingTransaction) await deleteTransaction(editingTransaction.id);
              
              const paidAmount = parseFloat(amountPaid);
@@ -461,7 +498,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              }
              success = await addTransactions(allNewTransactions);
         } else if (isSplit) {
-             // Se estamos editando uma transação única e ativamos a divisão, removemos a original
              if (editingTransaction && !editingSplitGroupId) await deleteTransaction(editingTransaction.id);
              
              const finalSplitGroupId = editingSplitGroupId || crypto.randomUUID();
@@ -493,6 +529,53 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setDeleteModalState({ isOpen: false, transaction: null });
     };
 
+    const handleEdit = (transaction: Transaction) => {
+        if (transaction.installmentGroupId) {
+            setEditChoiceModal({ isOpen: true, transaction });
+        } else {
+            processEdit(transaction, 'single');
+        }
+    };
+
+    const processEdit = (transaction: Transaction, mode: 'single' | 'group') => {
+        setEditingTransaction(transaction);
+        setType(transaction.type);
+        setAccountId(transaction.accountId);
+        setCardId(transaction.cardId || '');
+        setDate(transaction.date);
+
+        if (mode === 'group' && transaction.installmentGroupId) {
+            setEditingInstallmentGroup(transaction); 
+            setIsInstallment(true); 
+            setIsEditingSingleParcel(false);
+            setInstallmentsCount(String(transaction.totalInstallments));
+            setDescription(transaction.description.replace(/\s\(\d+\/\d+\)(\s-\s.*)?$/, '')); 
+            setAmount(String(transaction.amount)); 
+            setItemId(transaction.itemId || '');
+        } else if (transaction.splitGroupId) {
+            setEditingSplitGroupId(transaction.splitGroupId); 
+            setIsSplit(true);
+            setIsEditingSingleParcel(false);
+            const group = transactions.filter(t => t.splitGroupId === transaction.splitGroupId);
+            setSplitItems(group.map((g, i) => ({ id: i, itemId: g.itemId || '', amount: String(g.amount) })));
+            setDescription(transaction.description.split(' - ')[0]); 
+            setAmount(String(group.reduce((acc, curr) => acc + curr.amount, 0))); 
+            setItemId(''); 
+        } else {
+            setEditingInstallmentGroup(null); 
+            setEditingSplitGroupId(null); 
+            setIsInstallment(false); 
+            setIsSplit(false);
+            setIsEditingSingleParcel(!!transaction.installmentGroupId); 
+            setDescription(transaction.description); 
+            setAmount(String(transaction.amount)); 
+            setItemId(transaction.itemId || '');
+        }
+        
+        setEditChoiceModal({ isOpen: false, transaction: null });
+        document.querySelector('form')?.scrollIntoView({ behavior: 'smooth' });
+    };
+
     const handleDelete = (id: string) => {
         const t = transactions.find(tx => tx.id === id);
         if (t) {
@@ -500,27 +583,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             else if (t.splitGroupId) { if (window.confirm('Esta transação faz parte de um grupo dividido. Deseja excluir todo o grupo?')) deleteTransactions(transactions.filter(tx => tx.splitGroupId === t.splitGroupId).map(tx => tx.id)); }
             else if (window.confirm('Tem certeza que deseja excluir esta transação?')) deleteTransaction(id);
         }
-    };
-
-    const handleEdit = (transaction: Transaction) => {
-        setEditingTransaction(transaction);
-        setType(transaction.type);
-        setAccountId(transaction.accountId);
-        setCardId(transaction.cardId || '');
-        setDate(transaction.date);
-        if (transaction.installmentGroupId) {
-            setEditingInstallmentGroup(transaction); setIsInstallment(true); setInstallmentsCount(String(transaction.totalInstallments));
-            setDescription(transaction.description.replace(/\s\(\d+\/\d+\)(\s-\s.*)?$/, '')); setAmount(String(transaction.amount)); setItemId(transaction.itemId || '');
-        } else if (transaction.splitGroupId) {
-            setEditingSplitGroupId(transaction.splitGroupId); setIsSplit(true);
-            const group = transactions.filter(t => t.splitGroupId === transaction.splitGroupId);
-            setSplitItems(group.map((g, i) => ({ id: i, itemId: g.itemId || '', amount: String(g.amount) })));
-            setDescription(transaction.description.split(' - ')[0]); setAmount(String(group.reduce((acc, curr) => acc + curr.amount, 0))); setItemId(''); 
-        } else {
-            setEditingInstallmentGroup(null); setEditingSplitGroupId(null); setIsInstallment(false); setIsSplit(false);
-            setDescription(transaction.description); setAmount(String(transaction.amount)); setItemId(transaction.itemId || '');
-        }
-        document.querySelector('form')?.scrollIntoView({ behavior: 'smooth' });
     };
 
     const accountOptions = useMemo(() => {
@@ -540,7 +602,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             <div className="lg:col-span-5 xl:col-span-4">
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm sticky top-6">
                     <form onSubmit={handleSubmit}>
-                        <h2 className="text-xl font-bold text-slate-800 mb-4">{isEditing ? 'Editar Transação' : 'Nova Transação'}</h2>
+                        <h2 className="text-xl font-bold text-slate-800 mb-4">
+                            {isEditing ? (isEditingSingleParcel ? 'Editar Parcela' : 'Editar Transação') : 'Nova Transação'}
+                        </h2>
                         <div className="p-1 bg-slate-100 rounded-lg flex space-x-1 mb-4">
                             <button type="button" onClick={() => setType(TransactionType.EXPENSE)} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.EXPENSE ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Saídas</button>
                             <button type="button" onClick={() => { setType(TransactionType.INCOME); setIsInstallment(false); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.INCOME ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Entradas</button>
@@ -563,13 +627,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                              <div className="flex space-x-6">
                                 {type === TransactionType.EXPENSE && (
                                     <div className="flex items-center">
-                                        <CustomCheckbox id="installment-check" checked={isInstallment} onChange={e => setIsInstallment(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId}/>
-                                        <label htmlFor="installment-check" className="ml-2 block text-sm text-slate-800 cursor-pointer">Parcelar</label>
+                                        <CustomCheckbox id="installment-check" checked={isInstallment} onChange={e => setIsInstallment(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId || isEditingSingleParcel}/>
+                                        <label htmlFor="installment-check" className={`ml-2 block text-sm cursor-pointer ${isEditingSingleParcel ? 'text-slate-400' : 'text-slate-800'}`}>Parcelar</label>
                                     </div>
                                 )}
                                 <div className="flex items-center">
-                                    <CustomCheckbox id="split-check" checked={isSplit} onChange={e => { setIsSplit(e.target.checked); if(e.target.checked) setIsChange(false); }} disabled={!!editingInstallmentGroup || isChange}/>
-                                    <label htmlFor="split-check" className="ml-2 block text-sm text-slate-800 cursor-pointer">Dividir</label>
+                                    <CustomCheckbox id="split-check" checked={isSplit} onChange={e => { setIsSplit(e.target.checked); if(e.target.checked) setIsChange(false); }} disabled={!!editingInstallmentGroup || isChange || isEditingSingleParcel}/>
+                                    <label htmlFor="split-check" className={`ml-2 block text-sm cursor-pointer ${isEditingSingleParcel ? 'text-slate-400' : 'text-slate-800'}`}>Dividir</label>
                                 </div>
                             </div>
                             {isInstallment && type === TransactionType.EXPENSE && (
@@ -631,8 +695,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                             )}
                              {type === TransactionType.INCOME && !isSplit && (
                                 <div className="flex items-center pt-4 border-t border-slate-200 mt-4">
-                                    <CustomCheckbox id="change-check" checked={isChange} onChange={e => setIsChange(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId}/>
-                                    <label htmlFor="change-check" className="ml-2 block text-sm text-slate-800 cursor-pointer">Devolver troco</label>
+                                    <CustomCheckbox id="change-check" checked={isChange} onChange={e => setIsChange(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId || isEditingSingleParcel}/>
+                                    <label htmlFor="change-check" className={`ml-2 block text-sm cursor-pointer ${isEditingSingleParcel ? 'text-slate-400' : 'text-slate-800'}`}>Devolver troco</label>
                                 </div>
                             )}
                             {isChange && type === TransactionType.INCOME && (
@@ -683,6 +747,12 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                 
                 <DateRangePickerModal isOpen={isPickerOpen} onClose={() => setIsPickerOpen(false)} value={customDateRange} onChange={handleCustomDateChange} />
                 <DeleteConfirmationModal isOpen={deleteModalState.isOpen} onClose={() => setDeleteModalState({isOpen: false, transaction: null})} onConfirm={handleConfirmDelete} />
+                <EditChoiceModal 
+                    isOpen={editChoiceModal.isOpen} 
+                    transaction={editChoiceModal.transaction}
+                    onClose={() => setEditChoiceModal({ isOpen: false, transaction: null })}
+                    onChoice={(mode) => editChoiceModal.transaction && processEdit(editChoiceModal.transaction, mode)}
+                />
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">

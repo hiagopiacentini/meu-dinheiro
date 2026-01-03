@@ -4,12 +4,11 @@ import { sampleAccounts, sampleTransactions, sampleCategories, sampleLoans, samp
 import { auth } from '../services/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 
-interface LoginPageProps {
-  onLogin: () => void;
-}
-
+/**
+ * Serializa um objeto para JSON de forma segura, removendo referências circulares.
+ */
 const safeStringify = (obj: any): string => {
-  const cache = new Set();
+  const cache = new WeakSet();
   try {
     return JSON.stringify(obj, (key, value) => {
       if (typeof value === 'object' && value !== null) {
@@ -21,10 +20,14 @@ const safeStringify = (obj: any): string => {
       return value;
     });
   } catch (error) {
-    console.error("Erro na serialização segura:", error);
+    console.error("Erro na serialização segura no Login:", error);
     return "null"; 
   }
 };
+
+interface LoginPageProps {
+  onLogin: () => void;
+}
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [name, setName] = useState('');

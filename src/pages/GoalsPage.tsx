@@ -69,6 +69,7 @@ const ManualHistoryModal: React.FC<{
         }
 
         const average = total / eligibleMonthsCount;
+        // Fix: Removed space from variable name to fix syntax error and Satisfy the find name error below
         const formattedAverage = average.toFixed(2);
 
         const newValues = { ...monthlyValues };
