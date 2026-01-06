@@ -1,22 +1,15 @@
 
 import { useState, useEffect, Dispatch, SetStateAction } from 'react';
+import { deepClean } from './useFirestore';
 
 /**
- * Serializa um objeto para JSON de forma segura, removendo referências circulares.
- * Se encontrar um ciclo, substitui o valor por "[Circular]".
+ * Serializa um objeto para JSON de forma segura, removendo referências circulares
+ * e limpando objetos complexos do SDK utilizando a lógica centralizada de deepClean.
  */
 const safeStringify = (obj: any): string => {
-  const cache = new WeakSet();
   try {
-    return JSON.stringify(obj, (key, value) => {
-      if (typeof value === 'object' && value !== null) {
-        if (cache.has(value)) {
-          return '[Circular]';
-        }
-        cache.add(value);
-      }
-      return value;
-    });
+    const cleaned = deepClean(obj);
+    return JSON.stringify(cleaned);
   } catch (error) {
     console.error("Falha crítica ao serializar objeto para localStorage:", error);
     return "null"; 

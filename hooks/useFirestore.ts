@@ -18,19 +18,28 @@ import { sampleCategories } from '../data/demoData';
 
 /**
  * Limpeza profunda e cycle-proof para garantir que apenas dados puros (POJOs) sejam enviados ao Firestore.
- * Utiliza WeakMap para rastrear objetos já processados e preservar referências compartilhadas sem recursão infinita.
+ * Utiliza WeakMap para rastrear referências e Object.keys para evitar propriedades de sistema/SDK.
  */
-const deepClean = (data: any, seen = new WeakMap()): any => {
-  if (data === null || typeof data !== 'object') return data;
+export const deepClean = (data: any, seen = new WeakMap()): any => {
+  // Primitivos e null
+  if (data === null || typeof data !== 'object') {
+    return typeof data === 'function' ? undefined : data;
+  }
   
-  // Se já vimos este objeto, retornamos a versão limpa dele para evitar ciclos
-  if (seen.has(data)) return seen.get(data);
+  // Evita recursão infinita em estruturas circulares
+  if (seen.has(data)) return "[Circular]";
   
-  // Tratamento especial para Datas (converte para string ISO)
+  // Tratamento para Datas
   if (data instanceof Date) return data.toISOString();
   
-  // Tratamento para Timestamps do Firebase (se houver toDate disponível)
-  if (typeof data.toDate === 'function') return data.toDate().toISOString();
+  // Tratamento para Timestamps do Firebase (duck typing para evitar importação extra)
+  if (data.seconds !== undefined && data.nanoseconds !== undefined && typeof data.toDate === 'function') {
+    try {
+      return data.toDate().toISOString();
+    } catch (e) {
+      return null;
+    }
+  }
 
   // Cria o contêiner de destino (Array ou Objeto)
   const result: any = Array.isArray(data) ? [] : {};
@@ -40,19 +49,21 @@ const deepClean = (data: any, seen = new WeakMap()): any => {
 
   if (Array.isArray(data)) {
     data.forEach((item, i) => {
-      result[i] = deepClean(item, seen);
+      const cleaned = deepClean(item, seen);
+      if (cleaned !== undefined) result[i] = cleaned;
     });
   } else {
-    // Itera sobre as propriedades do objeto
-    for (const key in data) {
-      if (Object.prototype.hasOwnProperty.call(data, key)) {
-        const val = deepClean(data[key], seen);
-        // Remove valores undefined para compatibilidade com Firestore
-        if (val !== undefined) {
-          result[key] = val;
+    // Usamos Object.keys para pegar apenas propriedades PRÓPRIAS e evitar protótipos de classes do SDK
+    Object.keys(data).forEach(key => {
+      const val = data[key];
+      // Ignora funções e propriedades internas do Firebase que começam com _
+      if (typeof val !== 'function' && !key.startsWith('_')) {
+        const cleaned = deepClean(val, seen);
+        if (cleaned !== undefined) {
+          result[key] = cleaned;
         }
       }
-    }
+    });
   }
   
   return result;

@@ -3,24 +3,19 @@ import React, { useState } from 'react';
 import { sampleAccounts, sampleTransactions, sampleCategories, sampleLoans, sampleGoals } from '../data/demoData';
 import { auth } from '../services/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { deepClean } from '../hooks/useFirestore';
 
 /**
- * Serializa um objeto para JSON de forma segura, removendo referências circulares.
+ * Serializa um objeto para JSON de forma segura, removendo referências circulares
+ * e limpando objetos complexos do SDK.
  */
 const safeStringify = (obj: any): string => {
-  const cache = new WeakSet();
   try {
-    return JSON.stringify(obj, (key, value) => {
-      if (typeof value === 'object' && value !== null) {
-        if (cache.has(value)) {
-          return '[Circular]';
-        }
-        cache.add(value);
-      }
-      return value;
-    });
+    // Primeiro limpamos o objeto de ciclos e propriedades não-serializáveis
+    const cleaned = deepClean(obj);
+    return JSON.stringify(cleaned);
   } catch (error) {
-    console.error("Erro na serialização segura no Login:", error);
+    console.error("Erro fatal na serialização segura no Login:", error);
     return "null"; 
   }
 };

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useGoals, useTransactions, useCategories, useManualSavings } from '../hooks/useFirestore';
 import { TransactionType } from '../types';
@@ -29,7 +30,7 @@ const ManualHistoryModal: React.FC<{
 
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth(); // 0 = Janeiro, 11 = Dezembro
+    const currentMonth = currentDate.getMonth();
 
     useEffect(() => {
         if(isOpen) {
@@ -98,7 +99,6 @@ const ManualHistoryModal: React.FC<{
     if (!isOpen) return null;
 
     const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-    const activeMonthsCount = months.filter((_, i) => isMonthEditable(i)).length;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
@@ -113,30 +113,28 @@ const ManualHistoryModal: React.FC<{
                     <span className="font-semibold">Nota:</span> Apenas meses anteriores ao atual ({months[currentMonth]}) podem ser editados.
                 </p>
 
-                {activeMonthsCount > 0 && (
-                    <div className="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">
-                            Não lembra mês a mês? Distribua o total:
-                        </label>
-                        <div className="flex gap-2">
-                            <input 
-                                type="number" 
-                                value={distributeAmount}
-                                onChange={e => setDistributeAmount(e.target.value)}
-                                className="input-style flex-1"
-                                placeholder={`Total acumulado até hoje`}
-                                step="0.01"
-                            />
-                            <button 
-                                type="button"
-                                onClick={handleDistribute}
-                                className="px-4 py-2 bg-slate-700 text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors"
-                            >
-                                Distribuir média
-                            </button>
-                        </div>
+                <div className="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        Não lembra mês a mês? Distribua o total:
+                    </label>
+                    <div className="flex gap-2">
+                        <input 
+                            type="number" 
+                            value={distributeAmount}
+                            onChange={e => setDistributeAmount(e.target.value)}
+                            className="input-style flex-1"
+                            placeholder={`Total acumulado até hoje`}
+                            step="0.01"
+                        />
+                        <button 
+                            type="button"
+                            onClick={handleDistribute}
+                            className="px-4 py-2 bg-slate-700 text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors"
+                        >
+                            Distribuir média
+                        </button>
                     </div>
-                )}
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                     {months.map((monthName, index) => {
@@ -196,7 +194,6 @@ const GoalsPage: React.FC = () => {
         return map;
     }, [categories]);
 
-    // Cálculo detalhado por mês
     const monthlyPerformance = useMemo(() => {
         const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
         const yearManual = (manualSavings && manualSavings[String(selectedYear)]) || {};
@@ -225,7 +222,6 @@ const GoalsPage: React.FC = () => {
                 name,
                 fullName: ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][index],
                 realized: transactionSavings + manual,
-                isManualOnly: transactionSavings === 0 && manual !== 0,
                 isCurrent: new Date().getFullYear() === selectedYear && new Date().getMonth() === index
             };
         });
@@ -263,9 +259,9 @@ const GoalsPage: React.FC = () => {
         <div className="space-y-6 pb-10">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4">
-                    <h2 className="text-xl font-bold text-slate-800 tracking-tight">Metas de economia</h2>
+                    <h2 className="text-xl font-bold text-slate-800">Metas de economia</h2>
                      <div className="flex items-center self-end md:self-center">
-                        <label htmlFor="year-select" className="text-sm font-medium mr-2 text-slate-600 whitespace-nowrap">Ano de referência:</label>
+                        <label htmlFor="year-select" className="text-sm font-medium mr-2 text-slate-600">Ano de referência:</label>
                         <select 
                             id="year-select" 
                             value={selectedYear} 
@@ -279,7 +275,7 @@ const GoalsPage: React.FC = () => {
 
                 <div className="max-w-md mx-auto">
                     <div className="mb-4">
-                        <label htmlFor="annual-goal" className="block text-sm font-medium text-slate-500 mb-2 text-center tracking-normal">
+                        <label htmlFor="annual-goal" className="block text-sm font-medium text-slate-500 mb-2 text-center">
                             Meta de economia anual ({selectedYear})
                         </label>
                         <input 
@@ -294,7 +290,7 @@ const GoalsPage: React.FC = () => {
                         />
                     </div>
                     <div className="text-center p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <p className="text-xs text-slate-400 font-medium tracking-normal mb-1">Esforço mensal necessário</p>
+                        <p className="text-xs text-slate-400 font-medium mb-1">Esforço mensal necessário</p>
                         <p className="font-bold text-xl text-slate-700">{formatCurrency(monthlyGoal)}</p>
                     </div>
                 </div>
@@ -331,7 +327,6 @@ const GoalsPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Nova Seção: Desempenho Mensal */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <h3 className="font-bold text-lg text-slate-800 mb-6">Desempenho mês a mês</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -362,7 +357,7 @@ const GoalsPage: React.FC = () => {
                                     height="h-1.5"
                                 />
                                 
-                                <div className="flex justify-between mt-2 text-[10px] font-medium text-slate-400 tracking-normal">
+                                <div className="flex justify-between mt-2 text-[10px] font-medium text-slate-400">
                                     <span>Realizado</span>
                                     <span>Meta: {formatCurrency(monthlyGoal)}</span>
                                 </div>

@@ -192,10 +192,20 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [installmentsCount, setInstallmentsCount] = useState('2');
     const [isSplit, setIsSplit] = useState(false);
     const [splitItems, setSplitItems] = useState<SplitItem[]>([{ id: 1, itemId: '', amount: '' }]);
+    
     const [isChange, setIsChange] = useState(false);
     const [amountPaid, setAmountPaid] = useState('');
     const [changeAccountId, setChangeAccountId] = useState('');
     const [changeItemId, setChangeItemId] = useState('');
+    
+    const [isDeduction, setIsDeduction] = useState(false);
+    const [deductionAmount, setDeductionAmount] = useState('');
+    const [deductionItemId, setDeductionItemId] = useState('');
+    
+    const [isRebate, setIsRebate] = useState(false);
+    const [rebateAmount, setRebateAmount] = useState('');
+    const [rebateItemId, setRebateItemId] = useState('');
+
     const [peerAccountId, setPeerAccountId] = useState('');
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -248,6 +258,12 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setAmountPaid('');
         setChangeAccountId('');
         setChangeItemId('');
+        setIsDeduction(false);
+        setDeductionAmount('');
+        setDeductionItemId('');
+        setIsRebate(false);
+        setRebateAmount('');
+        setRebateItemId('');
         setPeerAccountId('');
     }, [activeAccounts, lastUsedDetails, accountFilter]);
 
@@ -330,6 +346,18 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
          });
          return options.sort((a,b) => a.catName.localeCompare(b.catName) || a.subName.localeCompare(b.subName) || a.name.localeCompare(b.name));
     }, [categories]);
+
+    const incomeCategoryOptions = useMemo(() => {
+        const options: { id: string, name: string, subName: string, catName: string }[] = [];
+        categories.filter(c => c.type === TransactionType.INCOME).forEach(cat => {
+           cat.subcategories.forEach(sub => {
+               sub.items.forEach(item => {
+                    options.push({ id: item.id, name: item.name, subName: sub.name, catName: cat.name });
+               });
+           });
+        });
+        return options.sort((a,b) => a.catName.localeCompare(b.catName) || a.subName.localeCompare(b.subName) || a.name.localeCompare(b.name));
+   }, [categories]);
 
     const isTransfer = useMemo(() => {
         if (!itemId) return false;
@@ -468,11 +496,28 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              success = await addTransactions([expenseTx, incomeTx]);
         } else if (type === TransactionType.INCOME && isChange) {
              if (editingTransaction) await deleteTransaction(editingTransaction.id);
-             
              const paidAmount = parseFloat(amountPaid);
              const changeAmount = paidAmount - parseFloat(amount);
              const newTxs = [{ ...transactionData, amount: paidAmount, type: TransactionType.INCOME, cardId: cardId || null }];
              if(changeAmount > 0) newTxs.push({ description: `Troco devolvido: ${description}`, amount: changeAmount, date, type: TransactionType.EXPENSE, accountId: changeAccountId, itemId: changeItemId, cardId: null });
+             success = await addTransactions(newTxs);
+        } else if (type === TransactionType.INCOME && isDeduction) {
+             if (editingTransaction) await deleteTransaction(editingTransaction.id);
+             const grossAmount = parseFloat(amount);
+             const deductVal = parseFloat(deductionAmount);
+             const newTxs = [
+                 { ...transactionData, amount: grossAmount, type: TransactionType.INCOME, cardId: cardId || null },
+                 { description: `Desconto/Consumo: ${description}`, amount: deductVal, date, type: TransactionType.EXPENSE, accountId, itemId: deductionItemId, cardId: cardId || null }
+             ];
+             success = await addTransactions(newTxs);
+        } else if (type === TransactionType.EXPENSE && isRebate) {
+             if (editingTransaction) await deleteTransaction(editingTransaction.id);
+             const grossExpense = parseFloat(amount);
+             const rebateVal = parseFloat(rebateAmount);
+             const newTxs = [
+                 { ...transactionData, amount: grossExpense, type: TransactionType.EXPENSE, cardId: cardId || null },
+                 { description: `Abatimento/Crédito: ${description}`, amount: rebateVal, date, type: TransactionType.INCOME, accountId, itemId: rebateItemId, cardId: cardId || null }
+             ];
              success = await addTransactions(newTxs);
         } else if (editingInstallmentGroup) {
              const groupId = editingInstallmentGroup.installmentGroupId!;
@@ -499,7 +544,6 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              success = await addTransactions(allNewTransactions);
         } else if (isSplit) {
              if (editingTransaction && !editingSplitGroupId) await deleteTransaction(editingTransaction.id);
-             
              const finalSplitGroupId = editingSplitGroupId || crypto.randomUUID();
              if (editingSplitGroupId) await deleteTransactions(transactions.filter(t => t.splitGroupId === editingSplitGroupId).map(t => t.id));
              const newTransactions = splitItems.map(item => ({ ...commonData, amount: parseFloat(item.amount), itemId: item.itemId, description: `${description} - ${categoryMap.get(item.itemId)?.item || 'Item'}`, splitGroupId: finalSplitGroupId }));
@@ -606,17 +650,19 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                             {isEditing ? (isEditingSingleParcel ? 'Editar Parcela' : 'Editar Transação') : 'Nova Transação'}
                         </h2>
                         <div className="p-1 bg-slate-100 rounded-lg flex space-x-1 mb-4">
-                            <button type="button" onClick={() => setType(TransactionType.EXPENSE)} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.EXPENSE ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Saídas</button>
-                            <button type="button" onClick={() => { setType(TransactionType.INCOME); setIsInstallment(false); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.INCOME ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Entradas</button>
+                            <button type="button" onClick={() => { setType(TransactionType.EXPENSE); setIsChange(false); setIsDeduction(false); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.EXPENSE ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Saídas</button>
+                            <button type="button" onClick={() => { setType(TransactionType.INCOME); setIsInstallment(false); setIsRebate(false); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.INCOME ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Entradas</button>
                         </div>
                         <div className="space-y-4 max-h-[calc(100vh-22rem)] overflow-y-auto pr-2">
                             <div>
-                                <label className="text-sm font-medium text-slate-600 mb-1 block">Descrição</label>
-                                <input ref={descriptionInputRef} type="text" value={description} onChange={e => setDescription(e.target.value)} onBlur={handleDescriptionBlur} required className="input-style" placeholder="Ex: Almoço no restaurante" />
+                                <label className="text-sm font-medium text-slate-600 mb-1 block">
+                                    {(type === TransactionType.INCOME && isDeduction) ? 'Descrição (Receita Bruta)' : (type === TransactionType.EXPENSE && isRebate) ? 'Descrição (Despesa Bruta)' : 'Descrição'}
+                                </label>
+                                <input ref={descriptionInputRef} type="text" value={description} onChange={e => setDescription(e.target.value)} onBlur={handleDescriptionBlur} required className="input-style" placeholder="Ex: Pagamento dívida Pai" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-sm font-medium text-slate-600 mb-1 block">Valor {isInstallment ? 'da Parcela' : isSplit ? 'Total' : ''}</label>
+                                    <label className="text-sm font-medium text-slate-600 mb-1 block">{(isDeduction || isRebate) ? 'Valor Bruto' : isInstallment ? 'Valor da Parcela' : isSplit ? 'Valor Total' : 'Valor'}</label>
                                     <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required={!isSplit} step="0.01" min="0" className="input-style" placeholder="R$ 0,00" />
                                 </div>
                                 <div>
@@ -624,17 +670,31 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="input-style" max={maxDate} />
                                 </div>
                             </div>
-                             <div className="flex space-x-6">
+                             <div className="flex flex-wrap gap-x-6 gap-y-2">
                                 {type === TransactionType.EXPENSE && (
-                                    <div className="flex items-center">
-                                        <CustomCheckbox id="installment-check" checked={isInstallment} onChange={e => setIsInstallment(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId || isEditingSingleParcel}/>
-                                        <label htmlFor="installment-check" className={`ml-2 block text-sm cursor-pointer ${isEditingSingleParcel ? 'text-slate-400' : 'text-slate-800'}`}>Parcelar</label>
-                                    </div>
+                                    <>
+                                        <div className="flex items-center">
+                                            <CustomCheckbox id="installment-check" checked={isInstallment} onChange={e => setIsInstallment(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId || isEditingSingleParcel}/>
+                                            <label htmlFor="installment-check" className={`ml-2 block text-sm cursor-pointer ${isEditingSingleParcel ? 'text-slate-400' : 'text-slate-800'}`}>Parcelar</label>
+                                        </div>
+                                        {!isSplit && (
+                                            <div className="flex items-center">
+                                                <CustomCheckbox id="rebate-check" checked={isRebate} onChange={e => setIsRebate(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId || isEditingSingleParcel}/>
+                                                <label htmlFor="rebate-check" className={`ml-2 block text-sm cursor-pointer ${isEditingSingleParcel ? 'text-slate-400' : 'text-slate-800'}`}>Houve abatimento</label>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                                 <div className="flex items-center">
-                                    <CustomCheckbox id="split-check" checked={isSplit} onChange={e => { setIsSplit(e.target.checked); if(e.target.checked) setIsChange(false); }} disabled={!!editingInstallmentGroup || isChange || isEditingSingleParcel}/>
+                                    <CustomCheckbox id="split-check" checked={isSplit} onChange={e => { setIsSplit(e.target.checked); if(e.target.checked) { setIsChange(false); setIsDeduction(false); setIsRebate(false); } }} disabled={!!editingInstallmentGroup || isChange || isDeduction || isRebate || isEditingSingleParcel}/>
                                     <label htmlFor="split-check" className={`ml-2 block text-sm cursor-pointer ${isEditingSingleParcel ? 'text-slate-400' : 'text-slate-800'}`}>Dividir</label>
                                 </div>
+                                {type === TransactionType.INCOME && !isSplit && (
+                                    <div className="flex items-center">
+                                        <CustomCheckbox id="deduction-check" checked={isDeduction} onChange={e => { setIsDeduction(e.target.checked); if(e.target.checked) setIsChange(false); }} disabled={!!editingInstallmentGroup || !!editingSplitGroupId || isEditingSingleParcel}/>
+                                        <label htmlFor="deduction-check" className={`ml-2 block text-sm cursor-pointer ${isEditingSingleParcel ? 'text-slate-400' : 'text-slate-800'}`}>Houve descontos</label>
+                                    </div>
+                                )}
                             </div>
                             {isInstallment && type === TransactionType.EXPENSE && (
                                 <div>
@@ -693,7 +753,57 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     </select>
                                 </div>
                             )}
-                             {type === TransactionType.INCOME && !isSplit && (
+
+                             {/* SEÇÃO DE DESCONTOS/CONSUMO NAS ENTRADAS */}
+                             {type === TransactionType.INCOME && isDeduction && (
+                                <div className="space-y-4 p-4 bg-amber-50 rounded-xl border border-amber-200 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <h3 className="text-xs font-bold text-amber-800 uppercase tracking-wider">Descontos / Consumo Interno</h3>
+                                    <div>
+                                        <label className="text-sm font-medium text-amber-700 mb-1 block">Valor do Desconto</label>
+                                        <input type="number" value={deductionAmount} onChange={e => setDeductionAmount(e.target.value)} required step="0.01" min="0" max={amount || '0'} className="input-style border-amber-300 focus:ring-amber-500" placeholder="R$ 0,00" />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-medium text-amber-700 mb-1 block">Categoria do Desconto</label>
+                                        <select value={deductionItemId} onChange={e => setDeductionItemId(e.target.value)} required className="input-style border-amber-300 focus:ring-amber-500">
+                                            <option value="" disabled>Selecione uma categoria...</option>
+                                            {expenseCategoryOptions.map(opt => <option key={opt.id} value={opt.id}>{`${opt.catName} > ${opt.subName} > ${opt.name}`}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="pt-2 border-t border-amber-200 flex justify-between items-center">
+                                        <span className="text-sm font-medium text-amber-900">Líquido a receber:</span>
+                                        <span className="text-lg font-bold text-amber-900">
+                                            <PrivateValue>{formatCurrency(Math.max(0, parseFloat(amount || '0') - parseFloat(deductionAmount || '0')))}</PrivateValue>
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                             {/* NOVO: SEÇÃO DE ABATIMENTOS NAS SAÍDAS */}
+                             {type === TransactionType.EXPENSE && isRebate && (
+                                <div className="space-y-4 p-4 bg-emerald-50 rounded-xl border border-emerald-200 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Abatimentos / Recebimentos</h3>
+                                    <div>
+                                        <label className="text-sm font-medium text-emerald-700 mb-1 block">Valor do Abatimento</label>
+                                        <input type="number" value={rebateAmount} onChange={e => setRebateAmount(e.target.value)} required step="0.01" min="0" max={amount || '0'} className="input-style border-emerald-300 focus:ring-emerald-500" placeholder="R$ 0,00" />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-medium text-emerald-700 mb-1 block">Categoria do Recebimento</label>
+                                        <select value={rebateItemId} onChange={e => setRebateItemId(e.target.value)} required className="input-style border-emerald-300 focus:ring-emerald-500">
+                                            <option value="" disabled>Selecione uma categoria...</option>
+                                            {incomeCategoryOptions.map(opt => <option key={opt.id} value={opt.id}>{`${opt.catName} > ${opt.subName} > ${opt.name}`}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="pt-2 border-t border-emerald-200 flex justify-between items-center">
+                                        <span className="text-sm font-medium text-emerald-900">Líquido a pagar:</span>
+                                        <span className="text-lg font-bold text-emerald-900">
+                                            <PrivateValue>{formatCurrency(Math.max(0, parseFloat(amount || '0') - parseFloat(rebateAmount || '0')))}</PrivateValue>
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] text-emerald-600 mt-1 italic">Registra a despesa total e o recebimento abatido.</p>
+                                </div>
+                            )}
+
+                             {type === TransactionType.INCOME && !isSplit && !isDeduction && (
                                 <div className="flex items-center pt-4 border-t border-slate-200 mt-4">
                                     <CustomCheckbox id="change-check" checked={isChange} onChange={e => setIsChange(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId || isEditingSingleParcel}/>
                                     <label htmlFor="change-check" className={`ml-2 block text-sm cursor-pointer ${isEditingSingleParcel ? 'text-slate-400' : 'text-slate-800'}`}>Devolver troco</label>
