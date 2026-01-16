@@ -41,8 +41,8 @@ const InvoiceHistoryModal: React.FC<{
     const accountMap = new Map(accounts.map(acc => [acc.id, acc.name]));
 
     const history = transactions.filter(t => 
-        t.type === TransactionType.TRANSFER &&
-        t.destinationAccountId === accountId && 
+        t.type === TransactionType.INCOME &&
+        t.accountId === accountId && 
         t.cardId === cardId
     ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -65,7 +65,6 @@ const InvoiceHistoryModal: React.FC<{
                             <thead className="bg-gray-50 text-slate-500 uppercase text-xs sticky top-0">
                                 <tr>
                                     <th className="px-3 py-2 text-left">Data</th>
-                                    <th className="px-3 py-2 text-left">Origem</th>
                                     <th className="px-3 py-2 text-right">Valor</th>
                                 </tr>
                             </thead>
@@ -73,9 +72,6 @@ const InvoiceHistoryModal: React.FC<{
                                 {history.map(t => (
                                     <tr key={t.id}>
                                         <td className="px-3 py-2 text-slate-600">{formatDate(t.date)}</td>
-                                        <td className="px-3 py-2 text-slate-600 truncate max-w-[150px]">
-                                            {accountMap.get(t.accountId) || 'Conta Excluída'}
-                                        </td>
                                         <td className="px-3 py-2 text-right font-medium text-green-600">
                                             <PrivateValue>{formatCurrency(t.amount)}</PrivateValue>
                                         </td>
@@ -516,6 +512,9 @@ const BankLogo: React.FC<{ account: Account, size?: 'sm' | 'lg'}> = ({ account, 
     if (name.includes('itaú')) {
         return <img src="https://i.imgur.com/uR29mKw.png" alt="Itau" className={sizeClasses} />;
     }
+    if (name.includes('inter')) {
+        return <img src="https://i.imgur.com/P4MhLq7.png" alt="Inter" className={sizeClasses} />;
+    }
     if (name.includes('paypal')) {
         return <img src="https://i.imgur.com/T5QkH90.png" alt="PayPal" className={sizeClasses} />;
     }
@@ -778,6 +777,8 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
         return { sign: '', color: 'text-slate-800' };
     };
 
+    const accountMapRaw = useMemo(() => new Map(accounts.map(acc => [acc.id, acc.name])), [accounts]);
+
     return (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
             <div className="xl:col-span-4 space-y-3">
@@ -930,8 +931,47 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
             </div>
 
             <AccountModal isOpen={isModalOpen} onClose={handleCloseModal} onSave={handleSaveAccount} onDelete={handleDeleteAccount} account={editingAccount} />
+            
+            <InvoiceHistoryModal 
+                isOpen={isInvoiceHistoryOpen}
+                onClose={() => setIsInvoiceHistoryOpen(false)}
+                accountName={selectedAccount?.name || ''}
+                cardName={selectedAccount?.cards?.find(c => c.id === selectedCardId)?.name || ''}
+                transactions={transactions}
+                accountId={selectedAccount?.id || ''}
+                cardId={selectedCardId || ''}
+                accounts={accounts}
+            />
+
             {selectedAccount && <PayInvoiceModal isOpen={isPayModalOpen} onClose={() => setIsPayModalOpen(false)} targetAccount={selectedAccount} targetCardId={selectedCardId} accounts={accounts} categories={categories} currentBalance={selectedCardId ? currentViewBalance : currentViewBalance} onPay={async (s, a, d, i) => { 
-                const success = await addTransactions([{ description: `Pagamento Fatura: ${selectedAccount.name}`, amount: a, date: d, type: TransactionType.TRANSFER, accountId: s, destinationAccountId: selectedAccount.id, cardId: selectedCardId || undefined, itemId: i }]);
+                const cardName = selectedCardId ? selectedAccount.cards?.find(c => c.id === selectedCardId)?.name : null;
+                const targetName = cardName ? `${selectedAccount.name} (${cardName})` : selectedAccount.name;
+                const sourceAccName = accountMapRaw.get(s) || 'Conta';
+
+                // Criamos um PAR de transações para que a saída apareça no extrato da conta bancária
+                // e a entrada apareça no extrato do cartão.
+                const txs: Omit<Transaction, 'id'>[] = [
+                    {
+                        description: `Pagamento Fatura: ${targetName}`,
+                        amount: a,
+                        date: d,
+                        type: TransactionType.EXPENSE,
+                        accountId: s,
+                        cardId: null, // Saída direta do saldo da conta
+                        itemId: i
+                    },
+                    {
+                        description: `Recebimento Fatura (${sourceAccName})`,
+                        amount: a,
+                        date: d,
+                        type: TransactionType.INCOME,
+                        accountId: selectedAccount.id,
+                        cardId: selectedCardId || null, // Entrada de saldo no cartão
+                        itemId: i
+                    }
+                ];
+                
+                const success = await addTransactions(txs);
                 if (success) setIsPayModalOpen(false);
             }} />}
         </div>

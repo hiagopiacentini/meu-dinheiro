@@ -1,10 +1,10 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useTransactions, useCategories, useAccounts, useCDBs } from '../hooks/useFirestore';
+import { useTransactions, useCategories, useAccounts, useCDBs, useGoals } from '../hooks/useFirestore';
 import { TransactionType, Transaction } from '../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  ComposedChart, Line, PieChart, Pie, Cell 
+  ComposedChart, Line, PieChart, Pie, Cell, Area
 } from 'recharts';
 import DateRangePickerModal from '../components/DateRangePickerModal';
 import ChevronDownIcon from '../components/icons/ChevronDownIcon';
@@ -206,9 +206,10 @@ const ReportsPage: React.FC = () => {
     const { categories } = useCategories();
     const { accounts } = useAccounts();
     const { cdbs } = useCDBs();
+    const { goals } = useGoals();
     const { isPrivacyMode } = usePrivacy();
 
-    const [period, setPeriod] = useState<'currentMonth' | 'lastMonth' | '3months' | '6months' | 'year' | 'all' | 'custom'>('currentMonth');
+    const [period, setPeriod] = useState<'untilToday' | 'currentMonth' | 'lastMonth' | '3months' | '6months' | 'year' | 'all' | 'custom'>('untilToday');
     const [sourceFilter, setSourceFilter] = useState<string>('all');
     const [customDateRange, setCustomDateRange] = useState<{start: Date | null, end: Date | null}>({ start: null, end: null });
     const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -263,6 +264,10 @@ const ReportsPage: React.FC = () => {
         let end: Date = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
         
         switch (period) {
+            case 'untilToday':
+                start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+                end = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+                break;
             case 'currentMonth':
                 start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
                 end = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
@@ -457,7 +462,65 @@ const ReportsPage: React.FC = () => {
         return Array.from(dailyMap.values()).sort((a, b) => a.sortKey - b.sortKey);
     }, [reportTransactions, reportYields, itemBalanceMap, yieldItemInfo, dateBoundaries]);
 
+    const performanceData = useMemo(() => {
+        const { start, end } = dateBoundaries;
+        if (!start || !end) return [];
+
+        const annualGoal = goals[String(start.getUTCFullYear())] || 0;
+        const monthlyGoal = annualGoal / 12;
+        const daysInMonth = new Date(start.getUTCFullYear(), start.getUTCMonth() + 1, 0).getDate();
+        const dailyGoalProRata = monthlyGoal / daysInMonth;
+
+        const data: any[] = [];
+        let accumulatedResult = 0;
+        let dayCounter = 1;
+
+        let current = new Date(start);
+        while (current <= end) {
+            const key = current.toISOString().split('T')[0];
+            const dailyTxs = transactions.filter(t => t.date === key);
+            
+            let dailyIncome = 0;
+            let dailyExpense = 0;
+
+            dailyTxs.forEach(t => {
+                const itemInfo = itemBalanceMap.get(t.itemId || '');
+                const shouldInclude = !t.itemId || itemInfo !== false;
+                
+                if (shouldInclude) {
+                    if (t.type === TransactionType.INCOME) dailyIncome += t.amount;
+                    else if (t.type === TransactionType.EXPENSE) dailyExpense += t.amount;
+                }
+            });
+
+            // Rendimentos do dia
+            const dailyYields = reportYields.filter(y => y.date === key);
+            dailyYields.forEach(y => {
+                dailyIncome += y.amount;
+            });
+
+            const dailyDelta = dailyIncome - dailyExpense;
+            accumulatedResult += dailyDelta;
+            const currentGoal = dailyGoalProRata * dayCounter;
+
+            data.push({
+                name: current.getUTCDate().toString().padStart(2, '0'),
+                'Resultado do Dia': dailyDelta,
+                'Resultado Acumulado': accumulatedResult,
+                'Meta Acumulada': currentGoal,
+                'Status': accumulatedResult >= currentGoal ? 'Acima' : 'Abaixo',
+                fullDate: key
+            });
+
+            current.setUTCDate(current.getUTCDate() + 1);
+            dayCounter++;
+        }
+
+        return data;
+    }, [dateBoundaries, transactions, reportYields, goals, itemBalanceMap]);
+
     const periods = [
+        {id:'untilToday', l:'Até hoje'}, 
         {id:'currentMonth', l:'Mês atual'}, 
         {id:'lastMonth', l:'Mês passado'}, 
         {id:'3months', l:'3 meses'}, 
@@ -513,6 +576,96 @@ const ReportsPage: React.FC = () => {
                 <KpiCard title="Margem" value={`${dreData.margin.toFixed(1)}%`} isCurrency={false} colorClass="text-blue-600" subtext="Eficiência do período" />
                 <KpiCard title="Receitas totais" value={dreData.totalIncome} subtext="Entradas e rendimentos" />
                 <KpiCard title="Despesas totais" value={dreData.totalExpense} subtext="Saídas operacionais" />
+            </div>
+
+            <div className={`bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-sm select-none' : ''}`}>
+                <div className="mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 tracking-normal">Análise Acumulada: Fluxo vs. Meta</h3>
+                    <p className="text-sm text-slate-500 font-normal">Visualize seu desempenho total acumulado desde o dia 1 até o final do período, comparado ao objetivo pro-rata.</p>
+                </div>
+                
+                <div className="h-[400px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={performanceData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="colorPerf" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis 
+                                dataKey="name" 
+                                fontSize={10} 
+                                tickLine={false} 
+                                axisLine={false} 
+                                stroke="#94a3b8" 
+                                tickMargin={10}
+                            />
+                            <YAxis 
+                                fontSize={10} 
+                                tickLine={false} 
+                                axisLine={false} 
+                                stroke="#94a3b8" 
+                                tickFormatter={(v) => `R$${v/1000}k`}
+                            />
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.75rem', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                formatter={(v: number, name: string) => [formatCurrency(v), name]}
+                                labelFormatter={(label) => `Dia ${label}`}
+                            />
+                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px', fontWeight: '500' }} />
+                            
+                            <Bar 
+                                name="Resultado Acumulado" 
+                                dataKey="Resultado Acumulado" 
+                                radius={[4, 4, 0, 0]} 
+                                barSize={20}
+                            >
+                                {performanceData.map((entry, index) => {
+                                    // Cor baseada em estar acima ou abaixo da META acumulada do dia
+                                    const isHealthy = entry['Resultado Acumulado'] >= entry['Meta Acumulada'];
+                                    return <Cell key={`cell-${index}`} fill={isHealthy ? '#10b981' : '#f43f5e'} fillOpacity={0.8} />;
+                                })}
+                            </Bar>
+
+                            <Area 
+                                name="Tendência de Desempenho" 
+                                type="monotone" 
+                                dataKey="Resultado Acumulado" 
+                                stroke="#10b981" 
+                                fillOpacity={1} 
+                                fill="url(#colorPerf)" 
+                                strokeWidth={2}
+                            />
+                            
+                            <Line 
+                                name="Linha da Meta" 
+                                type="monotone" 
+                                dataKey="Meta Acumulada" 
+                                stroke="#f59e0b" 
+                                strokeWidth={2.5} 
+                                strokeDasharray="5 5" 
+                                dot={false}
+                            />
+                        </ComposedChart>
+                    </ResponsiveContainer>
+                </div>
+                
+                <div className="mt-6 p-4 bg-slate-50 rounded-lg flex flex-wrap gap-6 items-center border border-slate-100">
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                        <span className="text-xs font-semibold text-slate-600">No Objetivo (Acima da Meta Acumulada)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-rose-500"></div>
+                        <span className="text-xs font-semibold text-slate-600">Atenção (Abaixo da Meta Acumulada)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 border-b-2 border-dashed border-amber-500"></div>
+                        <span className="text-xs font-semibold text-slate-600">Curva Progressiva da Meta</span>
+                    </div>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

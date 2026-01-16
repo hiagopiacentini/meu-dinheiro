@@ -484,10 +484,33 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
         if (isTransfer) {
              const transferAmount = parseFloat(amount);
-             const sourceAccId = type === TransactionType.EXPENSE ? accountId : peerAccountId;
-             const destAccId = type === TransactionType.EXPENSE ? peerAccountId : accountId;
-             const expenseTx: Omit<Transaction, 'id'> = { description: `Transferência para ${accountMap.get(destAccId)}`, amount: transferAmount, date, type: TransactionType.EXPENSE, accountId: sourceAccId, itemId, cardId: (type === TransactionType.EXPENSE && cardId) ? cardId : null };
-             const incomeTx: Omit<Transaction, 'id'> = { description: `Transferência de ${accountMap.get(sourceAccId)}`, amount: transferAmount, date, type: TransactionType.INCOME, accountId: destAccId, itemId, cardId: null };
+             const isMainAccountSource = type === TransactionType.EXPENSE;
+             
+             const sourceAccId = isMainAccountSource ? accountId : peerAccountId;
+             const sourceCardId = isMainAccountSource ? cardId : null;
+             
+             const destAccId = isMainAccountSource ? peerAccountId : accountId;
+             const destCardId = isMainAccountSource ? null : cardId;
+
+             const expenseTx: Omit<Transaction, 'id'> = { 
+                 description: `Transferência para ${accountMap.get(destAccId)}`, 
+                 amount: transferAmount, 
+                 date, 
+                 type: TransactionType.EXPENSE, 
+                 accountId: sourceAccId, 
+                 itemId, 
+                 cardId: sourceCardId || null 
+             };
+             const incomeTx: Omit<Transaction, 'id'> = { 
+                 description: `Transferência de ${accountMap.get(sourceAccId)}`, 
+                 amount: transferAmount, 
+                 date, 
+                 type: TransactionType.INCOME, 
+                 accountId: destAccId, 
+                 itemId, 
+                 cardId: destCardId || null 
+             };
+
              if (editingTransaction) {
                  const partnerTx = transactions.find(t => t.id !== editingTransaction.id && t.date === editingTransaction.date && t.amount === editingTransaction.amount && t.itemId === editingTransaction.itemId && t.type !== editingTransaction.type);
                  const idsToRemove = [editingTransaction.id]; if(partnerTx) idsToRemove.push(partnerTx.id);
@@ -749,7 +772,15 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                     <label className="text-sm font-medium text-slate-600 mb-1 block">{type === TransactionType.EXPENSE ? 'Conta de Destino' : 'Conta de Origem'}</label>
                                     <select value={peerAccountId} onChange={e => setPeerAccountId(e.target.value)} required className="input-style">
                                         <option value="" disabled>Selecione a outra conta...</option>
-                                        {activeAccounts.filter(acc => acc.id !== accountId).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                                        {activeAccounts.filter(acc => {
+                                            // Se um cartão estiver selecionado, permitimos transferir para a conta-mãe desse cartão
+                                            if (cardId) return true;
+                                            return acc.id !== accountId;
+                                        }).map(acc => (
+                                            <option key={acc.id} value={acc.id}>
+                                                {acc.name} {acc.id === accountId ? '(Conta Bancária)' : ''}
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
                             )}

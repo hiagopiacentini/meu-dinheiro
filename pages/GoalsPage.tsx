@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useGoals, useTransactions, useCategories, useManualSavings } from '../hooks/useFirestore';
+import { useGoals, useTransactions, useCategories, useManualSavings, useCDBs } from '../hooks/useFirestore';
 import { TransactionType } from '../types';
 import PencilIcon from '../components/icons/PencilIcon';
 import XIcon from '../components/icons/XIcon';
@@ -8,6 +8,13 @@ import PrivateValue from '../components/PrivateValue';
 import CheckIcon from '../components/icons/CheckIcon';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+const getNowGmtMinus4 = () => {
+    const now = new Date();
+    const offset = -4 * 60 * 60 * 1000;
+    const localOffset = now.getTimezoneOffset() * 60 * 1000;
+    return new Date(now.getTime() + localOffset + offset);
+}
 
 const ProgressBar: React.FC<{ value: number, color: string, height?: string }> = ({ value, color, height = "h-2.5" }) => {
     const percentage = Math.max(0, Math.min(100, value));
@@ -28,9 +35,9 @@ const ManualHistoryModal: React.FC<{
     const [monthlyValues, setMonthlyValues] = useState<{ [month: string]: string }>({});
     const [distributeAmount, setDistributeAmount] = useState<string>('');
 
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth();
+    const now = getNowGmtMinus4();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
 
     useEffect(() => {
         if(isOpen) {
@@ -174,8 +181,10 @@ const GoalsPage: React.FC = () => {
     const { transactions } = useTransactions();
     const { categories } = useCategories();
     const { manualSavings, updateManualSavings } = useManualSavings();
+    const { cdbs } = useCDBs();
     
-    const currentYear = new Date().getFullYear();
+    const nowRef = getNowGmtMinus4();
+    const currentYear = nowRef.getFullYear();
     const [selectedYear, setSelectedYear] = useState(currentYear);
     const [annualInput, setAnnualInput] = useState<string>('');
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -194,38 +203,70 @@ const GoalsPage: React.FC = () => {
         return map;
     }, [categories]);
 
+    const yieldCategoryId = useMemo(() => {
+        for (const cat of categories) {
+            for (const sub of cat.subcategories) {
+                for (const item of sub.items) {
+                    const itemName = item.name.toLowerCase().trim();
+                    if (itemName === 'rendimento' || itemName === 'rendimentos') return item.id;
+                }
+            }
+        }
+        return null;
+    }, [categories]);
+
     const monthlyPerformance = useMemo(() => {
         const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
         const yearManual = (manualSavings && manualSavings[String(selectedYear)]) || {};
+        const now = getNowGmtMinus4();
         
         return months.map((name, index) => {
             const startOfMonth = new Date(Date.UTC(selectedYear, index, 1));
-            const endOfMonth = new Date(Date.UTC(selectedYear, index + 1, 0, 23, 59, 59, 999));
+            const isThisMonth = selectedYear === now.getFullYear() && index === now.getMonth();
+            
+            // REGRA: Se for o mês atual, filtramos APENAS até hoje para bater com a dashboard.
+            const endOfCalculatedPeriod = isThisMonth 
+                ? new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999))
+                : new Date(Date.UTC(selectedYear, index + 1, 0, 23, 59, 59, 999));
 
             const monthTransactions = transactions.filter(t => {
                 const date = new Date(t.date);
                 const tDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-                return tDate >= startOfMonth && tDate <= endOfMonth;
+                return tDate >= startOfMonth && tDate <= endOfCalculatedPeriod;
             });
 
             const transactionSavings = monthTransactions.reduce((acc, t) => {
                 const shouldInclude = !t.itemId || itemBalanceMap.get(t.itemId) !== false;
+                const isRedemptionProfit = t.itemId === yieldCategoryId;
+
                 if (shouldInclude) {
-                    if (t.type === TransactionType.INCOME) return acc + t.amount;
+                    if (t.type === TransactionType.INCOME && !isRedemptionProfit) return acc + t.amount;
                     if (t.type === TransactionType.EXPENSE) return acc - t.amount;
                 }
                 return acc;
             }, 0);
 
+            // Somar rendimentos de CDB do período
+            let investmentProfitInMonth = 0;
+            cdbs.forEach(cdb => {
+                (cdb.yieldHistory || []).forEach(y => {
+                    const yDate = new Date(y.date);
+                    const yUTC = new Date(Date.UTC(yDate.getUTCFullYear(), yDate.getUTCMonth(), yDate.getUTCDate()));
+                    if (yUTC >= startOfMonth && yUTC <= endOfCalculatedPeriod) {
+                        investmentProfitInMonth += y.amount;
+                    }
+                });
+            });
+
             const manual = yearManual[String(index)] || 0;
             return {
                 name,
                 fullName: ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][index],
-                realized: transactionSavings + manual,
-                isCurrent: new Date().getFullYear() === selectedYear && new Date().getMonth() === index
+                realized: transactionSavings + investmentProfitInMonth + manual,
+                isCurrent: isThisMonth
             };
         });
-    }, [transactions, selectedYear, itemBalanceMap, manualSavings]);
+    }, [transactions, selectedYear, itemBalanceMap, manualSavings, cdbs, yieldCategoryId]);
 
     const totalSavings = useMemo(() => monthlyPerformance.reduce((acc, m) => acc + m.realized, 0), [monthlyPerformance]);
 

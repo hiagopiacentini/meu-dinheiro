@@ -255,6 +255,41 @@ const DashboardPage: React.FC = () => {
   
   }, [transactions, cdbs, dateRange, itemInfoMap, manualSavingsInPeriod, yieldCategoryId]);
 
+  const periodSavingsUntilToday = useMemo(() => {
+    const now = getNowGmtMinus4();
+    const startOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+    const todayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+
+    let income = 0;
+    let expense = 0;
+
+    transactions.forEach(t => {
+        const tDate = getUTCDate(t.date);
+        if (tDate >= startOfMonth && tDate <= todayEnd) {
+            const itemInfo = itemInfoMap.get(t.itemId || '');
+            const shouldInclude = !t.itemId || (itemInfo ? itemInfo.includeInBalance : true);
+            const isRedemptionProfit = t.itemId === yieldCategoryId;
+
+            if (shouldInclude) {
+                if (t.type === TransactionType.INCOME && !isRedemptionProfit) income += t.amount;
+                else if (t.type === TransactionType.EXPENSE) expense += t.amount;
+            }
+        }
+    });
+
+    let investmentProfitUntilToday = 0;
+    cdbs.forEach(cdb => {
+        (cdb.yieldHistory || []).forEach(y => {
+            const yDate = getUTCDate(y.date);
+            if (yDate >= startOfMonth && yDate <= todayEnd) investmentProfitUntilToday += y.amount;
+        });
+    });
+
+    const currentMonthManual = (manualSavings && manualSavings[String(now.getFullYear())]) ? manualSavings[String(now.getFullYear())][String(now.getMonth())] || 0 : 0;
+
+    return (income + investmentProfitUntilToday - expense) + currentMonthManual;
+  }, [transactions, cdbs, itemInfoMap, yieldCategoryId, manualSavings]);
+
   const { goalUntilNow, showGoalUntilNow } = useMemo(() => {
     const now = getNowGmtMinus4();
     const currentYear = now.getFullYear();
@@ -381,9 +416,14 @@ const DashboardPage: React.FC = () => {
 
   const { annualSavingsToDate } = useMemo(() => {
     if (!dateRange.start) return { annualSavingsToDate: 0 };
+    const now = getNowGmtMinus4();
     const year = dateRange.start.getUTCFullYear();
+    const isCurrentYear = year === now.getFullYear();
+
     const startOfYear = new Date(Date.UTC(year, 0, 1));
-    const endOfPeriod = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+    const endOfPeriod = isCurrentYear 
+        ? new Date(Date.UTC(year, now.getMonth(), now.getDate(), 23, 59, 59, 999))
+        : new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
 
     const transactionSavings = transactions.filter(t => {
         const tDate = getUTCDate(t.date);
@@ -412,7 +452,13 @@ const DashboardPage: React.FC = () => {
     if (manualSavings && manualSavings[String(year)]) {
         const yearData = manualSavings[String(year)];
         if (yearData && typeof yearData === 'object') {
-             manualSavingsTotal = (Object.values(yearData) as number[]).reduce((sum: number, val: number) => sum + (val || 0), 0);
+             manualSavingsTotal = Object.entries(yearData).reduce((sum, [mIdx, val]) => {
+                 const monthInt = parseInt(mIdx);
+                 if (!isCurrentYear || monthInt <= now.getMonth()) {
+                     return sum + ((val as any) || 0);
+                 }
+                 return sum;
+             }, 0);
         }
     }
     
@@ -673,7 +719,7 @@ const DashboardPage: React.FC = () => {
             <SavingsGoalCard 
               title="Meta até o Momento" 
               goal={goalUntilNow} 
-              current={periodSavings} 
+              current={periodSavingsUntilToday} 
               label="Meta até o Momento" 
               color="bg-purple-500" 
             />
