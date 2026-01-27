@@ -13,20 +13,19 @@ export interface Account {
   agency?: string;
   accountNumber?: string;
   isActive: boolean;
-  isCreditCard?: boolean; // New flag to identify credit card accounts
+  isCreditCard?: boolean; 
   imageUrl?: string;
-  order?: number; // Field to control the display order
+  order?: number; 
   cards?: { id: string; name: string; initialBalance?: number }[];
 }
 
-// For the 3-level categories
 export interface CategoryItem {
   id: string;
   name: string;
   subcategoryId: string;
   categoryId: string;
   includeInBalance: boolean;
-  isFixed?: boolean; // New flag to mark expense as Fixed or Variable
+  isFixed?: boolean; 
 }
 
 export interface Subcategory {
@@ -50,17 +49,18 @@ export interface Transaction {
   amount: number;
   date: string;
   type: TransactionType;
-  accountId: string; // Source account for transfers
-  destinationAccountId?: string; // Destination account for transfers
+  accountId: string; 
+  destinationAccountId?: string; 
   itemId?: string;
   
   installmentGroupId?: string;
   currentInstallment?: number;
   totalInstallments?: number;
   
-  splitGroupId?: string; // ID to link split transactions together
+  splitGroupId?: string; 
+  linkedGroupId?: string; 
   
-  createdAt?: string; // Timestamp ISO string of when the record was created
+  createdAt?: string; 
   cardId?: string | null;
 }
 
@@ -69,21 +69,25 @@ export interface Loan {
   description: string;
   amount: number;
   date: string;
-  lenderAccountId: string; // Conta que empresta
-  borrowerAccountId: string; // Conta que recebe o empréstimo
+  lenderAccountId: string; 
+  borrowerAccountId: string; 
   status: 'active' | 'paid';
-  initialTransactionId: string; // ID da transferência inicial
-  settlementTransactionId?: string; // ID da transferência de quitação
+  initialTransactionId: string; 
+  settlementTransactionId?: string; 
   partialSettlements?: { transactionId: string; amount: number; date: string }[];
 }
 
-// Add AnnualGoals type to be shared across components.
 export interface AnnualGoals {
   [year: string]: number;
 }
 
-// Structure: { "2024": { "0": 500, "1": 1000 ... } } where keys are month indexes (0-11)
 export interface ManualSavings {
+  [year: string]: {
+    [month: string]: number;
+  }
+}
+
+export interface MonthlyForecasts {
   [year: string]: {
     [month: string]: number;
   }
@@ -93,20 +97,20 @@ export interface YieldEntry {
   id: string;
   date: string;
   amount: number;
-  transactionId?: string; // Para poder editar/excluir a transação financeira associada
+  transactionId?: string; 
 }
 
 export interface CDBContract {
   id: string;
-  name: string; // nome_cdb
-  bank: string; // banco_corretora
-  applicationDate: string; // data_aplicacao
-  principalAmount: number; // valor_aplicado_principal
-  rateDescription: string; // taxa_rendimento
-  maturityDate?: string | null; // data_vencimento (allow null for firestore)
-  currentGrossBalance: number; // saldo_bruto_atual
+  name: string; 
+  bank: string; 
+  applicationDate: string; 
+  principalAmount: number; 
+  rateDescription: string; 
+  maturityDate?: string | null; 
+  currentGrossBalance: number; 
   isActive: boolean;
-  initialTransactionId?: string; // ID da transação que criou o investimento
-  yieldHistory?: YieldEntry[]; // Histórico de rendimentos lançados
-  linkedAccountId: string; // Conta bancária à qual este investimento está vinculado para rendimentos e resgates
+  initialTransactionId?: string; 
+  yieldHistory?: YieldEntry[]; 
+  linkedAccountId: string; 
 }

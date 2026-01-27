@@ -1,10 +1,10 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useTransactions, useCategories, useAccounts, useCDBs, useGoals } from '../hooks/useFirestore';
+import { useTransactions, useCategories, useAccounts, useCDBs, useGoals, useForecasts } from '../hooks/useFirestore';
 import { TransactionType, Transaction } from '../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  ComposedChart, Line, PieChart, Pie, Cell, Area
+  ComposedChart, Line, PieChart, Pie, Cell, ReferenceLine, Area
 } from 'recharts';
 import DateRangePickerModal from '../components/DateRangePickerModal';
 import ChevronDownIcon from '../components/icons/ChevronDownIcon';
@@ -49,6 +49,9 @@ const BreakdownModal: React.FC<{
 }> = ({ isOpen, onClose, title, data, accountMap }) => {
     if (!isOpen) return null;
 
+    // Ordenação obrigatória por data descendente para clareza
+    const sortedData = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex justify-center items-center p-4" onClick={onClose}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -73,10 +76,10 @@ const BreakdownModal: React.FC<{
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {data.length === 0 ? (
+                            {sortedData.length === 0 ? (
                                 <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-500 italic tracking-normal">Nenhum registro encontrado.</td></tr>
                             ) : (
-                                data.map((item, idx) => (
+                                sortedData.map((item, idx) => (
                                     <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
                                         <td className="px-6 py-4 text-slate-500 whitespace-nowrap tracking-normal">
                                             {new Date(item.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
@@ -100,7 +103,7 @@ const BreakdownModal: React.FC<{
                 <div className="p-4 bg-slate-50 border-t border-slate-100 text-right">
                     <span className="text-xs text-slate-500 mr-2 font-normal tracking-normal">Total do período:</span>
                     <span className="text-lg font-bold text-slate-800 tracking-normal">
-                        <PrivateValue>{formatCurrency(data.reduce((acc, curr) => acc + (curr.amount || curr.value || 0), 0))}</PrivateValue>
+                        <PrivateValue>{formatCurrency(sortedData.reduce((acc, curr) => acc + (curr.amount || curr.value || 0), 0))}</PrivateValue>
                     </span>
                 </div>
             </div>
@@ -207,9 +210,10 @@ const ReportsPage: React.FC = () => {
     const { accounts } = useAccounts();
     const { cdbs } = useCDBs();
     const { goals } = useGoals();
+    const { forecasts } = useForecasts();
     const { isPrivacyMode } = usePrivacy();
 
-    const [period, setPeriod] = useState<'untilToday' | 'currentMonth' | 'lastMonth' | '3months' | '6months' | 'year' | 'all' | 'custom'>('untilToday');
+    const [period, setPeriod] = useState<'currentMonth' | 'lastMonth' | '3months' | 'year' | 'untilToday' | 'all' | 'custom'>('currentMonth');
     const [sourceFilter, setSourceFilter] = useState<string>('all');
     const [customDateRange, setCustomDateRange] = useState<{start: Date | null, end: Date | null}>({ start: null, end: null });
     const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -238,8 +242,7 @@ const ReportsPage: React.FC = () => {
         for (const cat of categories) {
             for (const sub of cat.subcategories) {
                 for (const item of sub.items) {
-                    const itemName = item.name.toLowerCase().trim();
-                    if (itemName === 'rendimento' || itemName === 'rendimentos') {
+                    if (item.name.trim().toLowerCase() === 'rendimentos') {
                         return { id: item.id, catName: cat.name, subName: sub.name, itemName: item.name };
                     }
                 }
@@ -264,10 +267,6 @@ const ReportsPage: React.FC = () => {
         let end: Date = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
         
         switch (period) {
-            case 'untilToday':
-                start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
-                end = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
-                break;
             case 'currentMonth':
                 start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
                 end = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
@@ -276,8 +275,10 @@ const ReportsPage: React.FC = () => {
                 start = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
                 end = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
                 break;
-            case '3months': start = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 2, 1)); break;
-            case '6months': start = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 5, 1)); break;
+            case 'untilToday':
+                start = new Date(Date.UTC(now.getFullYear(), 0, 1)); 
+                end = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+                break;
             case 'year': start = new Date(Date.UTC(now.getFullYear(), 0, 1)); break;
             case 'all': start = new Date(0); break;
             case 'custom':
@@ -286,7 +287,7 @@ const ReportsPage: React.FC = () => {
                     end = new Date(customDateRange.end.getTime()); end.setUTCHours(23, 59, 59, 999);
                 } else { start = new Date(); end = new Date(); }
                 break;
-            default: start = new Date();
+            default: start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
         }
         return { start, end };
     }, [period, customDateRange]);
@@ -309,20 +310,12 @@ const ReportsPage: React.FC = () => {
             }
         }
 
-        const yields: { date: string, amount: number, cdbName: string, id: string }[] = [];
+        const yields: any[] = [];
         cdbs.forEach(cdb => {
-            let shouldIncludeYield = false;
-            if (sourceFilter === 'all' || sourceFilter === 'investments') {
-                shouldIncludeYield = true;
-            } else if (cdb.linkedAccountId === sourceFilter) {
-                shouldIncludeYield = true;
-            }
-            if (shouldIncludeYield) {
+            if (sourceFilter === 'all' || sourceFilter === 'investments' || cdb.linkedAccountId === sourceFilter) {
                 (cdb.yieldHistory || []).forEach(entry => {
                     const eDate = getUTCDate(entry.date);
-                    if (eDate >= start && eDate <= end) {
-                        yields.push({ date: entry.date, amount: entry.amount, cdbName: cdb.name, id: entry.id });
-                    }
+                    if (eDate >= start && eDate <= end) yields.push({ ...entry, cdbName: cdb.name });
                 });
             }
         });
@@ -398,9 +391,33 @@ const ReportsPage: React.FC = () => {
         };
     }, [reportTransactions, reportYields, categoryMap, itemBalanceMap, yieldItemInfo]);
 
-    const openBreakdown = (title: string, txs: any[]) => {
-        setBreakdownModal({ open: true, title, txs });
-    };
+    const openBreakdown = (title: string, txs: any[]) => setBreakdownModal({ open: true, title, txs });
+
+    const dailyChartData = useMemo(() => {
+        const dailyMap = new Map<string, { name: string, Entradas: number, Saídas: number, sortKey: number }>();
+        const { start, end } = dateBoundaries;
+        let current = new Date(start);
+        while (current <= end) {
+            const key = current.toISOString().split('T')[0];
+            const label = current.getUTCDate().toString().padStart(2, '0');
+            dailyMap.set(key, { name: label, Entradas: 0, Saídas: 0, sortKey: current.getTime() });
+            current.setUTCDate(current.getUTCDate() + 1);
+        }
+        reportTransactions.forEach(t => {
+            if (t.itemId && itemBalanceMap.get(t.itemId) === false) return;
+            if (yieldItemInfo && t.itemId === yieldItemInfo.id) return;
+            const key = t.date;
+            if (dailyMap.has(key)) {
+                const entry = dailyMap.get(key)!;
+                if (t.type === TransactionType.INCOME) entry.Entradas += t.amount;
+                else if (t.type === TransactionType.EXPENSE) entry.Saídas += t.amount;
+            }
+        });
+        reportYields.forEach(y => {
+            if (dailyMap.has(y.date)) dailyMap.get(y.date)!.Entradas += y.amount;
+        });
+        return Array.from(dailyMap.values()).sort((a, b) => a.sortKey - b.sortKey);
+    }, [reportTransactions, reportYields, itemBalanceMap, yieldItemInfo, dateBoundaries]);
 
     const evolutionData = useMemo(() => {
         const data = new Map<string, { name: string, Receitas: number, Despesas: number, Saldo: number, sortKey: number }>();
@@ -419,111 +436,88 @@ const ReportsPage: React.FC = () => {
         reportYields.forEach(y => {
             const date = new Date(y.date);
             const key = `${date.getUTCMonth()}/${date.getUTCFullYear()}`;
-            const label = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit', timeZone: 'UTC' });
-            const sortKey = date.getUTCFullYear() * 100 + date.getUTCMonth();
-            if (!data.has(key)) data.set(key, { name: label, Receitas: 0, Despesas: 0, Saldo: 0, sortKey });
-            const entry = data.get(key)!;
-            entry.Receitas += y.amount;
-            entry.Saldo += y.amount;
+            const entry = data.get(key);
+            if (entry) { entry.Receitas += y.amount; entry.Saldo += y.amount; }
         });
         return Array.from(data.values()).sort((a, b) => a.sortKey - b.sortKey);
     }, [reportTransactions, reportYields, itemBalanceMap, yieldItemInfo]);
 
-    const dailyChartData = useMemo(() => {
-        const dailyMap = new Map<string, { name: string, Entradas: number, Saídas: number, sortKey: number }>();
+    const cumulativePerformanceData = useMemo(() => {
+        const result = [];
         const { start, end } = dateBoundaries;
-        let current = new Date(start);
-        while (current <= end) {
-            const key = current.toISOString().split('T')[0];
-            const label = current.getUTCDate().toString().padStart(2, '0');
-            const labelFinal = (end.getTime() - start.getTime() > 32 * 24 * 60 * 60 * 1000) 
-                ? `${label}/${(current.getUTCMonth() + 1).toString().padStart(2, '0')}`
-                : label;
-            dailyMap.set(key, { name: labelFinal, Entradas: 0, Saídas: 0, sortKey: current.getTime() });
-            current.setUTCDate(current.getUTCDate() + 1);
-        }
+        let currentDate = new Date(start);
+        let runningActualBalance = 0;
+        let runningGoalBalance = 0;
+        const dailyRealMap = new Map<string, number>();
         reportTransactions.forEach(t => {
             if (t.itemId && itemBalanceMap.get(t.itemId) === false) return;
             if (yieldItemInfo && t.itemId === yieldItemInfo.id) return;
             const key = t.date;
-            if (dailyMap.has(key)) {
-                const entry = dailyMap.get(key)!;
-                if (t.type === TransactionType.INCOME) entry.Entradas += t.amount;
-                else if (t.type === TransactionType.EXPENSE) entry.Saídas += t.amount;
-            }
+            const val = t.type === TransactionType.INCOME ? t.amount : -t.amount;
+            dailyRealMap.set(key, (dailyRealMap.get(key) || 0) + val);
         });
-        reportYields.forEach(y => {
-            const key = y.date;
-            if (dailyMap.has(key)) {
-                const entry = dailyMap.get(key)!;
-                entry.Entradas += y.amount;
-            }
-        });
-        return Array.from(dailyMap.values()).sort((a, b) => a.sortKey - b.sortKey);
-    }, [reportTransactions, reportYields, itemBalanceMap, yieldItemInfo, dateBoundaries]);
+        reportYields.forEach(y => dailyRealMap.set(y.date, (dailyRealMap.get(y.date) || 0) + y.amount));
 
-    const performanceData = useMemo(() => {
-        const { start, end } = dateBoundaries;
-        if (!start || !end) return [];
+        while (currentDate <= end) {
+            const dateStr = currentDate.toISOString().split('T')[0];
+            const year = currentDate.getUTCFullYear();
+            const month = currentDate.getUTCMonth();
+            const annualGoal = goals[String(year)] || 0;
+            const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+            const proportionalDailyGoal = (annualGoal / 12) / daysInMonth;
 
-        const annualGoal = goals[String(start.getUTCFullYear())] || 0;
-        const monthlyGoal = annualGoal / 12;
-        const daysInMonth = new Date(start.getUTCFullYear(), start.getUTCMonth() + 1, 0).getDate();
-        const dailyGoalProRata = monthlyGoal / daysInMonth;
-
-        const data: any[] = [];
-        let accumulatedResult = 0;
-        let dayCounter = 1;
-
-        let current = new Date(start);
-        while (current <= end) {
-            const key = current.toISOString().split('T')[0];
-            const dailyTxs = transactions.filter(t => t.date === key);
-            
-            let dailyIncome = 0;
-            let dailyExpense = 0;
-
-            dailyTxs.forEach(t => {
-                const itemInfo = itemBalanceMap.get(t.itemId || '');
-                const shouldInclude = !t.itemId || itemInfo !== false;
-                
-                if (shouldInclude) {
-                    if (t.type === TransactionType.INCOME) dailyIncome += t.amount;
-                    else if (t.type === TransactionType.EXPENSE) dailyExpense += t.amount;
-                }
+            runningActualBalance += dailyRealMap.get(dateStr) || 0;
+            runningGoalBalance += proportionalDailyGoal;
+            result.push({
+                name: currentDate.getUTCDate().toString().padStart(2, '0'),
+                "Realizado Acumulado": runningActualBalance,
+                "Meta Acumulada": runningGoalBalance,
+                sortKey: currentDate.getTime()
             });
-
-            // Rendimentos do dia
-            const dailyYields = reportYields.filter(y => y.date === key);
-            dailyYields.forEach(y => {
-                dailyIncome += y.amount;
-            });
-
-            const dailyDelta = dailyIncome - dailyExpense;
-            accumulatedResult += dailyDelta;
-            const currentGoal = dailyGoalProRata * dayCounter;
-
-            data.push({
-                name: current.getUTCDate().toString().padStart(2, '0'),
-                'Resultado do Dia': dailyDelta,
-                'Resultado Acumulado': accumulatedResult,
-                'Meta Acumulada': currentGoal,
-                'Status': accumulatedResult >= currentGoal ? 'Acima' : 'Abaixo',
-                fullDate: key
-            });
-
-            current.setUTCDate(current.getUTCDate() + 1);
-            dayCounter++;
+            currentDate.setUTCDate(currentDate.getUTCDate() + 1);
         }
+        return result;
+    }, [reportTransactions, reportYields, itemBalanceMap, yieldItemInfo, dateBoundaries, goals]);
 
-        return data;
-    }, [dateBoundaries, transactions, reportYields, goals, itemBalanceMap]);
+    const spendingCeilingData = useMemo(() => {
+        const result = [];
+        const { start, end } = dateBoundaries;
+        let currentDate = new Date(start);
+        let runningActualExpenses = 0;
+        let runningCeiling = 0;
+        const dailyExpenseMap = new Map<string, number>();
+        reportTransactions.forEach(t => {
+            if (t.type !== TransactionType.EXPENSE) return;
+            if (t.itemId && itemBalanceMap.get(t.itemId) === false) return;
+            dailyExpenseMap.set(t.date, (dailyExpenseMap.get(t.date) || 0) + t.amount);
+        });
+
+        while (currentDate <= end) {
+            const dateStr = currentDate.toISOString().split('T')[0];
+            const year = currentDate.getUTCFullYear();
+            const month = currentDate.getUTCMonth();
+            const annualGoal = goals[String(year)] || 0;
+            const forecast = forecasts[String(year)]?.[String(month)] || 0;
+            const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+            const dailyCeiling = Math.max(0, forecast - (annualGoal / 12)) / daysInMonth;
+
+            runningActualExpenses += dailyExpenseMap.get(dateStr) || 0;
+            runningCeiling += dailyCeiling;
+            result.push({
+                name: currentDate.getUTCDate().toString().padStart(2, '0'),
+                "Gasto Real": runningActualExpenses,
+                "Teto de Gastos": runningCeiling,
+                sortKey: currentDate.getTime()
+            });
+            currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+        }
+        return result;
+    }, [reportTransactions, itemBalanceMap, dateBoundaries, goals, forecasts]);
 
     const periods = [
-        {id:'untilToday', l:'Até hoje'}, 
         {id:'currentMonth', l:'Mês atual'}, 
         {id:'lastMonth', l:'Mês passado'}, 
-        {id:'3months', l:'3 meses'}, 
+        {id:'untilToday', l:'Até hoje'},
         {id:'year', l:'Este ano'}, 
         {id:'all', l:'Tudo'}, 
         {id:'custom', l:'Personalizado'}
@@ -534,9 +528,7 @@ const ReportsPage: React.FC = () => {
         options.push({ label: 'Apenas Investimentos', value: 'investments' });
         accounts.filter(a => a.isActive).forEach(acc => {
             options.push({ label: `Conta: ${acc.name}`, value: acc.id });
-            acc.cards?.forEach(card => {
-                options.push({ label: `Cartão: ${card.name}`, value: `card|${card.id}` });
-            });
+            (acc.cards || []).forEach(card => options.push({ label: `Cartão: ${card.name}`, value: `card|${card.id}` }));
         });
         return options;
     }, [accounts]);
@@ -555,16 +547,9 @@ const ReportsPage: React.FC = () => {
                         </button>
                     ))}
                 </div>
-
                 <div className="relative w-full md:w-80">
-                    <select 
-                        value={sourceFilter}
-                        onChange={(e) => setSourceFilter(e.target.value)}
-                        className="input-style text-sm font-medium h-10 bg-white border-slate-200 tracking-normal w-full"
-                    >
-                        {sourceOptions.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
+                    <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="input-style text-sm font-medium h-10 bg-white border-slate-200 w-full">
+                        {sourceOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                     </select>
                 </div>
             </div>
@@ -578,92 +563,55 @@ const ReportsPage: React.FC = () => {
                 <KpiCard title="Despesas totais" value={dreData.totalExpense} subtext="Saídas operacionais" />
             </div>
 
-            <div className={`bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-sm select-none' : ''}`}>
-                <div className="mb-8">
-                    <h3 className="text-xl font-bold text-slate-800 tracking-normal">Análise Acumulada: Fluxo vs. Meta</h3>
-                    <p className="text-sm text-slate-500 font-normal">Visualize seu desempenho total acumulado desde o dia 1 até o final do período, comparado ao objetivo pro-rata.</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className={`bg-white p-6 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-md' : ''}`}>
+                    <h3 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2 tracking-normal uppercase">
+                         <div className="w-1.5 h-4 rounded-full bg-blue-500"></div>
+                         Economia Acumulada vs Meta
+                    </h3>
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart data={cumulativePerformanceData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} stroke="#94a3b8" />
+                                <YAxis fontSize={10} tickLine={false} axisLine={false} stroke="#94a3b8" />
+                                <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                <Bar name="Saldo Acumulado" dataKey="Realizado Acumulado">
+                                    {cumulativePerformanceData.map((entry, index) => {
+                                        const actual = entry["Realizado Acumulado"];
+                                        const goal = entry["Meta Acumulada"];
+                                        let fillColor = "#10b981"; 
+                                        if (actual < 0) fillColor = "#f43f5e"; 
+                                        else if (actual < goal) fillColor = "#f59e0b"; 
+                                        return <Cell key={`cell-${index}`} fill={fillColor} />;
+                                    })}
+                                </Bar>
+                                <Line name="Meta" type="monotone" dataKey="Meta Acumulada" stroke="#2563eb" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
-                
-                <div className="h-[400px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={performanceData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                            <defs>
-                                <linearGradient id="colorPerf" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis 
-                                dataKey="name" 
-                                fontSize={10} 
-                                tickLine={false} 
-                                axisLine={false} 
-                                stroke="#94a3b8" 
-                                tickMargin={10}
-                            />
-                            <YAxis 
-                                fontSize={10} 
-                                tickLine={false} 
-                                axisLine={false} 
-                                stroke="#94a3b8" 
-                                tickFormatter={(v) => `R$${v/1000}k`}
-                            />
-                            <Tooltip 
-                                contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.75rem', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                formatter={(v: number, name: string) => [formatCurrency(v), name]}
-                                labelFormatter={(label) => `Dia ${label}`}
-                            />
-                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px', fontWeight: '500' }} />
-                            
-                            <Bar 
-                                name="Resultado Acumulado" 
-                                dataKey="Resultado Acumulado" 
-                                radius={[4, 4, 0, 0]} 
-                                barSize={20}
-                            >
-                                {performanceData.map((entry, index) => {
-                                    // Cor baseada em estar acima ou abaixo da META acumulada do dia
-                                    const isHealthy = entry['Resultado Acumulado'] >= entry['Meta Acumulada'];
-                                    return <Cell key={`cell-${index}`} fill={isHealthy ? '#10b981' : '#f43f5e'} fillOpacity={0.8} />;
-                                })}
-                            </Bar>
 
-                            <Area 
-                                name="Tendência de Desempenho" 
-                                type="monotone" 
-                                dataKey="Resultado Acumulado" 
-                                stroke="#10b981" 
-                                fillOpacity={1} 
-                                fill="url(#colorPerf)" 
-                                strokeWidth={2}
-                            />
-                            
-                            <Line 
-                                name="Linha da Meta" 
-                                type="monotone" 
-                                dataKey="Meta Acumulada" 
-                                stroke="#f59e0b" 
-                                strokeWidth={2.5} 
-                                strokeDasharray="5 5" 
-                                dot={false}
-                            />
-                        </ComposedChart>
-                    </ResponsiveContainer>
-                </div>
-                
-                <div className="mt-6 p-4 bg-slate-50 rounded-lg flex flex-wrap gap-6 items-center border border-slate-100">
-                    <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                        <span className="text-xs font-semibold text-slate-600">No Objetivo (Acima da Meta Acumulada)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-rose-500"></div>
-                        <span className="text-xs font-semibold text-slate-600">Atenção (Abaixo da Meta Acumulada)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 border-b-2 border-dashed border-amber-500"></div>
-                        <span className="text-xs font-semibold text-slate-600">Curva Progressiva da Meta</span>
+                <div className={`bg-white p-6 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-md' : ''}`}>
+                    <h3 className="text-sm font-bold text-slate-700 mb-6 flex items-center gap-2 tracking-normal uppercase">
+                         <div className="w-1.5 h-4 rounded-full bg-rose-500"></div>
+                         Gasto Acumulado vs Teto
+                    </h3>
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart data={spendingCeilingData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} stroke="#94a3b8" />
+                                <YAxis fontSize={10} tickLine={false} axisLine={false} stroke="#94a3b8" />
+                                <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                <Bar name="Gasto Real" dataKey="Gasto Real">
+                                    {spendingCeilingData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry["Gasto Real"] > entry["Teto de Gastos"] ? "#f43f5e" : "#10b981"} />
+                                    ))}
+                                </Bar>
+                                <Line name="Teto" type="monotone" dataKey="Teto de Gastos" stroke="#f43f5e" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+                            </ComposedChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
             </div>
@@ -680,11 +628,7 @@ const ReportsPage: React.FC = () => {
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} stroke="#94a3b8" />
                                 <YAxis fontSize={10} tickLine={false} axisLine={false} stroke="#94a3b8" tickFormatter={(v) => `R$${v/1000}k`} />
-                                <Tooltip 
-                                    cursor={{fill: 'rgba(241, 245, 249, 0.4)'}} 
-                                    contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.75rem' }} 
-                                    formatter={(v: number) => formatCurrency(v)} 
-                                />
+                                <Tooltip cursor={{fill: 'rgba(241, 245, 249, 0.4)'}} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.75rem' }} formatter={(v: number) => formatCurrency(v)} />
                                 <Bar name="Saídas" dataKey="Saídas" fill="#ef4444" radius={[3, 3, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
@@ -702,11 +646,7 @@ const ReportsPage: React.FC = () => {
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} stroke="#94a3b8" />
                                 <YAxis fontSize={10} tickLine={false} axisLine={false} stroke="#94a3b8" tickFormatter={(v) => `R$${v/1000}k`} />
-                                <Tooltip 
-                                    cursor={{fill: 'rgba(241, 245, 249, 0.4)'}} 
-                                    contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.75rem' }} 
-                                    formatter={(v: number) => formatCurrency(v)} 
-                                />
+                                <Tooltip cursor={{fill: 'rgba(241, 245, 249, 0.4)'}} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.75rem' }} formatter={(v: number) => formatCurrency(v)} />
                                 <Bar name="Entradas" dataKey="Entradas" fill="#10b981" radius={[3, 3, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
@@ -715,21 +655,15 @@ const ReportsPage: React.FC = () => {
             </div>
 
             <div className={`bg-white p-6 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-md' : ''}`}>
-                <h3 className="text-lg font-semibold text-slate-700 mb-8 tracking-normal">Evolução financeira (Mensal)</h3>
+                <h3 className="text-lg font-semibold text-slate-700 mb-8 tracking-normal">Evolução Financeira (Mensal)</h3>
                 <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={evolutionData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                             <XAxis dataKey="name" fontSize={10} fontWeight="400" tickLine={false} axisLine={false} stroke="#94a3b8" />
                             <YAxis fontSize={10} fontWeight="400" tickLine={false} axisLine={false} stroke="#94a3b8" tickFormatter={(v) => `R$${v/1000}k`} />
-                            <Tooltip 
-                                cursor={{fill: 'rgba(241, 245, 249, 0.4)'}} 
-                                contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.75rem', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
-                                labelStyle={{ color: '#1e293b', fontWeight: 'bold', marginBottom: '4px', fontSize: '12px' }}
-                                itemStyle={{ fontSize: '11px', padding: '1px 0', fontWeight: '500' }}
-                                formatter={(v: number) => formatCurrency(v)} 
-                            />
-                            <Legend verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: '20px', fontSize: '11px', fontWeight: '500' }} />
+                            <Tooltip cursor={{fill: 'rgba(241, 245, 249, 0.4)'}} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.75rem', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(v: number) => formatCurrency(v)} />
+                            <Legend verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: '20px', fontSize: '11px' }} />
                             <Bar name="Receitas" dataKey="Receitas" fill="#10b981" radius={[3, 3, 0, 0]} barSize={12} />
                             <Bar name="Despesas" dataKey="Despesas" fill="#ef4444" radius={[3, 3, 0, 0]} barSize={12} />
                             <Line name="Saldo" type="monotone" dataKey="Saldo" stroke="#3b82f6" strokeWidth={2.5} dot={{r: 4, strokeWidth: 2, fill: '#fff'}} />
@@ -741,7 +675,7 @@ const ReportsPage: React.FC = () => {
             <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden ${isPrivacyMode ? 'blur-sm' : ''}`}>
                 <div className="p-6 md:p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between md:items-center gap-2 bg-slate-800 text-white">
                     <div>
-                        <h3 className="text-xl font-bold tracking-normal">Demonstrativo de resultado (DRE)</h3>
+                        <h3 className="text-xl font-bold tracking-normal">Demonstrativo de Resultado (DRE)</h3>
                         <p className="text-sm text-slate-300 font-semibold tracking-normal">Análise estruturada do período</p>
                     </div>
                 </div>
@@ -757,14 +691,34 @@ const ReportsPage: React.FC = () => {
                         <tbody className="divide-y divide-slate-100">
                             <tr className="bg-emerald-50/30 text-emerald-900">
                                 <td className="py-4 px-6 tracking-normal text-sm font-semibold">1. Receitas operacionais e rendimentos</td>
-                                <td className="py-4 px-2 text-right font-semibold tracking-normal text-base"><PrivateValue>{formatCurrency(dreData.totalIncome)}</PrivateValue></td>
+                                <td className="py-4 px-2 text-right font-semibold tracking-normal text-base">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <button 
+                                            onClick={() => openBreakdown("Todas as Receitas", reportTransactions.filter(t => t.type === TransactionType.INCOME).concat(reportYields))}
+                                            className="p-1.5 hover:bg-blue-100 text-blue-600 rounded"
+                                        >
+                                            <SearchIcon className="w-4 h-4" />
+                                        </button>
+                                        <PrivateValue>{formatCurrency(dreData.totalIncome)}</PrivateValue>
+                                    </div>
+                                </td>
                                 <td className="py-4 pl-2 pr-6 text-right text-sm tracking-normal font-semibold opacity-80 w-24">100%</td>
                             </tr>
                             {dreData.incomes.map((category, idx) => (<DreCategoryRow key={`inc-${idx}`} data={category} totalIncome={dreData.totalIncome} onShowBreakdown={openBreakdown} />))}
                             
                             <tr className="bg-rose-50/30 text-rose-900">
                                 <td className="py-4 px-6 tracking-normal text-sm font-semibold pt-10">2. (-) Despesas e saídas operacionais</td>
-                                <td className="py-4 px-2 text-right pt-10 font-semibold tracking-normal text-base"><PrivateValue>{formatCurrency(dreData.totalExpense)}</PrivateValue></td>
+                                <td className="py-4 px-2 text-right pt-10 font-semibold tracking-normal text-base">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <button 
+                                            onClick={() => openBreakdown("Todas as Despesas", reportTransactions.filter(t => t.type === TransactionType.EXPENSE))}
+                                            className="p-1.5 hover:bg-blue-100 text-blue-600 rounded"
+                                        >
+                                            <SearchIcon className="w-4 h-4" />
+                                        </button>
+                                        <PrivateValue>{formatCurrency(dreData.totalExpense)}</PrivateValue>
+                                    </div>
+                                </td>
                                 <td className="py-4 pl-2 pr-6 text-right pt-10 text-sm tracking-normal font-semibold opacity-80 w-24">{dreData.totalIncome > 0 ? ((dreData.totalExpense / dreData.totalIncome) * 100).toFixed(1) + '%' : '-'}</td>
                             </tr>
                             {dreData.expenses.map((category, idx) => (<DreCategoryRow key={`exp-${idx}`} data={category} totalIncome={dreData.totalIncome} onShowBreakdown={openBreakdown} />))}

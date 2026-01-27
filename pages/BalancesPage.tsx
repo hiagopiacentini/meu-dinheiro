@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { useTransactions, useAccounts, useCDBs, useCategories } from '../hooks/useFirestore';
 import { TransactionType, Account } from '../types';
@@ -50,7 +51,8 @@ const BalancesPage: React.FC = () => {
 
         accounts.forEach(acc => {
             accBalances.set(acc.id, Number(acc.initialBalance) || 0);
-            acc.cards?.forEach(c => crdBalances.set(c.id, Number(c.initialBalance) || 0));
+            const accCards = Array.isArray(acc.cards) ? acc.cards : [];
+            accCards.forEach(c => crdBalances.set(c.id, Number(c.initialBalance) || 0));
             invBalances.set(acc.id, 0);
         });
 
@@ -90,7 +92,8 @@ const BalancesPage: React.FC = () => {
             .filter(a => a.isActive)
             .map(acc => {
                 const accountBalance = accBalances.get(acc.id) || 0;
-                const cardsBalance = acc.cards?.reduce((sum, c) => sum + (crdBalances.get(c.id) || 0), 0) || 0;
+                const accCards = Array.isArray(acc.cards) ? acc.cards : [];
+                const cardsBalance = accCards.reduce((sum, c) => sum + (crdBalances.get(c.id) || 0), 0) || 0;
                 const investmentBalance = invBalances.get(acc.id) || 0;
                 const consolidated = accountBalance + cardsBalance + investmentBalance;
 
@@ -202,8 +205,8 @@ const BalancesPage: React.FC = () => {
                                     </div>
                                 )}
                                 <div className="col-span-2 md:col-span-1 text-right border-t border-slate-50 md:border-0 pt-4 md:pt-0">
-                                    <p className="text-[11px] font-medium text-slate-500 tracking-normal mb-1">Consolidado</p>
-                                    <p className={`font-bold tracking-normal text-base ${acc.consolidated >= 0 ? 'text-slate-600' : 'text-rose-500'}`}>
+                                    <p className="text-[11px] font-medium text-blue-500 tracking-normal mb-1">Consolidado</p>
+                                    <p className={`text-2xl font-bold tracking-normal ${acc.consolidated >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
                                         <PrivateValue>{formatCurrency(acc.consolidated)}</PrivateValue>
                                     </p>
                                 </div>

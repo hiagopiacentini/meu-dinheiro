@@ -117,8 +117,9 @@ const CardFilterDropdown: React.FC<{
     };
 
     let selectedLabel = 'Visão Geral da Conta';
+    const cardsList = Array.isArray(cards) ? cards : [];
     if (selectedType === 'card' && selectedId) {
-        selectedLabel = cards.find(c => c.id === selectedId)?.name || 'Cartão';
+        selectedLabel = cardsList.find(c => c.id === selectedId)?.name || 'Cartão';
     } else if (selectedType === 'investments') {
         selectedLabel = 'Investimentos';
     }
@@ -142,10 +143,10 @@ const CardFilterDropdown: React.FC<{
                             Visão Geral da Conta
                         </button>
                         
-                        {cards.length > 0 && (
+                        {cardsList.length > 0 && (
                             <div className="border-t border-slate-50 my-1">
                                 <p className="px-4 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/50">Meus Cartões</p>
-                                {cards.map(card => (
+                                {cardsList.map(card => (
                                     <button 
                                         key={card.id} 
                                         onClick={() => handleSelect('card', card.id)} 
@@ -209,7 +210,7 @@ const AccountModal: React.FC<{
             setAccountNumber(account.accountNumber || '');
             setIsActive(account.isActive);
             setIsCreditCard(!!account.isCreditCard);
-            setCards(account.cards || []);
+            setCards(Array.isArray(account.cards) ? account.cards : []);
         } else {
             setName('');
             setInitialBalance('');
@@ -412,7 +413,8 @@ const PayInvoiceModal: React.FC<{
     };
 
     const activeSourceAccounts = accounts.filter(a => a.isActive);
-    const cardName = targetCardId ? targetAccount.cards?.find(c => c.id === targetCardId)?.name : null;
+    const cardsList = Array.isArray(targetAccount.cards) ? targetAccount.cards : [];
+    const cardName = targetCardId ? cardsList.find(c => c.id === targetCardId)?.name : null;
     const titleContext = cardName ? ` - ${cardName}` : '';
 
     return (
@@ -619,7 +621,8 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
 
         accounts.forEach(acc => {
             accCashBalances.set(acc.id, Number(acc.initialBalance) || 0);
-            acc.cards?.forEach(c => crdBalances.set(c.id, Number(c.initialBalance) || 0));
+            const accCards = Array.isArray(acc.cards) ? acc.cards : [];
+            accCards.forEach(c => crdBalances.set(c.id, Number(c.initialBalance) || 0));
         });
 
         transactions.forEach(t => {
@@ -839,7 +842,7 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
                                             selectedType={filterType}
                                             selectedId={selectedCardId}
                                             onChange={(type, id) => { setFilterType(type); setSelectedCardId(id); setCurrentPage(1); }}
-                                            cards={selectedAccount.cards || []}
+                                            cards={Array.isArray(selectedAccount.cards) ? selectedAccount.cards : []}
                                             hasInvestments={hasLinkedInvestments}
                                         />
                                     </div>
@@ -936,7 +939,7 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
                 isOpen={isInvoiceHistoryOpen}
                 onClose={() => setIsInvoiceHistoryOpen(false)}
                 accountName={selectedAccount?.name || ''}
-                cardName={selectedAccount?.cards?.find(c => c.id === selectedCardId)?.name || ''}
+                cardName={selectedAccount?.cards && Array.isArray(selectedAccount.cards) ? (selectedAccount.cards.find(c => c.id === selectedCardId)?.name || '') : ''}
                 transactions={transactions}
                 accountId={selectedAccount?.id || ''}
                 cardId={selectedCardId || ''}
@@ -944,7 +947,8 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
             />
 
             {selectedAccount && <PayInvoiceModal isOpen={isPayModalOpen} onClose={() => setIsPayModalOpen(false)} targetAccount={selectedAccount} targetCardId={selectedCardId} accounts={accounts} categories={categories} currentBalance={selectedCardId ? currentViewBalance : currentViewBalance} onPay={async (s, a, d, i) => { 
-                const cardName = selectedCardId ? selectedAccount.cards?.find(c => c.id === selectedCardId)?.name : null;
+                const selectedAccCards = Array.isArray(selectedAccount.cards) ? selectedAccount.cards : [];
+                const cardName = selectedCardId ? selectedAccCards.find(c => c.id === selectedCardId)?.name : null;
                 const targetName = cardName ? `${selectedAccount.name} (${cardName})` : selectedAccount.name;
                 const sourceAccName = accountMapRaw.get(s) || 'Conta';
 

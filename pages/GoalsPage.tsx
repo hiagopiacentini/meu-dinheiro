@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useGoals, useTransactions, useCategories, useManualSavings, useCDBs } from '../hooks/useFirestore';
+import { useGoals, useTransactions, useCategories, useManualSavings, useCDBs, useForecasts } from '../hooks/useFirestore';
 import { TransactionType } from '../types';
 import PencilIcon from '../components/icons/PencilIcon';
 import XIcon from '../components/icons/XIcon';
@@ -25,162 +25,12 @@ const ProgressBar: React.FC<{ value: number, color: string, height?: string }> =
     );
 };
 
-const ManualHistoryModal: React.FC<{
-    isOpen: boolean;
-    onClose: () => void;
-    year: number;
-    manualSavings: { [month: string]: number };
-    onSave: (year: number, data: { [month: string]: number }) => Promise<void>;
-}> = ({ isOpen, onClose, year, manualSavings, onSave }) => {
-    const [monthlyValues, setMonthlyValues] = useState<{ [month: string]: string }>({});
-    const [distributeAmount, setDistributeAmount] = useState<string>('');
-
-    const now = getNowGmtMinus4();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-
-    useEffect(() => {
-        if(isOpen) {
-            const initialValues: { [key: string]: string } = {};
-            const savingsData = manualSavings || {}; 
-            for(let i=0; i<12; i++) {
-                const val = savingsData[String(i)];
-                initialValues[String(i)] = (val !== undefined && val !== null) ? String(val) : '';
-            }
-            setMonthlyValues(initialValues);
-            setDistributeAmount('');
-        }
-    }, [isOpen, manualSavings]);
-
-    const isMonthEditable = (monthIndex: number) => {
-        if (year < currentYear) return true; 
-        if (year > currentYear) return false; 
-        return monthIndex < currentMonth; 
-    };
-
-    const handleChange = (month: string, value: string) => {
-        setMonthlyValues(prev => ({ ...prev, [month]: value }));
-    };
-
-    const handleDistribute = () => {
-        const valStr = String(distributeAmount || '');
-        const total = parseFloat(valStr.replace(',', '.'));
-        if (isNaN(total) || total <= 0) return;
-
-        let eligibleMonthsCount = 0;
-        for (let i = 0; i < 12; i++) {
-            if (isMonthEditable(i)) eligibleMonthsCount++;
-        }
-
-        if (eligibleMonthsCount === 0) {
-            alert("Não há meses anteriores disponíveis neste ano para distribuir o valor.");
-            return;
-        }
-
-        const average = total / eligibleMonthsCount;
-        const formattedAverage = average.toFixed(2);
-
-        const newValues = { ...monthlyValues };
-        for (let i = 0; i < 12; i++) {
-            if (isMonthEditable(i)) {
-                newValues[String(i)] = formattedAverage;
-            }
-        }
-        setMonthlyValues(newValues);
-    };
-
-    const handleSave = async () => {
-        const dataToSave: { [month: string]: number } = {};
-        Object.entries(monthlyValues).forEach(([month, value]) => {
-            const valStr = String(value || '');
-            const normalizedValue = valStr.replace(',', '.');
-            const num = parseFloat(normalizedValue);
-            if (!isNaN(num) && num !== 0) {
-                dataToSave[month] = num;
-            }
-        });
-        await onSave(year, dataToSave);
-        onClose();
-    };
-
-    if (!isOpen) return null;
-
-    const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg m-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold text-slate-800">Histórico manual ({year})</h2>
-                    <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100"><XIcon className="w-5 h-5 text-slate-500"/></button>
-                </div>
-                
-                <p className="text-sm text-slate-500 mb-6 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                    Insira economias realizadas antes de usar o sistema. <br/>
-                    <span className="font-semibold">Nota:</span> Apenas meses anteriores ao atual ({months[currentMonth]}) podem ser editados.
-                </p>
-
-                <div className="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
-                        Não lembra mês a mês? Distribua o total:
-                    </label>
-                    <div className="flex gap-2">
-                        <input 
-                            type="number" 
-                            value={distributeAmount}
-                            onChange={e => setDistributeAmount(e.target.value)}
-                            className="input-style flex-1"
-                            placeholder={`Total acumulado até hoje`}
-                            step="0.01"
-                        />
-                        <button 
-                            type="button"
-                            onClick={handleDistribute}
-                            className="px-4 py-2 bg-slate-700 text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors"
-                        >
-                            Distribuir média
-                        </button>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    {months.map((monthName, index) => {
-                        const editable = isMonthEditable(index);
-                        return (
-                            <div key={index} className={editable ? '' : 'opacity-50 grayscale'}>
-                                <label className="block text-xs font-medium text-slate-600 mb-1 flex justify-between">
-                                    {monthName}
-                                    {!editable && <span className="text-[10px] text-slate-400 italic">(Bloqueado)</span>}
-                                </label>
-                                <input 
-                                    type="number" 
-                                    value={monthlyValues[String(index)] || ''} 
-                                    onChange={e => handleChange(String(index), e.target.value)}
-                                    className={`input-style py-1.5 ${!editable ? 'bg-slate-100 cursor-not-allowed' : ''}`}
-                                    placeholder="R$ 0,00"
-                                    step="0.01"
-                                    disabled={!editable}
-                                />
-                            </div>
-                        );
-                    })}
-                </div>
-
-                <div className="flex justify-end pt-6">
-                    <button onClick={onClose} className="btn-secondary mr-2">Cancelar</button>
-                    <button onClick={handleSave} className="btn-primary">Salvar ajustes</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
 const GoalsPage: React.FC = () => {
     const { goals, setGoals } = useGoals();
     const { transactions } = useTransactions();
     const { categories } = useCategories();
     const { manualSavings, updateManualSavings } = useManualSavings();
+    const { forecasts, updateForecasts } = useForecasts();
     const { cdbs } = useCDBs();
     
     const nowRef = getNowGmtMinus4();
@@ -215,16 +65,16 @@ const GoalsPage: React.FC = () => {
         return null;
     }, [categories]);
 
+    const monthsNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
     const monthlyPerformance = useMemo(() => {
-        const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
         const yearManual = (manualSavings && manualSavings[String(selectedYear)]) || {};
         const now = getNowGmtMinus4();
         
-        return months.map((name, index) => {
+        return monthsNames.map((fullName, index) => {
             const startOfMonth = new Date(Date.UTC(selectedYear, index, 1));
             const isThisMonth = selectedYear === now.getFullYear() && index === now.getMonth();
             
-            // REGRA: Se for o mês atual, filtramos APENAS até hoje para bater com a dashboard.
             const endOfCalculatedPeriod = isThisMonth 
                 ? new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999))
                 : new Date(Date.UTC(selectedYear, index + 1, 0, 23, 59, 59, 999));
@@ -246,10 +96,10 @@ const GoalsPage: React.FC = () => {
                 return acc;
             }, 0);
 
-            // Somar rendimentos de CDB do período
             let investmentProfitInMonth = 0;
             cdbs.forEach(cdb => {
-                (cdb.yieldHistory || []).forEach(y => {
+                const history = Array.isArray(cdb.yieldHistory) ? cdb.yieldHistory : [];
+                history.forEach(y => {
                     const yDate = new Date(y.date);
                     const yUTC = new Date(Date.UTC(yDate.getUTCFullYear(), yDate.getUTCMonth(), yDate.getUTCDate()));
                     if (yUTC >= startOfMonth && yUTC <= endOfCalculatedPeriod) {
@@ -260,8 +110,8 @@ const GoalsPage: React.FC = () => {
 
             const manual = yearManual[String(index)] || 0;
             return {
-                name,
-                fullName: ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][index],
+                name: fullName.substring(0, 3),
+                fullName,
                 realized: transactionSavings + investmentProfitInMonth + manual,
                 isCurrent: isThisMonth
             };
@@ -273,34 +123,29 @@ const GoalsPage: React.FC = () => {
     const handleInputBlur = () => {
         const value = parseFloat(annualInput);
         const newGoal = isNaN(value) || value < 0 ? 0 : value;
-        
         if (setGoals && (goals[selectedYear] || 0) !== newGoal) {
-            setGoals({
-                ...goals,
-                [selectedYear]: newGoal
-            });
+            setGoals({ ...goals, [selectedYear]: newGoal });
         }
     };
     
-    const handleSaveManual = async (year: number, data: { [month: string]: number }) => {
-        if (updateManualSavings) {
-            await updateManualSavings({
-                ...manualSavings,
-                [String(year)]: data
-            });
-        }
+    const handleForecastChange = async (monthIndex: number, value: string) => {
+        const numValue = parseFloat(value.replace(',', '.')) || 0;
+        const newForecasts = { ...forecasts };
+        if (!newForecasts[String(selectedYear)]) newForecasts[String(selectedYear)] = {};
+        newForecasts[String(selectedYear)][String(monthIndex)] = numValue;
+        await updateForecasts(newForecasts);
     };
     
-    const yearOptions = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i).reverse();
     const annualGoal = goals[selectedYear] || 0;
     const monthlyGoal = annualGoal / 12;
     const annualProgress = annualGoal > 0 ? (totalSavings / annualGoal) * 100 : 0;
+    const yearOptions = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i).reverse();
 
     return (
-        <div className="space-y-6 pb-10">
+        <div className="space-y-6 pb-12">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4">
-                    <h2 className="text-xl font-bold text-slate-800">Metas de economia</h2>
+                    <h2 className="text-xl font-bold text-slate-800 tracking-tight">Metas de economia</h2>
                      <div className="flex items-center self-end md:self-center">
                         <label htmlFor="year-select" className="text-sm font-medium mr-2 text-slate-600">Ano de referência:</label>
                         <select 
@@ -316,7 +161,7 @@ const GoalsPage: React.FC = () => {
 
                 <div className="max-w-md mx-auto">
                     <div className="mb-4">
-                        <label htmlFor="annual-goal" className="block text-sm font-medium text-slate-500 mb-2 text-center">
+                        <label htmlFor="annual-goal" className="block text-sm font-medium text-slate-500 mb-2 text-center tracking-normal">
                             Meta de economia anual ({selectedYear})
                         </label>
                         <input 
@@ -331,25 +176,71 @@ const GoalsPage: React.FC = () => {
                         />
                     </div>
                     <div className="text-center p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <p className="text-xs text-slate-400 font-medium mb-1">Esforço mensal necessário</p>
+                        <p className="text-xs text-slate-400 font-medium mb-1 tracking-normal uppercase">Esforço mensal necessário</p>
                         <p className="font-bold text-xl text-slate-700">{formatCurrency(monthlyGoal)}</p>
                     </div>
                 </div>
             </div>
             
+            {/* PLANEJAMENTO MENSAL DE FATURAMENTO */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="mb-6">
+                    <h3 className="font-bold text-lg text-slate-800 tracking-tight">Planejamento de faturamento</h3>
+                    <p className="text-sm text-slate-500 font-normal">Defina quanto espera ganhar para calcular seu teto de gastos diário.</p>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="bg-slate-50 text-slate-500">
+                            <tr className="text-[11px] font-bold tracking-normal border-b border-slate-100">
+                                <th className="py-3 px-4 text-left">Mês</th>
+                                <th className="py-3 px-4 text-right">Previsão receita (R$)</th>
+                                <th className="py-3 px-4 text-right">Economia esperada</th>
+                                <th className="py-3 px-4 text-right">Teto de gastos</th>
+                                <th className="py-3 px-4 text-right">Limite diário</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {monthsNames.map((m, idx) => {
+                                const forecast = forecasts[String(selectedYear)]?.[String(idx)] || 0;
+                                const maxSpend = Math.max(0, forecast - monthlyGoal);
+                                const daysInMonth = new Date(selectedYear, idx + 1, 0).getDate();
+                                const dailyLimit = maxSpend / daysInMonth;
+                                
+                                return (
+                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                        <td className="py-3 px-4 font-semibold text-slate-700">{m}</td>
+                                        <td className="py-3 px-4 text-right">
+                                            <input 
+                                                type="number"
+                                                value={forecast || ''}
+                                                onChange={(e) => handleForecastChange(idx, e.target.value)}
+                                                className="w-32 text-right bg-transparent border-b border-transparent hover:border-slate-200 focus:border-blue-500 focus:outline-none font-bold text-slate-800 transition-all"
+                                                placeholder="0,00"
+                                                step="0.01"
+                                            />
+                                        </td>
+                                        <td className="py-3 px-4 text-right text-slate-500 font-medium">{formatCurrency(monthlyGoal)}</td>
+                                        <td className="py-3 px-4 text-right font-bold text-slate-800">{formatCurrency(maxSpend)}</td>
+                                        <td className="py-3 px-4 text-right">
+                                            <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold">
+                                                {formatCurrency(dailyLimit)} / dia
+                                            </span>
+                                        </td>
+                                    </tr>
+                                )
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <div className="flex justify-between items-center mb-6">
                     <div>
-                        <h3 className="font-bold text-lg text-slate-800">Progresso consolidado</h3>
+                        <h3 className="font-bold text-lg text-slate-800 tracking-tight">Progresso consolidado</h3>
                         <p className="text-sm text-slate-500 font-normal">Soma de todos os meses do ano</p>
                     </div>
-                    <button 
-                        onClick={() => setIsHistoryModalOpen(true)}
-                        className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-2 rounded-lg font-bold transition-all flex items-center gap-2"
-                    >
-                        <PencilIcon className="w-3.5 h-3.5" />
-                        Ajuste manual
-                    </button>
                 </div>
                 
                 <div className="space-y-4">
@@ -369,7 +260,7 @@ const GoalsPage: React.FC = () => {
             </div>
 
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <h3 className="font-bold text-lg text-slate-800 mb-6">Desempenho mês a mês</h3>
+                <h3 className="font-bold text-lg text-slate-800 mb-6 tracking-tight">Desempenho realizado</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {monthlyPerformance.map((month, idx) => {
                         const monthProgress = monthlyGoal > 0 ? (month.realized / monthlyGoal) * 100 : 0;
@@ -407,14 +298,6 @@ const GoalsPage: React.FC = () => {
                     })}
                 </div>
             </div>
-
-            <ManualHistoryModal 
-                isOpen={isHistoryModalOpen} 
-                onClose={() => setIsHistoryModalOpen(false)} 
-                year={selectedYear}
-                manualSavings={(manualSavings && manualSavings[String(selectedYear)]) || {}}
-                onSave={handleSaveManual}
-            />
         </div>
     );
 };

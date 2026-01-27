@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useCDBs, useTransactions, useAccounts, useCategories } from '../hooks/useFirestore';
 import { CDBContract, Transaction, TransactionType, YieldEntry } from '../types';
@@ -267,7 +268,7 @@ const YieldHistoryModal: React.FC<{
 
     if (!isOpen) return null;
 
-    const history = [...(cdb.yieldHistory || [])].sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime());
+    const history = [...(Array.isArray(cdb.yieldHistory) ? cdb.yieldHistory : [])].sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime());
 
     const startEditing = (entry: YieldEntry) => {
         setEditingId(entry.id);
@@ -474,7 +475,8 @@ const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 
         const end = dateRange.end ? dateRange.end.getTime() : Infinity;
 
         const processed = cdbs.map(cdb => {
-            const profitInPeriod = (cdb.yieldHistory || [])
+            const history = Array.isArray(cdb.yieldHistory) ? cdb.yieldHistory : [];
+            const profitInPeriod = history
                 .filter(h => {
                     const hTime = new Date(h.date).getTime();
                     return hTime >= start && hTime <= end;
@@ -660,7 +662,7 @@ const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 
 
         let diff = 0;
         let newGrossBalance = 0;
-        let finalHistory = [...(updateBalanceCdb.yieldHistory || [])];
+        let finalHistory = [...(Array.isArray(updateBalanceCdb.yieldHistory) ? updateBalanceCdb.yieldHistory : [])];
         
         if (mode === 'yield') {
             diff = value;
@@ -706,7 +708,7 @@ const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 
         if (!historyCdb) return;
         if (!window.confirm('Deseja excluir este rendimento do histórico do CDB?')) return;
         const newBalance = historyCdb.currentGrossBalance - entry.amount;
-        const newHistory = (historyCdb.yieldHistory || []).filter(h => h.id !== entry.id);
+        const newHistory = (Array.isArray(historyCdb.yieldHistory) ? historyCdb.yieldHistory : []).filter(h => h.id !== entry.id);
         const updatedCDB = { ...historyCdb, currentGrossBalance: Math.max(0, newBalance), yieldHistory: newHistory };
         await updateCDB(updatedCDB);
         setHistoryCdb(updatedCDB);
@@ -716,7 +718,7 @@ const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 
         if (!historyCdb) return;
         const diff = newAmount - entry.amount;
         const newBalance = historyCdb.currentGrossBalance + diff;
-        const newHistory = (historyCdb.yieldHistory || []).map(h => h.id === entry.id ? { ...h, amount: newAmount, date: newDate } : h);
+        const newHistory = (Array.isArray(historyCdb.yieldHistory) ? historyCdb.yieldHistory : []).map(h => h.id === entry.id ? { ...h, amount: newAmount, date: newDate } : h);
         const updatedCDB = { ...historyCdb, currentGrossBalance: Math.max(0, newBalance), yieldHistory: newHistory };
         await updateCDB(updatedCDB);
         setHistoryCdb(updatedCDB);

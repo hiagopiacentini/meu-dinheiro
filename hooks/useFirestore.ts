@@ -13,26 +13,19 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract, ManualSavings } from '../types';
+import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract, ManualSavings, MonthlyForecasts } from '../types';
 import { sampleCategories } from '../data/demoData';
 
-/**
- * Limpeza profunda e cycle-proof para garantir que apenas dados puros (POJOs) sejam enviados ao Firestore.
- * Utiliza WeakMap para rastrear referências e Object.keys para evitar propriedades de sistema/SDK.
- */
-export const deepClean = (data: any, seen = new WeakMap()): any => {
-  // Primitivos e null
+export const deepClean = (data: any, seen = new WeakSet()): any => {
   if (data === null || typeof data !== 'object') {
     return typeof data === 'function' ? undefined : data;
   }
   
-  // Evita recursão infinita em estruturas circulares
-  if (seen.has(data)) return "[Circular]";
+  if (seen.has(data)) return undefined;
   
-  // Tratamento para Datas
   if (data instanceof Date) return data.toISOString();
   
-  // Tratamento para Timestamps do Firebase (duck typing para evitar importação extra)
+  // Trata objetos especiais do Firebase (Timestamp)
   if (data.seconds !== undefined && data.nanoseconds !== undefined && typeof data.toDate === 'function') {
     try {
       return data.toDate().toISOString();
@@ -41,23 +34,30 @@ export const deepClean = (data: any, seen = new WeakMap()): any => {
     }
   }
 
-  // Cria o contêiner de destino (Array ou Objeto)
-  const result: any = Array.isArray(data) ? [] : {};
-  
-  // Registra no mapa ANTES de recursar nos filhos
-  seen.set(data, result);
+  const isArray = Array.isArray(data);
+  const isPlainObject = Object.prototype.toString.call(data) === '[object Object]' && 
+                        (data.constructor === Object || data.constructor === undefined);
 
-  if (Array.isArray(data)) {
-    data.forEach((item, i) => {
+  if (!isArray && !isPlainObject) {
+    if (typeof data.toJSON === 'function') {
+      return deepClean(data.toJSON(), seen);
+    }
+    return String(data);
+  }
+
+  seen.add(data);
+  const result: any = isArray ? [] : {};
+
+  if (isArray) {
+    data.forEach((item: any, i: number) => {
       const cleaned = deepClean(item, seen);
       if (cleaned !== undefined) result[i] = cleaned;
     });
   } else {
-    // Usamos Object.keys para pegar apenas propriedades PRÓPRIAS e evitar protótipos de classes do SDK
     Object.keys(data).forEach(key => {
       const val = data[key];
-      // Ignora funções e propriedades internas do Firebase que começam com _
-      if (typeof val !== 'function' && !key.startsWith('_')) {
+      // Ignora propriedades privadas do SDK do Firebase que costumam causar ciclos
+      if (typeof val !== 'function' && !key.startsWith('_') && !key.startsWith('$')) {
         const cleaned = deepClean(val, seen);
         if (cleaned !== undefined) {
           result[key] = cleaned;
@@ -65,7 +65,6 @@ export const deepClean = (data: any, seen = new WeakMap()): any => {
       }
     });
   }
-  
   return result;
 };
 
@@ -73,7 +72,6 @@ const sanitizeFirestoreData = (data: any): any => {
   return deepClean(data);
 };
 
-// --- ACCOUNTS HOOK ---
 export const useAccounts = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
@@ -90,7 +88,6 @@ export const useAccounts = () => {
       setAccounts([]);
       return;
     }
-
     const q = query(collection(db, `users/${userId}/accounts`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...sanitizeFirestoreData(doc.data()) } as Account));
@@ -99,7 +96,6 @@ export const useAccounts = () => {
     }, (error) => {
       console.error("Error fetching accounts:", error.message);
     });
-
     return () => unsubscribe();
   }, [userId]);
 
@@ -163,7 +159,6 @@ export const useAccounts = () => {
   return { accounts, addAccount, updateAccount, reorderAccounts, deleteAccount };
 };
 
-// --- TRANSACTIONS HOOK ---
 export const useTransactions = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
@@ -180,7 +175,6 @@ export const useTransactions = () => {
       setTransactions([]);
       return;
     }
-
     const q = query(collection(db, `users/${userId}/transactions`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...sanitizeFirestoreData(doc.data()) } as Transaction));
@@ -188,7 +182,6 @@ export const useTransactions = () => {
     }, (error) => {
       console.error("Error fetching transactions:", error.message);
     });
-
     return () => unsubscribe();
   }, [userId]);
 
@@ -264,7 +257,6 @@ export const useTransactions = () => {
   return { transactions, addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions };
 };
 
-// --- CATEGORIES HOOK ---
 export const useCategories = () => {
   const [categories, setCategoriesState] = useState<Category[]>(sampleCategories);
   const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
@@ -311,7 +303,6 @@ export const useCategories = () => {
   return { categories, setCategories };
 };
 
-// --- LOANS HOOK ---
 export const useLoans = () => {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
@@ -380,7 +371,6 @@ export const useLoans = () => {
   return { loans, addLoan, updateLoan, deleteLoan };
 };
 
-// --- GOALS HOOK ---
 export const useGoals = () => {
   const [goals, setGoalsState] = useState<AnnualGoals>({});
   const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
@@ -421,7 +411,6 @@ export const useGoals = () => {
   return { goals, setGoals };
 };
 
-// --- MANUAL SAVINGS HOOK ---
 export const useManualSavings = () => {
   const [manualSavings, setManualSavings] = useState<ManualSavings>({});
   const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
@@ -464,7 +453,48 @@ export const useManualSavings = () => {
   return { manualSavings, updateManualSavings };
 };
 
-// --- CDB INVESTMENTS HOOK ---
+export const useForecasts = () => {
+  const [forecasts, setForecasts] = useState<MonthlyForecasts>({});
+  const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setUserId(user ? user.uid : null);
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    const docRef = doc(db, `users/${userId}/settings/forecasts`);
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setForecasts(sanitizeFirestoreData(docSnap.data()) as MonthlyForecasts);
+      } else {
+        setForecasts({});
+      }
+    }, (error) => {
+      console.error("Error fetching forecasts:", error.message);
+    });
+    return () => unsubscribe();
+  }, [userId]);
+
+  const updateForecasts = async (newForecasts: MonthlyForecasts) => {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return false;
+    try {
+        const cleaned = deepClean(newForecasts);
+        await setDoc(doc(db, `users/${currentUid}/settings/forecasts`), cleaned);
+        return true;
+    } catch (error: any) {
+        console.error("Erro ao salvar previsões:", error.message);
+        return false;
+    }
+  };
+
+  return { forecasts, updateForecasts };
+};
+
 export const useCDBs = () => {
   const [cdbs, setCdbs] = useState<CDBContract[]>([]);
   const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
