@@ -36,10 +36,9 @@ const AppContent: React.FC = () => {
   const [addAccountTrigger, setAddAccountTrigger] = useState(0);
   const [addCategoryTrigger, setAddCategoryTrigger] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userName, setUserName] = useState('');
+  const [isSettingPassword, setIsSettingPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Parâmetros para abrir a página de contas em um estado específico
   const [accountsPageParams, setAccountsPageParams] = useState<{ accountId: string, filterType: 'overview' | 'card' | 'investments' } | null>(null);
 
   const { isPrivacyMode, togglePrivacy } = usePrivacy();
@@ -48,10 +47,9 @@ const AppContent: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         setIsAuthenticated(true);
-        setUserName(currentUser.displayName || '');
       } else {
         setIsAuthenticated(false);
-        setUserName('');
+        setIsSettingPassword(false);
       }
       setIsLoading(false);
     });
@@ -71,15 +69,8 @@ const AppContent: React.FC = () => {
     setAddCategoryTrigger(Date.now());
   };
   
-  const handleLogin = async () => {
-    if (auth.currentUser) {
-        try {
-            await auth.currentUser.reload();
-            setUserName(auth.currentUser.displayName || '');
-        } catch (e) {
-            console.warn("User profile reload failed:", e);
-        }
-    }
+  const handleLoginComplete = () => {
+    setIsSettingPassword(false);
     setActivePage('Dashboard');
   };
 
@@ -90,9 +81,8 @@ const AppContent: React.FC = () => {
         console.error("Erro ao tentar fazer logout no Firebase:", error);
     } finally {
         setIsAuthenticated(false);
-        setUserName('');
+        setIsSettingPassword(false);
         setActivePage('Dashboard');
-        setAccountsPageParams(null);
     }
   };
 
@@ -158,30 +148,34 @@ const AppContent: React.FC = () => {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50">Carregando...</div>;
   }
 
+  // Se não estiver autenticado OU se estiver no processo de criar senha após o Google Login
+  if (!isAuthenticated || isSettingPassword) {
+    return <LoginPage onLogin={handleLoginComplete} onGoogleLoginStart={() => setIsSettingPassword(true)} />;
+  }
+
   return (
     <>
     <style>{`
-      /* Custom Scrollbar Styling */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #f1f5f9; /* slate-100 */
+        background: #f1f5f9;
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb {
-        background: #cbd5e1; /* slate-300 */
+        background: #cbd5e1;
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8; /* slate-400 */
+        background: #94a3b8;
       }
 
       .input-style {
-        background-color: #ffffff; /* white */
-        border: 1px solid #cbd5e1; /* slate-300 */
-        color: #1e293b; /* slate-800 */
+        background-color: #ffffff;
+        border: 1px solid #cbd5e1;
+        color: #1e293b;
         border-radius: 0.5rem;
         padding: 0.625rem 0.75rem;
         transition: border-color 0.2s, box-shadow 0.2s;
@@ -191,7 +185,7 @@ const AppContent: React.FC = () => {
       .input-style:focus {
         outline: 2px solid transparent;
         outline-offset: 2px;
-        border-color: #3b82f6; /* blue-500 */
+        border-color: #3b82f6;
         box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
       }
       select.input-style {
@@ -209,7 +203,7 @@ const AppContent: React.FC = () => {
         align-items: center;
         justify-content: center;
         padding: 0.625rem 1rem;
-        background-color: #2563eb; /* blue-600 */
+        background-color: #2563eb;
         color: white;
         border-radius: 0.5rem;
         font-weight: 600;
@@ -219,94 +213,87 @@ const AppContent: React.FC = () => {
         cursor: pointer;
       }
       .btn-primary:hover {
-        background-color: #1d4ed8; /* blue-700 */
+        background-color: #1d4ed8;
       }
       .btn-secondary {
         display: inline-flex;
         align-items: center;
         justify-content: center;
         padding: 0.625rem 1rem;
-        background-color: #ffffff; /* white */
-        color: #334155; /* slate-700 */
+        background-color: #ffffff;
+        color: #334155;
         border-radius: 0.5rem;
         font-weight: 600;
         font-size: 0.875rem;
         transition: background-color 0.2s, border-color 0.2s;
-        border: 1px solid #cbd5e1; /* slate-300 */
+        border: 1px solid #cbd5e1;
         cursor: pointer;
       }
       .btn-secondary:hover {
-        background-color: #f8fafc; /* gray-50 */
+        background-color: #f8fafc;
       }
     `}</style>
       <div className="min-h-screen bg-gray-50 text-slate-700 font-sans">
-        {!isAuthenticated ? (
-          <LoginPage onLogin={handleLogin} />
-        ) : (
-          <>
-            <Sidebar
-              menuItems={menuItems}
-              activeItem={activePage}
-              setActiveItem={setActivePage}
-              isOpen={isSidebarOpen}
-              setIsOpen={setIsSidebarOpen}
-              userName={userName}
-            />
-            <div className="md:ml-64 flex flex-col h-screen">
-              <header className="sticky top-0 z-20 flex items-center justify-between p-4 md:p-6 bg-white border-b border-slate-200">
-                <div className="flex items-center">
-                  <button
-                    className="md:hidden mr-4 p-1 text-slate-500 hover:bg-gray-100 rounded-md"
-                    onClick={() => setIsSidebarOpen(true)}
-                    aria-label="Open menu"
-                  >
-                    <MenuIcon className="w-6 h-6" />
-                  </button>
-                  <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
-                      {activePage === 'Contas' ? 'Minhas Contas' : activePage === 'Categorias' ? 'Gerenciar Categorias' : activePage}
-                    </h1>
-                    {pageSubtitles[activePage] && <p className="text-sm text-slate-500 mt-1">{pageSubtitles[activePage]}</p>}
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2 md:space-x-4">
-                  <button 
-                    onClick={togglePrivacy}
-                    className={`p-2 rounded-full transition-colors ${isPrivacyMode ? 'bg-blue-100 text-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
-                    title={isPrivacyMode ? "Desativar Modo Privacidade" : "Ativar Modo Privacidade"}
-                  >
-                    {isPrivacyMode ? <EyeSlashIcon className="w-6 h-6" /> : <EyeIcon className="w-6 h-6" />}
-                  </button>
-
-                  {activePage === 'Contas' && (
-                      <button
-                          onClick={handleAddAccountClick}
-                          className="btn-primary hidden sm:flex items-center space-x-2"
-                      >
-                          <PlusIcon className="w-5 h-5" />
-                          <span>Nova Conta</span>
-                      </button>
-                  )}
-                  {activePage === 'Categorias' && (
-                      <button
-                          onClick={handleAddCategoryClick}
-                          className="btn-primary hidden sm:flex items-center space-x-2"
-                      >
-                          <PlusIcon className="w-5 h-5" />
-                          <span>Nova Categoria</span>
-                      </button>
-                  )}
-                  <button onClick={handleLogout} className="btn-secondary">
-                    Sair
-                  </button>
-                </div>
-              </header>
-              <main className="flex-1 p-4 md:p-6 overflow-y-auto">
-                {renderPage()}
-              </main>
+        <Sidebar
+          menuItems={menuItems}
+          activeItem={activePage}
+          setActiveItem={setActivePage}
+          isOpen={isSidebarOpen}
+          setIsOpen={setIsSidebarOpen}
+        />
+        <div className="md:ml-64 flex flex-col h-screen">
+          <header className="sticky top-0 z-20 flex items-center justify-between p-4 md:p-6 bg-white border-b border-slate-200">
+            <div className="flex items-center">
+              <button
+                className="md:hidden mr-4 p-1 text-slate-500 hover:bg-gray-100 rounded-md"
+                onClick={() => setIsSidebarOpen(true)}
+                aria-label="Open menu"
+              >
+                <MenuIcon className="w-6 h-6" />
+              </button>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
+                  {activePage === 'Contas' ? 'Minhas Contas' : activePage === 'Categorias' ? 'Gerenciar Categorias' : activePage}
+                </h1>
+                {pageSubtitles[activePage] && <p className="text-sm text-slate-500 mt-1">{pageSubtitles[activePage]}</p>}
+              </div>
             </div>
-          </>
-        )}
+            <div className="flex items-center space-x-2 md:space-x-4">
+              <button 
+                onClick={togglePrivacy}
+                className={`p-2 rounded-full transition-colors ${isPrivacyMode ? 'bg-blue-100 text-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                title={isPrivacyMode ? "Desativar Modo Privacidade" : "Ativar Modo Privacidade"}
+              >
+                {isPrivacyMode ? <EyeSlashIcon className="w-6 h-6" /> : <EyeIcon className="w-6 h-6" />}
+              </button>
+
+              {activePage === 'Contas' && (
+                  <button
+                      onClick={handleAddAccountClick}
+                      className="btn-primary hidden sm:flex items-center space-x-2"
+                  >
+                      <PlusIcon className="w-5 h-5" />
+                      <span>Nova Conta</span>
+                  </button>
+              )}
+              {activePage === 'Categorias' && (
+                  <button
+                      onClick={handleAddCategoryClick}
+                      className="btn-primary hidden sm:flex items-center space-x-2"
+                  >
+                      <PlusIcon className="w-5 h-5" />
+                      <span>Nova Categoria</span>
+                  </button>
+              )}
+              <button onClick={handleLogout} className="btn-secondary">
+                Sair
+              </button>
+            </div>
+          </header>
+          <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+            {renderPage()}
+          </main>
+        </div>
       </div>
     </>
   );
