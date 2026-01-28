@@ -8,7 +8,6 @@ interface SidebarProps {
   setActiveItem: (item: string) => void;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
-  userName?: string;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ menuItems, activeItem, setActiveItem, isOpen, setIsOpen }) => {
