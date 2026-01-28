@@ -2,8 +2,15 @@
 import React, { useState } from 'react';
 import { sampleAccounts, sampleTransactions, sampleCategories, sampleLoans, sampleGoals } from '../data/demoData';
 import { auth } from '../services/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  updateProfile, 
+  GoogleAuthProvider, 
+  signInWithPopup 
+} from 'firebase/auth';
 import { deepClean } from '../hooks/useFirestore';
+import GoogleIcon from '../components/icons/GoogleIcon';
 
 /**
  * Serializa um objeto para JSON de forma segura, removendo referências circulares
@@ -11,7 +18,6 @@ import { deepClean } from '../hooks/useFirestore';
  */
 const safeStringify = (obj: any): string => {
   try {
-    // Primeiro limpamos o objeto de ciclos e propriedades não-serializáveis
     const cleaned = deepClean(obj);
     return JSON.stringify(cleaned);
   } catch (error) {
@@ -83,6 +89,32 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      cleanupDemoData();
+      onLogin();
+    } catch (err: any) {
+      console.error("Google Login Error:", err);
+      
+      const errorCode = err.code || '';
+      const errorMessage = err.message || '';
+
+      if (errorCode === 'auth/unauthorized-domain' || errorMessage.includes('unauthorized-domain')) {
+        setError(`Domínio não autorizado. Para corrigir:\n1. Acesse o Console do Firebase\n2. Vá em Autenticação > Configurações > Domínios Autorizados\n3. Adicione o domínio: ${window.location.hostname}`);
+      } else if (errorCode === 'auth/popup-closed-by-user') {
+        // O usuário fechou a janela, não exibir erro impeditivo
+      } else {
+        setError('Falha ao autenticar com o Google. Tente novamente ou verifique suas configurações de domínio no Firebase.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -143,11 +175,27 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <p className="text-center text-slate-500 mb-8">
             {isSignUp ? 'Preencha os dados abaixo para começar.' : 'Acesse sua conta para continuar.'}
           </p>
-          <form onSubmit={handleSubmit} className="space-y-6">
+
+          <button 
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-700 font-semibold hover:bg-slate-50 transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 mb-6"
+          >
+            <GoogleIcon className="w-5 h-5" />
+            <span>Continuar com Google</span>
+          </button>
+
+          <div className="relative flex items-center mb-6">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink mx-4 text-slate-400 text-xs font-bold uppercase tracking-widest">ou entre com e-mail</span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
             {isSignUp && (
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">
-                    Nome
+                    Nome completo
                   </label>
                   <input
                     type="text"
@@ -163,7 +211,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             )}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
-                Email
+                E-mail
               </label>
               <input
                 type="email"
@@ -190,24 +238,30 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 required
               />
             </div>
-            {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+            {error && (
+              <div className="bg-red-50 border border-red-100 p-4 rounded-lg">
+                <p className="text-red-600 text-xs font-medium whitespace-pre-wrap leading-relaxed">
+                  {error}
+                </p>
+              </div>
+            )}
             <div>
-              <button type="submit" className="btn-primary w-full py-3" disabled={loading}>
+              <button type="submit" className="btn-primary w-full py-3 shadow-lg shadow-blue-100" disabled={loading}>
                 {loading ? 'Carregando...' : (isSignUp ? 'Criar Conta' : 'Entrar')}
               </button>
             </div>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-8 text-center border-t border-slate-100 pt-6">
             <button
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError('');
                 setName('');
               }}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors focus:outline-none"
+              className="text-sm text-blue-600 hover:text-blue-800 font-bold transition-colors focus:outline-none"
             >
-              {isSignUp ? 'Já tem uma conta? Entre' : 'Não tem uma conta? Crie agora'}
+              {isSignUp ? 'Já tem uma conta? Faça login' : 'Não tem uma conta? Cadastre-se gratuitamente'}
             </button>
           </div>
 

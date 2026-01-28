@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useCategories } from '../hooks/useFirestore';
 import { Category, Subcategory, CategoryItem, TransactionType } from '../types';
@@ -396,7 +397,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                             value={searchTerm} 
                             onChange={e => setSearchTerm(e.target.value)} 
                             className="input-style pl-10 border-slate-200 focus:border-blue-400 focus:ring-blue-500/20 tracking-normal"
-                            placeholder="Buscar categoria..."
+                            placeholder=""
                         />
                     </div>
                 </div>

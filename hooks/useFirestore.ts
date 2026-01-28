@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract, ManualSavings, MonthlyForecasts } from '../types';
+import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract, ManualSavings, MonthlyForecasts, ItemBudgets } from '../types';
 import { sampleCategories } from '../data/demoData';
 
 export const deepClean = (data: any, seen = new WeakSet()): any => {
@@ -25,7 +25,6 @@ export const deepClean = (data: any, seen = new WeakSet()): any => {
   
   if (data instanceof Date) return data.toISOString();
   
-  // Trata objetos especiais do Firebase (Timestamp)
   if (data.seconds !== undefined && data.nanoseconds !== undefined && typeof data.toDate === 'function') {
     try {
       return data.toDate().toISOString();
@@ -56,7 +55,6 @@ export const deepClean = (data: any, seen = new WeakSet()): any => {
   } else {
     Object.keys(data).forEach(key => {
       const val = data[key];
-      // Ignora propriedades privadas do SDK do Firebase que costumam causar ciclos
       if (typeof val !== 'function' && !key.startsWith('_') && !key.startsWith('$')) {
         const cleaned = deepClean(val, seen);
         if (cleaned !== undefined) {
@@ -493,6 +491,48 @@ export const useForecasts = () => {
   };
 
   return { forecasts, updateForecasts };
+};
+
+export const useItemBudgets = () => {
+  const [itemBudgets, setItemBudgets] = useState<ItemBudgets>({});
+  const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setUserId(user ? user.uid : null);
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    const docRef = doc(db, `users/${userId}/settings/item_budgets`);
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setItemBudgets(sanitizeFirestoreData(docSnap.data()) as ItemBudgets);
+      } else {
+        setItemBudgets({});
+      }
+    }, (error) => {
+      console.error("Error fetching item budgets:", error.message);
+    });
+    return () => unsubscribe();
+  }, [userId]);
+
+  const updateItemBudgets = async (newItemBudgets: ItemBudgets) => {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return false;
+    try {
+        const cleaned = deepClean(newItemBudgets);
+        await setDoc(doc(db, `users/${currentUid}/settings/item_budgets`), cleaned);
+        return true;
+    } catch (error: any) {
+        console.error("Erro ao salvar orçamentos por item:", error.message);
+        return false;
+    }
+  };
+
+  return { itemBudgets, updateItemBudgets };
 };
 
 export const useCDBs = () => {

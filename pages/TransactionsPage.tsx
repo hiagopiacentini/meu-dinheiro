@@ -6,7 +6,9 @@ import PencilIcon from '../components/icons/PencilIcon';
 import TrashIcon from '../components/icons/TrashIcon';
 import SearchIcon from '../components/icons/SearchIcon';
 import DateRangePickerModal from '../components/DateRangePickerModal';
+import ImportTransactionsModal from '../components/ImportTransactionsModal';
 import PlusIcon from '../components/icons/PlusIcon';
+import UploadIcon from '../components/icons/UploadIcon';
 import XIcon from '../components/icons/XIcon';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
@@ -216,6 +218,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [typeFilter, setTypeFilter] = useState('Todos');
     const [installmentFilter, setInstallmentFilter] = useState(false);
     const [isPickerOpen, setIsPickerOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [customDateRange, setCustomDateRange] = useState<{start: Date | null, end: Date | null}>({ start: null, end: null });
 
     const [currentPage, setCurrentPage] = useState(1);
@@ -546,7 +549,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                  newTxs.push({ 
                     description: `Troco devolvido (Ref: ${description})`, 
                     amount: changeValue, 
-                    date: changeDate, // USANDO A DATA ESPECÍFICA DA DEVOLUÇÃO
+                    date: changeDate, 
                     type: TransactionType.EXPENSE, 
                     accountId: changeAccountId, 
                     itemId: changeItemId, 
@@ -681,7 +684,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         setIsDeduction(false);
                         setDescription(expensePart.description);
                         setAmount(String(expensePart.amount));
-                        setItemId(expensePart.itemId || '');
+                        setItemId(incomePart.itemId || '');
                         setRebateAmount(String(incomePart.amount));
                         setRebateItemId(incomePart.itemId || '');
                     }
@@ -760,7 +763,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         </h2>
                         <div className="p-1 bg-slate-100 rounded-lg flex space-x-1 mb-4">
                             <button type="button" onClick={() => { setType(TransactionType.EXPENSE); setIsChange(false); setIsDeduction(false); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.EXPENSE ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Saídas</button>
-                            <button type="button" onClick={() => { setType(TransactionType.INCOME); setIsInstallment(false); setIsDeduction(false); }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.INCOME ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Entradas</button>
+                            <button type="button" onClick={() => { setType(TransactionType.INCOME) ; setIsInstallment(false) ; setIsDeduction(false) ; }} className={`w-full text-center py-2 text-sm font-semibold rounded-md transition-all ${type === TransactionType.INCOME ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Entradas</button>
                         </div>
                         <div className="space-y-4 max-h-[calc(100vh-22rem)] overflow-y-auto pr-2">
                             <div>
@@ -966,13 +969,24 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
             </div>
 
             <div className="lg:col-span-7 xl:col-span-8 space-y-6">
-                 <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
-                    <div className="relative md:col-span-3">
+                 <div className="flex flex-col md:flex-row gap-4 items-center">
+                    <div className="relative flex-1 w-full">
                         {!isSearchFocused && !searchTerm && <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none"/>}
-                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10 h-full" placeholder="" />
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setIsSearchFocused(false)} className="input-style pl-10 h-10 w-full" placeholder="" />
                     </div>
-                    <div className="md:col-span-3"><FilterDropdown options={filterOptions} value={accountFilter} onChange={setAccountFilter} /></div>
-                    <div className="md:col-span-2"><FilterDropdown options={['Este Mês', 'Mês Passado', 'Próximo Mês', 'Este Ano', 'Personalizado'].map(o => ({label: o, value: o}))} value={dateFilter} onChange={handleDateFilterChange} /></div>
+                    <button 
+                        onClick={() => setIsImportModalOpen(true)}
+                        className="btn-secondary flex items-center gap-2 whitespace-nowrap h-10 px-4"
+                        title="Importar transações de um extrato colado"
+                    >
+                        <UploadIcon className="w-4 h-4 text-blue-600" />
+                        <span className="font-bold text-blue-600">Importar Extrato</span>
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                    <div className="md:col-span-4"><FilterDropdown options={filterOptions} value={accountFilter} onChange={setAccountFilter} /></div>
+                    <div className="md:col-span-4"><FilterDropdown options={['Este Mês', 'Mês Passado', 'Próximo Mês', 'Este Ano', 'Personalizado'].map(o => ({label: o, value: o}))} value={dateFilter} onChange={handleDateFilterChange} /></div>
                     <div className="md:col-span-4 grid grid-cols-2 gap-2">
                          <FilterDropdown options={['Todos', 'Entradas', 'Saídas', 'Movimentações'].map(o => ({label: o, value: o}))} value={typeFilter} onChange={setTypeFilter} />
                         <button onClick={() => setInstallmentFilter(s => !s)} className={`btn-secondary w-full h-full flex justify-center items-center px-3 py-2 text-sm font-medium ${installmentFilter ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600'}`}>Parceladas</button>
@@ -980,6 +994,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                 </div>
                 
                 <DateRangePickerModal isOpen={isPickerOpen} onClose={() => setIsPickerOpen(false)} value={customDateRange} onChange={handleCustomDateChange} />
+                <ImportTransactionsModal 
+                    isOpen={isImportModalOpen} 
+                    onClose={() => setIsImportModalOpen(false)} 
+                    categories={categories}
+                    accountId={accountId}
+                    onImport={addTransactions}
+                />
                 <DeleteConfirmationModal isOpen={deleteModalState.isOpen} onClose={() => setDeleteModalState({isOpen: false, transaction: null})} onConfirm={handleConfirmDelete} />
                 <EditChoiceModal 
                     isOpen={editChoiceModal.isOpen} 

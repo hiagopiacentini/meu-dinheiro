@@ -93,6 +93,14 @@ export interface MonthlyForecasts {
   }
 }
 
+export interface ItemBudgets {
+  [year: string]: {
+    [month: string]: {
+      [itemId: string]: number;
+    }
+  }
+}
+
 export interface YieldEntry {
   id: string;
   date: string;
