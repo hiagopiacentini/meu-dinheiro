@@ -7,7 +7,8 @@ import {
   createUserWithEmailAndPassword, 
   updateProfile, 
   GoogleAuthProvider, 
-  signInWithPopup 
+  signInWithPopup,
+  updatePassword
 } from 'firebase/auth';
 import { deepClean } from '../hooks/useFirestore';
 import GoogleIcon from '../components/icons/GoogleIcon';
@@ -34,9 +35,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [domainError, setDomainError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showSetPassword, setShowSetPassword] = useState(false);
 
   const cleanupDemoData = () => {
     try {
@@ -91,12 +95,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
   const handleGoogleLogin = async () => {
     setError('');
+    setDomainError(false);
     setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
       cleanupDemoData();
-      onLogin();
+      // Em vez de entrar direto, solicita a criação de uma senha
+      setShowSetPassword(true);
     } catch (err: any) {
       console.error("Google Login Error:", err);
       
@@ -104,20 +110,58 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       const errorMessage = err.message || '';
 
       if (errorCode === 'auth/unauthorized-domain' || errorMessage.includes('unauthorized-domain')) {
-        setError(`Domínio não autorizado. Para corrigir:\n1. Acesse o Console do Firebase\n2. Vá em Autenticação > Configurações > Domínios Autorizados\n3. Adicione o domínio: ${window.location.hostname}`);
+        setDomainError(true);
+        setError(`Domínio não autorizado. Adicione "${window.location.hostname}" no Console do Firebase.`);
       } else if (errorCode === 'auth/popup-closed-by-user') {
-        // O usuário fechou a janela, não exibir erro impeditivo
+        // Ignorar
       } else {
-        setError('Falha ao autenticar com o Google. Tente novamente ou verifique suas configurações de domínio no Firebase.');
+        setError('Falha ao autenticar com o Google. Tente novamente.');
       }
     } finally {
       setLoading(false);
     }
   };
 
+  const handleCreatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    
+    if (password.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('As senhas não coincidem.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (auth.currentUser) {
+        await updatePassword(auth.currentUser, password);
+        onLogin();
+      }
+    } catch (err: any) {
+      console.error("Error setting password:", err);
+      if (err.code === 'auth/requires-recent-login') {
+        setError('Por segurança, faça login novamente para definir uma senha.');
+      } else {
+        setError('Erro ao definir senha. Você pode tentar novamente mais tarde nas configurações.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyHostname = () => {
+    navigator.clipboard.writeText(window.location.hostname);
+    alert('Domínio copiado! Agora cole-o no Console do Firebase.');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setDomainError(false);
     setLoading(true);
 
     const trimmedEmail = email.trim();
@@ -164,6 +208,63 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       setLoading(false);
     }
   };
+
+  if (showSetPassword) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-md">
+          <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight text-center mb-2">
+              Segurança
+            </h1>
+            <p className="text-center text-slate-500 mb-8">
+              Crie uma senha para acessar sua conta futuramente também com e-mail.
+            </p>
+
+            <form onSubmit={handleCreatePassword} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Nova Senha</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-style"
+                  placeholder="Mínimo 6 caracteres"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Confirmar Senha</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="input-style"
+                  placeholder="Repita a senha"
+                  required
+                />
+              </div>
+
+              {error && <p className="text-red-500 text-sm text-center font-medium bg-red-50 p-3 rounded-lg border border-red-100">{error}</p>}
+
+              <button type="submit" className="btn-primary w-full py-3 shadow-lg shadow-blue-100" disabled={loading}>
+                {loading ? 'Salvando...' : 'Definir Senha e Entrar'}
+              </button>
+              
+              <button 
+                type="button" 
+                onClick={onLogin} 
+                className="w-full text-slate-400 text-sm font-medium hover:text-slate-600 transition-colors pt-2"
+              >
+                Pular por enquanto
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -238,13 +339,36 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 required
               />
             </div>
-            {error && (
+
+            {domainError && (
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-3">
+                <div className="flex items-start gap-2">
+                  <div className="p-1 bg-amber-200 rounded text-amber-700 font-bold text-[10px]">FIX</div>
+                  <p className="text-amber-800 text-xs font-bold">Configuração Necessária</p>
+                </div>
+                <p className="text-amber-700 text-[11px] leading-relaxed">
+                  O Google não autorizou o login porque este domínio não está na lista de permissões do Firebase.
+                </p>
+                <div className="space-y-2 text-[11px] text-amber-900 font-medium">
+                  <p>1. Vá em <b>Autenticação > Configurações</b></p>
+                  <p>2. Clique em <b>Domínios Autorizados</b></p>
+                  <p>3. Adicione o domínio abaixo:</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="bg-white border border-amber-200 px-2 py-1 rounded text-xs font-mono flex-1 truncate">{window.location.hostname}</code>
+                  <button type="button" onClick={copyHostname} className="bg-amber-600 text-white px-3 py-1 rounded text-[10px] font-bold hover:bg-amber-700 transition-colors uppercase">Copiar</button>
+                </div>
+              </div>
+            )}
+
+            {error && !domainError && (
               <div className="bg-red-50 border border-red-100 p-4 rounded-lg">
                 <p className="text-red-600 text-xs font-medium whitespace-pre-wrap leading-relaxed">
                   {error}
                 </p>
               </div>
             )}
+
             <div>
               <button type="submit" className="btn-primary w-full py-3 shadow-lg shadow-blue-100" disabled={loading}>
                 {loading ? 'Carregando...' : (isSignUp ? 'Criar Conta' : 'Entrar')}
@@ -257,6 +381,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError('');
+                setDomainError(false);
                 setName('');
               }}
               className="text-sm text-blue-600 hover:text-blue-800 font-bold transition-colors focus:outline-none"

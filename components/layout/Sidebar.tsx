@@ -1,3 +1,4 @@
+
 import React from 'react';
 import XIcon from '../icons/XIcon';
 
@@ -10,16 +11,7 @@ interface SidebarProps {
   userName?: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ menuItems, activeItem, setActiveItem, isOpen, setIsOpen, userName }) => {
-  const formatName = (name: string) => {
-    if (!name) return '';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length <= 1) return name;
-    return `${parts[0]} ${parts[parts.length - 1]}`;
-  };
-
-  const displayName = formatName(userName || '');
-
+const Sidebar: React.FC<SidebarProps> = ({ menuItems, activeItem, setActiveItem, isOpen, setIsOpen }) => {
   return (
     <>
       <div
@@ -33,11 +25,6 @@ const Sidebar: React.FC<SidebarProps> = ({ menuItems, activeItem, setActiveItem,
           <h1 className="text-3xl font-bold text-slate-900 tracking-normal">
             Sobra+
           </h1>
-          {displayName && (
-            <p className="text-sm font-normal text-slate-500 mt-1 tracking-normal">
-              {displayName}
-            </p>
-          )}
           <button className="md:hidden p-1 text-slate-500 hover:text-slate-800 absolute right-6 top-8" onClick={() => setIsOpen(false)} aria-label="Close menu">
             <XIcon className="w-6 h-6" />
           </button>

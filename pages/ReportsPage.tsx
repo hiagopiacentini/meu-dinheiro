@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useTransactions, useCategories, useAccounts, useCDBs, useGoals, useForecasts } from '../hooks/useFirestore';
 import { TransactionType, Transaction } from '../types';
@@ -362,6 +361,7 @@ const ReportsPage: React.FC = () => {
                 const catGroup = incomeGroups.get(catName)!;
                 catGroup.total += y.amount;
                 catGroup.txs.push(y);
+                // Fix: Initialize subcategory object with 'items' Map instead of 'subcategories' Map
                 if (!catGroup.subcategories.has(subName)) catGroup.subcategories.set(subName, { total: 0, txs: [], items: new Map() });
                 const subGroup = catGroup.subcategories.get(subName)!;
                 subGroup.total += y.amount;
