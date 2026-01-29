@@ -7,13 +7,15 @@ import {
   createUserWithEmailAndPassword, 
   updateProfile, 
   GoogleAuthProvider, 
-  signInWithPopup,
-  updatePassword
+  signInWithPopup 
 } from 'firebase/auth';
 import { deepClean } from '../hooks/useFirestore';
 import GoogleIcon from '../components/icons/GoogleIcon';
-import LockClosedIcon from '../components/icons/LockClosedIcon';
 
+/**
+ * Serializa um objeto para JSON de forma segura, removendo referências circulares
+ * e limpando objetos complexos do SDK.
+ */
 const safeStringify = (obj: any): string => {
   try {
     const cleaned = deepClean(obj);
@@ -26,19 +28,16 @@ const safeStringify = (obj: any): string => {
 
 interface LoginPageProps {
   onLogin: () => void;
-  onGoogleLoginStart?: () => void;
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onGoogleLoginStart }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [domainError, setDomainError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
-  const [showSetPassword, setShowSetPassword] = useState(false);
 
   const cleanupDemoData = () => {
     try {
@@ -97,47 +96,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onGoogleLoginStart }) =>
     setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      if (onGoogleLoginStart) onGoogleLoginStart();
       await signInWithPopup(auth, provider);
       cleanupDemoData();
-      setShowSetPassword(true);
+      onLogin();
     } catch (err: any) {
       console.error("Google Login Error:", err);
+      
       const errorCode = err.code || '';
       const errorMessage = err.message || '';
 
       if (errorCode === 'auth/unauthorized-domain' || errorMessage.includes('unauthorized-domain')) {
         setDomainError(true);
         setError(`Domínio não autorizado. Adicione "${window.location.hostname}" no Console do Firebase.`);
+      } else if (errorCode === 'auth/popup-closed-by-user') {
+        // Ignorar
       } else {
         setError('Falha ao autenticar com o Google. Tente novamente.');
       }
-      setLoading(false);
-    }
-  };
-
-  const handleCreatePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    
-    if (password.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError('As senhas não coincidem.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      if (auth.currentUser) {
-        await updatePassword(auth.currentUser, password);
-        onLogin();
-      }
-    } catch (err: any) {
-      console.error("Error setting password:", err);
-      setError('Erro ao definir senha. Você pode entrar e definir depois no seu perfil.');
     } finally {
       setLoading(false);
     }
@@ -182,188 +157,144 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onGoogleLoginStart }) =>
         onLogin();
       }
     } catch (err: any) {
-      if (err.code === 'auth/invalid-credential') {
+      console.warn("Login attempt failed:", err.code);
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
         setError('Email ou senha incorretos.');
       } else if (err.code === 'auth/email-already-in-use') {
         setError('Este email já está em uso.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('A senha deve ter pelo menos 6 caracteres.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('O email informado é inválido.');
       } else {
-        setError(`Erro ao processar login. Verifique seus dados.`);
+        setError(`Erro ao ${isSignUp ? 'criar conta' : 'realizar login'}. Tente novamente.`);
       }
     } finally {
       setLoading(false);
     }
   };
 
-  if (showSetPassword) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 animate-in fade-in duration-700">
-        <div className="w-full max-w-md">
-          <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50">
-            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <LockClosedIcon className="w-8 h-8" />
-            </div>
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight text-center mb-2">
-              Segurança
-            </h1>
-            <p className="text-center text-slate-500 text-sm leading-relaxed mb-8 px-4">
-              Defina uma senha para poder acessar sua conta futuramente também usando apenas seu e-mail.
-            </p>
-
-            <form onSubmit={handleCreatePassword} className="space-y-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Nova Senha</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="input-style h-12 bg-slate-50 border-slate-200 focus:bg-white transition-all"
-                  placeholder="Mínimo 6 caracteres"
-                  required
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Confirmar Senha</label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="input-style h-12 bg-slate-50 border-slate-200 focus:bg-white transition-all"
-                  placeholder="Repita a senha"
-                  required
-                />
-              </div>
-
-              {error && (
-                <div className="bg-rose-50 border border-rose-100 p-3 rounded-xl">
-                  <p className="text-rose-600 text-xs font-semibold text-center leading-relaxed">{error}</p>
-                </div>
-              )}
-
-              <div className="pt-2">
-                <button type="submit" className="btn-primary w-full h-12 shadow-lg shadow-blue-200 rounded-xl" disabled={loading}>
-                  {loading ? 'Processando...' : 'Salvar e Acessar Conta'}
-                </button>
-              </div>
-              
-              <button 
-                type="button" 
-                onClick={onLogin} 
-                className="w-full text-slate-400 text-xs font-bold hover:text-slate-600 transition-colors uppercase tracking-widest pt-2"
-              >
-                Pular por enquanto
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 animate-in fade-in duration-500">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
-        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50">
-          <div className="mb-10 text-center">
-            <h1 className="text-5xl font-black text-slate-900 tracking-tighter mb-2">
-              Sobra+
-            </h1>
-            <p className="text-slate-400 font-medium">Controle financeiro inteligente.</p>
-          </div>
+        <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
+          <h1 className="text-4xl font-bold text-slate-900 tracking-tight text-center mb-2">
+            {isSignUp ? 'Criar Conta' : 'Sobra+'}
+          </h1>
+          <p className="text-center text-slate-500 mb-8">
+            {isSignUp ? 'Preencha os dados abaixo para começar.' : 'Acesse sua conta para continuar.'}
+          </p>
 
           <button 
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 rounded-xl h-12 text-slate-700 font-bold hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.98] disabled:opacity-50 mb-8 shadow-sm"
+            className="w-full flex items-center justify-center gap-3 bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-700 font-semibold hover:bg-slate-50 transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 mb-6"
           >
             <GoogleIcon className="w-5 h-5" />
-            <span>Entrar com Google</span>
+            <span>Continuar com Google</span>
           </button>
 
-          <div className="relative flex items-center mb-8">
-            <div className="flex-grow border-t border-slate-100"></div>
-            <span className="flex-shrink mx-4 text-slate-300 text-[10px] font-bold uppercase tracking-widest">ou use e-mail</span>
-            <div className="flex-grow border-t border-slate-100"></div>
+          <div className="relative flex items-center mb-6">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink mx-4 text-slate-400 text-xs font-bold uppercase tracking-widest">ou entre com e-mail</span>
+            <div className="flex-grow border-t border-slate-200"></div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {isSignUp && (
                 <div>
-                  <label htmlFor="name" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Seu Nome</label>
+                  <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">
+                    Nome completo
+                  </label>
                   <input
                     type="text"
                     id="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="input-style h-12 bg-slate-50 border-slate-200 focus:bg-white"
-                    placeholder="Como quer ser chamado?"
+                    className="input-style"
+                    placeholder="Seu Nome"
                     required={isSignUp}
+                    autoFocus={isSignUp}
                   />
                 </div>
             )}
             <div>
-              <label htmlFor="email" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">E-mail</label>
+              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
+                E-mail
+              </label>
               <input
                 type="email"
                 id="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="input-style h-12 bg-slate-50 border-slate-200 focus:bg-white"
-                placeholder="seu@email.com"
+                className="input-style"
+                placeholder="voce@exemplo.com"
                 required
+                autoFocus={!isSignUp}
               />
             </div>
             <div>
-              <label htmlFor="password" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Senha</label>
+              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
+                Senha
+              </label>
               <input
                 type="password"
                 id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input-style h-12 bg-slate-50 border-slate-200 focus:bg-white"
+                className="input-style"
                 placeholder="••••••••"
                 required
               />
             </div>
 
             {domainError && (
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl space-y-3">
-                <p className="text-amber-800 text-xs font-bold">Domínio não autorizado no Firebase.</p>
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-3">
+                <div className="flex items-start gap-2">
+                  <div className="p-1 bg-amber-200 rounded text-amber-700 font-bold text-[10px]">FIX</div>
+                  <p className="text-amber-800 text-xs font-bold">Configuração Necessária</p>
+                </div>
+                <p className="text-amber-700 text-[11px] leading-relaxed">
+                  O Google não autorizou o login porque este domínio não está na lista de permissões do Firebase.
+                </p>
                 <div className="space-y-2 text-[11px] text-amber-900 font-medium">
-                  <p>1. Vá em Autenticação {" > "} Configurações</p>
-                  <p>2. Clique em Domínios Autorizados</p>
+                  <p>1. Vá em <b>Autenticação > Configurações</b></p>
+                  <p>2. Clique em <b>Domínios Autorizados</b></p>
                   <p>3. Adicione o domínio abaixo:</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <code className="bg-white border border-amber-200 px-2 py-1 rounded text-[10px] font-mono flex-1 truncate">{window.location.hostname}</code>
-                  <button type="button" onClick={copyHostname} className="bg-amber-600 text-white px-2 py-1 rounded text-[9px] font-bold uppercase">Copiar</button>
+                  <code className="bg-white border border-amber-200 px-2 py-1 rounded text-xs font-mono flex-1 truncate">{window.location.hostname}</code>
+                  <button type="button" onClick={copyHostname} className="bg-amber-600 text-white px-3 py-1 rounded text-[10px] font-bold hover:bg-amber-700 transition-colors uppercase">Copiar</button>
                 </div>
               </div>
             )}
 
             {error && !domainError && (
-              <div className="bg-rose-50 border border-rose-100 p-3 rounded-xl">
-                <p className="text-rose-600 text-xs font-semibold text-center">{error}</p>
+              <div className="bg-red-50 border border-red-100 p-4 rounded-lg">
+                <p className="text-red-600 text-xs font-medium whitespace-pre-wrap leading-relaxed">
+                  {error}
+                </p>
               </div>
             )}
 
-            <div className="pt-2">
-              <button type="submit" className="btn-primary w-full h-12 rounded-xl shadow-lg shadow-blue-200" disabled={loading}>
-                {loading ? 'Processando...' : (isSignUp ? 'Criar minha conta' : 'Acessar sistema')}
+            <div>
+              <button type="submit" className="btn-primary w-full py-3 shadow-lg shadow-blue-100" disabled={loading}>
+                {loading ? 'Carregando...' : (isSignUp ? 'Criar Conta' : 'Entrar')}
               </button>
             </div>
           </form>
 
-          <div className="mt-8 text-center border-t border-slate-50 pt-6">
+          <div className="mt-8 text-center border-t border-slate-100 pt-6">
             <button
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError('');
                 setDomainError(false);
+                setName('');
               }}
-              className="text-xs text-blue-600 hover:text-blue-800 font-bold uppercase tracking-widest transition-colors"
+              className="text-sm text-blue-600 hover:text-blue-800 font-bold transition-colors focus:outline-none"
             >
-              {isSignUp ? 'Já possui conta? Entrar' : 'Não tem conta? Cadastrar grátis'}
+              {isSignUp ? 'Já tem uma conta? Faça login' : 'Não tem uma conta? Cadastre-se gratuitamente'}
             </button>
           </div>
 
