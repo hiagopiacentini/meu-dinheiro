@@ -292,7 +292,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 setDomainError(false);
                 setName('');
               }}
-              className="text-sm text-blue-600 hover:text-blue-800 font-bold transition-colors focus:outline-none"
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors focus:outline-none"
             >
               {isSignUp ? 'Já tem uma conta? Faça login' : 'Não tem uma conta? Cadastre-se gratuitamente'}
             </button>
