@@ -258,7 +258,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                   O Google não autorizou o login porque este domínio não está na lista de permissões do Firebase.
                 </p>
                 <div className="space-y-2 text-[11px] text-amber-900 font-medium">
-                  <p>1. Vá em <b>Autenticação > Configurações</b></p>
+                  <p>1. Vá em <b>Autenticação {" > "} Configurações</b></p>
                   <p>2. Clique em <b>Domínios Autorizados</b></p>
                   <p>3. Adicione o domínio abaixo:</p>
                 </div>
