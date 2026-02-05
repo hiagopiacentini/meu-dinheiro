@@ -14,7 +14,7 @@ import GoogleIcon from '../components/icons/GoogleIcon';
 
 /**
  * Serializa um objeto para JSON de forma segura, removendo referências circulares
- * e limpando objetos complexos do SDK.
+ * e limpando objetos complexos utilizando o deepClean centralizado.
  */
 const safeStringify = (obj: any): string => {
   try {
@@ -22,6 +22,7 @@ const safeStringify = (obj: any): string => {
     return JSON.stringify(cleaned);
   } catch (error) {
     console.error("Erro fatal na serialização segura no Login:", error);
+    // Se ainda assim falhar (ex: stringify de algo nativo bizarro), retorna string vazia
     return "null"; 
   }
 };

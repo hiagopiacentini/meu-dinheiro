@@ -101,6 +101,17 @@ export interface ItemBudgets {
   }
 }
 
+export interface ReportNote {
+  id: string;
+  monthKey: string; // Formato YYYY-MM
+  text: string;
+  createdAt: string;
+}
+
+export interface ReportNotes {
+  list: ReportNote[];
+}
+
 export interface YieldEntry {
   id: string;
   date: string;

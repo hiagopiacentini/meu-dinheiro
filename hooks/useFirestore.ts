@@ -13,18 +13,32 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract, ManualSavings, MonthlyForecasts, ItemBudgets } from '../types';
+import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract, ManualSavings, MonthlyForecasts, ItemBudgets, ReportNotes, ReportNote } from '../types';
 import { sampleCategories } from '../data/demoData';
 
-export const deepClean = (data: any, seen = new WeakSet()): any => {
+/**
+ * Limpa recursivamente um objeto para garantir que seja serializável em JSON.
+ * Resolve problemas de referências circulares e remove objetos complexos do SDK/DOM.
+ */
+export const deepClean = (data: any, seen = new WeakMap()): any => {
+  // Tipos primitivos
   if (data === null || typeof data !== 'object') {
-    return typeof data === 'function' ? undefined : data;
+    // Funções, Symbols e undefined são removidos pelo stringify, mas limpamos aqui para segurança
+    if (typeof data === 'function' || typeof data === 'symbol') return undefined;
+    return data;
   }
-  
-  if (seen.has(data)) return undefined;
-  
-  if (data instanceof Date) return data.toISOString();
-  
+
+  // Detecção de circularidade
+  if (seen.has(data)) {
+    return undefined; // Interrompe o ciclo retornando undefined (propriedade omitida no JSON)
+  }
+
+  // Tratamento de Datas
+  if (data instanceof Date) {
+    return data.toISOString();
+  }
+
+  // Tratamento de Timestamps do Firestore
   if (data.seconds !== undefined && data.nanoseconds !== undefined && typeof data.toDate === 'function') {
     try {
       return data.toDate().toISOString();
@@ -33,19 +47,29 @@ export const deepClean = (data: any, seen = new WeakSet()): any => {
     }
   }
 
+  // Se o objeto tiver toJSON (e não for algo que já tratamos como Date), usamos ele.
+  // IMPORTANTE: Evitamos recursão infinita se toJSON retornar o próprio objeto.
+  if (typeof data.toJSON === 'function' && !(data instanceof Date)) {
+    const json = data.toJSON();
+    if (json !== data) {
+      return deepClean(json, seen);
+    }
+  }
+
+  // Verifica se é um objeto simples ou array
   const isArray = Array.isArray(data);
   const isPlainObject = Object.prototype.toString.call(data) === '[object Object]' && 
                         (data.constructor === Object || data.constructor === undefined);
 
+  // Se não for plano nem array (ex: instância de classe do Firebase, Elemento DOM, etc)
+  // tentamos converter para string ou retornamos undefined para evitar circularidade
   if (!isArray && !isPlainObject) {
-    if (typeof data.toJSON === 'function') {
-      return deepClean(data.toJSON(), seen);
-    }
     return String(data);
   }
 
-  seen.add(data);
+  // Registra o objeto como visitado
   const result: any = isArray ? [] : {};
+  seen.set(data, result);
 
   if (isArray) {
     data.forEach((item: any, i: number) => {
@@ -53,8 +77,10 @@ export const deepClean = (data: any, seen = new WeakSet()): any => {
       if (cleaned !== undefined) result[i] = cleaned;
     });
   } else {
+    // Usamos Object.keys para pegar apenas propriedades enumeráveis "próprias"
     Object.keys(data).forEach(key => {
       const val = data[key];
+      // Ignora propriedades internas e funções
       if (typeof val !== 'function' && !key.startsWith('_') && !key.startsWith('$')) {
         const cleaned = deepClean(val, seen);
         if (cleaned !== undefined) {
@@ -63,6 +89,7 @@ export const deepClean = (data: any, seen = new WeakSet()): any => {
       }
     });
   }
+  
   return result;
 };
 
@@ -533,6 +560,51 @@ export const useItemBudgets = () => {
   };
 
   return { itemBudgets, updateItemBudgets };
+};
+
+export const useReportNotes = () => {
+  const [notesData, setNotesData] = useState<ReportNotes>({ list: [] });
+  const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setUserId(user ? user.uid : null);
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    const docRef = doc(db, `users/${userId}/settings/report_notes_v2`);
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = sanitizeFirestoreData(docSnap.data()) as ReportNotes;
+        if (data && Array.isArray(data.list)) {
+            setNotesData(data);
+        }
+      } else {
+        setNotesData({ list: [] });
+      }
+    }, (error) => {
+      console.error("Error fetching report notes:", error.message);
+    });
+    return () => unsubscribe();
+  }, [userId]);
+
+  const updateReportNotes = async (newNotes: ReportNote[]) => {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return false;
+    try {
+        const cleaned = deepClean({ list: newNotes });
+        await setDoc(doc(db, `users/${currentUid}/settings/report_notes_v2`), cleaned);
+        return true;
+    } catch (error: any) {
+        console.error("Erro ao salvar observações:", error.message);
+        return false;
+    }
+  };
+
+  return { reportNotes: notesData.list, updateReportNotes };
 };
 
 export const useCDBs = () => {

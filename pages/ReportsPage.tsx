@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useTransactions, useCategories, useAccounts, useCDBs, useGoals, useForecasts } from '../hooks/useFirestore';
-import { TransactionType, Transaction } from '../types';
+import { useTransactions, useCategories, useAccounts, useCDBs, useGoals, useForecasts, useReportNotes } from '../hooks/useFirestore';
+import { TransactionType, Transaction, ReportNote } from '../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   ComposedChart, Line, PieChart, Pie, Cell, ReferenceLine, Area
@@ -10,6 +10,9 @@ import ChevronDownIcon from '../components/icons/ChevronDownIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
 import SearchIcon from '../components/icons/SearchIcon';
 import XIcon from '../components/icons/XIcon';
+import PencilIcon from '../components/icons/PencilIcon';
+import PlusIcon from '../components/icons/PlusIcon';
+import TrashIcon from '../components/icons/TrashIcon';
 import PrivateValue from '../components/PrivateValue';
 import { usePrivacy } from '../contexts/PrivacyContext';
 
@@ -210,13 +213,19 @@ const ReportsPage: React.FC = () => {
     const { cdbs } = useCDBs();
     const { goals } = useGoals();
     const { forecasts } = useForecasts();
+    const { reportNotes, updateReportNotes } = useReportNotes();
     const { isPrivacyMode } = usePrivacy();
 
-    const [period, setPeriod] = useState<'currentMonth' | 'lastMonth' | '3months' | 'year' | 'untilToday' | 'all' | 'custom'>('currentMonth');
+    const [period, setPeriod] = useState<'untilToday' | 'currentMonth' | 'lastMonth' | '3months' | '6months' | 'year' | 'all' | 'custom'>('untilToday');
     const [sourceFilter, setSourceFilter] = useState<string>('all');
     const [customDateRange, setCustomDateRange] = useState<{start: Date | null, end: Date | null}>({ start: null, end: null });
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [breakdownModal, setBreakdownModal] = useState<{ open: boolean, title: string, txs: any[] }>({ open: false, title: '', txs: [] });
+    
+    // Estados para o sistema de observações múltiplas
+    const [isAddingNote, setIsAddingNote] = useState(false);
+    const [newNoteText, setNewNoteText] = useState('');
+    const [newNoteMonth, setNewNoteMonth] = useState('');
 
     const accountMap = useMemo(() => new Map<string, string>(accounts.map(acc => [acc.id, acc.name])), [accounts]);
 
@@ -266,6 +275,10 @@ const ReportsPage: React.FC = () => {
         let end: Date = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
         
         switch (period) {
+            case 'untilToday':
+                start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+                end = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+                break;
             case 'currentMonth':
                 start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
                 end = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
@@ -274,10 +287,8 @@ const ReportsPage: React.FC = () => {
                 start = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
                 end = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
                 break;
-            case 'untilToday':
-                start = new Date(Date.UTC(now.getFullYear(), 0, 1)); 
-                end = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
-                break;
+            case '3months': start = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 2, 1)); break;
+            case '6months': start = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 5, 1)); break;
             case 'year': start = new Date(Date.UTC(now.getFullYear(), 0, 1)); break;
             case 'all': start = new Date(0); break;
             case 'custom':
@@ -290,6 +301,67 @@ const ReportsPage: React.FC = () => {
         }
         return { start, end };
     }, [period, customDateRange]);
+
+    // Calcula os meses incluídos no período filtrado para as observações
+    const monthsInPeriod = useMemo(() => {
+        const { start, end } = dateBoundaries;
+        const result: { key: string, label: string }[] = [];
+        let current = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+        const stop = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+        
+        let safety = 0;
+        while (current <= stop && safety < 100) {
+            const k = `${current.getUTCFullYear()}-${(current.getUTCMonth() + 1).toString().padStart(2, '0')}`;
+            const l = current.toLocaleString('pt-BR', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+            result.push({ key: k, label: l });
+            current.setUTCMonth(current.getUTCMonth() + 1);
+            safety++;
+        }
+        return result;
+    }, [dateBoundaries]);
+
+    // Filtra as observações com base nos meses do período
+    const filteredNotes = useMemo(() => {
+        const activeKeys = new Set(monthsInPeriod.map(m => m.key));
+        return (reportNotes || [])
+            .filter(n => activeKeys.has(n.monthKey))
+            .sort((a, b) => {
+                // Ordena por chave de mês descendente, depois por criação descendente
+                if (b.monthKey !== a.monthKey) return b.monthKey.localeCompare(a.monthKey);
+                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            });
+    }, [reportNotes, monthsInPeriod]);
+
+    // Reseta o formulário de nota quando o período muda
+    useEffect(() => {
+        if (monthsInPeriod.length > 0) {
+            setNewNoteMonth(monthsInPeriod[monthsInPeriod.length - 1].key);
+        }
+    }, [monthsInPeriod]);
+
+    const handleAddNote = async () => {
+        if (!newNoteText.trim() || !newNoteMonth) return;
+
+        const newNote: ReportNote = {
+            id: crypto.randomUUID(),
+            monthKey: newNoteMonth,
+            text: newNoteText.trim(),
+            createdAt: new Date().toISOString()
+        };
+
+        const success = await updateReportNotes([...(reportNotes || []), newNote]);
+        if (success) {
+            setNewNoteText('');
+            setIsAddingNote(false);
+        }
+    };
+
+    const handleDeleteNote = async (id: string) => {
+        if (window.confirm("Deseja realmente excluir esta observação?")) {
+            const nextNotes = (reportNotes || []).filter(n => n.id !== id);
+            await updateReportNotes(nextNotes);
+        }
+    };
 
     const { reportTransactions, reportYields } = useMemo(() => {
         const { start, end } = dateBoundaries;
@@ -361,7 +433,6 @@ const ReportsPage: React.FC = () => {
                 const catGroup = incomeGroups.get(catName)!;
                 catGroup.total += y.amount;
                 catGroup.txs.push(y);
-                // Fix: Initialize subcategory object with 'items' Map instead of 'subcategories' Map
                 if (!catGroup.subcategories.has(subName)) catGroup.subcategories.set(subName, { total: 0, txs: [], items: new Map() });
                 const subGroup = catGroup.subcategories.get(subName)!;
                 subGroup.total += y.amount;
@@ -391,7 +462,9 @@ const ReportsPage: React.FC = () => {
         };
     }, [reportTransactions, reportYields, categoryMap, itemBalanceMap, yieldItemInfo]);
 
-    const openBreakdown = (title: string, txs: any[]) => setBreakdownModal({ open: true, title, txs });
+    const openBreakdown = (title: string, txs: any[]) => {
+        setBreakdownModal({ open: true, title, txs });
+    };
 
     const dailyChartData = useMemo(() => {
         const dailyMap = new Map<string, { name: string, Entradas: number, Saídas: number, sortKey: number }>();
@@ -515,9 +588,9 @@ const ReportsPage: React.FC = () => {
     }, [reportTransactions, itemBalanceMap, dateBoundaries, goals, forecasts]);
 
     const periods = [
+        {id:'untilToday', l:'Até hoje'},
         {id:'currentMonth', l:'Mês atual'}, 
         {id:'lastMonth', l:'Mês passado'}, 
-        {id:'untilToday', l:'Até hoje'},
         {id:'year', l:'Este ano'}, 
         {id:'all', l:'Tudo'}, 
         {id:'custom', l:'Personalizado'}
@@ -730,6 +803,101 @@ const ReportsPage: React.FC = () => {
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            {/* SEÇÃO DE OBSERVAÇÕES MÚLTIPLAS */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
+                <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                        <div className="p-2 bg-slate-100 rounded-lg text-slate-500">
+                            <PencilIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800 tracking-normal">Notas e Observações</h3>
+                            <p className="text-xs text-slate-500 font-medium tracking-normal">Histórico de registros para o período filtrado</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={() => setIsAddingNote(!isAddingNote)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${isAddingNote ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-100'}`}
+                    >
+                        {isAddingNote ? <XIcon className="w-4 h-4"/> : <PlusIcon className="w-4 h-4"/>}
+                        {isAddingNote ? 'Cancelar' : 'Nova Observação'}
+                    </button>
+                </div>
+
+                {isAddingNote && (
+                    <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-5 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="flex flex-col md:flex-row gap-4 mb-4">
+                            <div className="w-full md:w-48">
+                                <label className="block text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-1.5 ml-1">Mês de referência</label>
+                                <select 
+                                    value={newNoteMonth}
+                                    onChange={(e) => setNewNoteMonth(e.target.value)}
+                                    className="input-style bg-white border-blue-200 text-blue-900 font-semibold h-11"
+                                >
+                                    {monthsInPeriod.map(m => (
+                                        <option key={m.key} value={m.key}>{m.key}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-[10px] font-bold text-blue-700 uppercase tracking-widest mb-1.5 ml-1">Sua observação</label>
+                                <textarea 
+                                    value={newNoteText}
+                                    onChange={(e) => setNewNoteText(e.target.value)}
+                                    className="input-style bg-white border-blue-200 min-h-[100px] leading-relaxed py-3"
+                                    placeholder="Descreva fatos relevantes sobre este mês específico..."
+                                    autoFocus
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end">
+                            <button 
+                                onClick={handleAddNote}
+                                disabled={!newNoteText.trim()}
+                                className="btn-primary px-8 py-2.5 rounded-xl shadow-md shadow-blue-200 disabled:opacity-50"
+                            >
+                                Salvar registro
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                <div className="space-y-4">
+                    {filteredNotes.length === 0 ? (
+                        <div className="bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 p-12 text-center">
+                            <p className="text-slate-400 font-medium tracking-normal">Nenhuma observação registrada para os meses deste período.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {filteredNotes.map((note) => (
+                                <div key={note.id} className="group relative bg-white border border-slate-200 rounded-2xl p-5 hover:border-blue-300 hover:shadow-md transition-all">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-blue-100">
+                                            {monthsInPeriod.find(m => m.key === note.monthKey)?.label || note.monthKey}
+                                        </span>
+                                        <button 
+                                            onClick={() => handleDeleteNote(note.id)}
+                                            className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                            title="Excluir observação"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                    <p className="text-sm text-slate-700 leading-relaxed font-normal whitespace-pre-wrap">
+                                        {note.text}
+                                    </p>
+                                    <div className="mt-4 pt-4 border-t border-slate-50 flex justify-end">
+                                        <span className="text-[9px] text-slate-400 font-medium uppercase tracking-tighter">
+                                            Registrado em {new Date(note.createdAt).toLocaleDateString('pt-BR')}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
