@@ -220,8 +220,9 @@ const GoalsPage: React.FC = () => {
     const yearOptions = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i).reverse();
 
     const categorizedData = useMemo(() => {
-        const incomes = categories.filter(c => c.type === TransactionType.INCOME);
-        const expenses = categories.filter(c => c.type === TransactionType.EXPENSE);
+        // Para planejamento, usamos apenas categorias não arquivadas
+        const incomes = categories.filter(c => c.type === TransactionType.INCOME && !c.isArchived);
+        const expenses = categories.filter(c => c.type === TransactionType.EXPENSE && !c.isArchived);
         return { incomes, expenses };
     }, [categories]);
 
@@ -360,16 +361,22 @@ const GoalsPage: React.FC = () => {
                             </h4>
                             {categorizedData.incomes.map(cat => {
                                 const budgets = itemBudgets[String(selectedYear)]?.[String(selectedMonth)] || {};
-                                const catTotal = cat.subcategories.reduce((acc, sub) => acc + sub.items.reduce((a, i) => a + (budgets[i.id] || 0), 0), 0);
+                                const subcategories = cat.subcategories.filter(s => !s.isArchived);
+                                if (subcategories.length === 0) return null;
+                                
+                                const catTotal = subcategories.reduce((acc, sub) => acc + sub.items.filter(i => !i.isArchived).reduce((a, i) => a + (budgets[i.id] || 0), 0), 0);
 
                                 return (
                                     <AccordionItem key={cat.id} title={cat.name} amount={catTotal} amountColor="text-emerald-600">
-                                        {cat.subcategories.map(sub => {
-                                            const subTotal = sub.items.reduce((acc, i) => acc + (budgets[i.id] || 0), 0);
+                                        {subcategories.map(sub => {
+                                            const items = sub.items.filter(i => !i.isArchived);
+                                            if (items.length === 0) return null;
+                                            
+                                            const subTotal = items.reduce((acc, i) => acc + (budgets[i.id] || 0), 0);
                                             return (
                                                 <AccordionItem key={sub.id} title={sub.name} amount={subTotal} amountColor="text-emerald-500/80" level={2}>
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 pt-1">
-                                                        {sub.items.map(item => (
+                                                        {items.map(item => (
                                                             <div key={item.id} className="flex flex-col">
                                                                 <label className="text-[11px] font-medium text-slate-500 mb-1.5 ml-0.5 tracking-normal">{item.name}</label>
                                                                 <div className="relative">
@@ -400,16 +407,22 @@ const GoalsPage: React.FC = () => {
                             </h4>
                             {categorizedData.expenses.map(cat => {
                                 const budgets = itemBudgets[String(selectedYear)]?.[String(selectedMonth)] || {};
-                                const catTotal = cat.subcategories.reduce((acc, sub) => acc + sub.items.reduce((a, i) => a + (budgets[i.id] || 0), 0), 0);
+                                const subcategories = cat.subcategories.filter(s => !s.isArchived);
+                                if (subcategories.length === 0) return null;
+                                
+                                const catTotal = subcategories.reduce((acc, sub) => acc + sub.items.filter(i => !i.isArchived).reduce((a, i) => a + (budgets[i.id] || 0), 0), 0);
 
                                 return (
                                     <AccordionItem key={cat.id} title={cat.name} amount={catTotal} amountColor="text-rose-600">
-                                        {cat.subcategories.map(sub => {
-                                            const subTotal = sub.items.reduce((acc, i) => acc + (budgets[i.id] || 0), 0);
+                                        {subcategories.map(sub => {
+                                            const items = sub.items.filter(i => !i.isArchived);
+                                            if (items.length === 0) return null;
+                                            
+                                            const subTotal = items.reduce((acc, i) => acc + (budgets[i.id] || 0), 0);
                                             return (
                                                 <AccordionItem key={sub.id} title={sub.name} amount={subTotal} amountColor="text-rose-500/80" level={2}>
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 pt-1">
-                                                        {sub.items.map(item => (
+                                                        {items.map(item => (
                                                             <div key={item.id} className="flex flex-col">
                                                                 <label className="text-[11px] font-medium text-slate-500 mb-1.5 ml-0.5 tracking-normal">{item.name}</label>
                                                                 <div className="relative">

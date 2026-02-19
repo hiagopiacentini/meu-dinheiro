@@ -21,24 +21,22 @@ import { sampleCategories } from '../data/demoData';
  * Resolve problemas de referências circulares e remove objetos complexos do SDK/DOM.
  */
 export const deepClean = (data: any, seen = new WeakMap()): any => {
-  // Tipos primitivos
+  // 1. Tipos primitivos e básicos
   if (data === null || typeof data !== 'object') {
-    // Funções, Symbols e undefined são removidos pelo stringify, mas limpamos aqui para segurança
     if (typeof data === 'function' || typeof data === 'symbol') return undefined;
     return data;
   }
 
-  // Detecção de circularidade
+  // 2. Detecção de circularidade precoce
   if (seen.has(data)) {
-    return undefined; // Interrompe o ciclo retornando undefined (propriedade omitida no JSON)
+    return "[Circular]"; // Retorna um placeholder amigável ou undefined para interromper o ciclo
   }
 
-  // Tratamento de Datas
+  // 3. Tratamento de instâncias especiais (Date e Timestamps)
   if (data instanceof Date) {
     return data.toISOString();
   }
 
-  // Tratamento de Timestamps do Firestore
   if (data.seconds !== undefined && data.nanoseconds !== undefined && typeof data.toDate === 'function') {
     try {
       return data.toDate().toISOString();
@@ -47,48 +45,61 @@ export const deepClean = (data: any, seen = new WeakMap()): any => {
     }
   }
 
-  // Se o objeto tiver toJSON (e não for algo que já tratamos como Date), usamos ele.
-  // IMPORTANTE: Evitamos recursão infinita se toJSON retornar o próprio objeto.
+  // 4. Se chegamos aqui, é um objeto ou array. Registramos a referência ANTES de prosseguir.
+  // Usamos um placeholder temporário no WeakMap.
+  seen.set(data, true);
+
+  // 5. Tratamento de Arrays
+  if (Array.isArray(data)) {
+    return data
+      .map(item => deepClean(item, seen))
+      .filter(val => val !== undefined);
+  }
+
+  // 6. Tratamento de objetos com método toJSON (ex: DocumentReference do Firebase)
+  // Mas evitamos chamar toJSON em objetos que já tratamos como Date.
   if (typeof data.toJSON === 'function' && !(data instanceof Date)) {
-    const json = data.toJSON();
-    if (json !== data) {
-      return deepClean(json, seen);
+    try {
+      const json = data.toJSON();
+      if (json !== data) {
+        return deepClean(json, seen);
+      }
+    } catch (e) {
+      // Se falhar, prosseguimos como objeto normal
     }
   }
 
-  // Verifica se é um objeto simples ou array
-  const isArray = Array.isArray(data);
-  const isPlainObject = Object.prototype.toString.call(data) === '[object Object]' && 
-                        (data.constructor === Object || data.constructor === undefined);
+  // 7. Verifica se é um objeto "plano" (POJO)
+  // Em builds minificados, a detecção de constructor pode ser sensível.
+  const isPlainObject = data.constructor === Object || 
+                        data.constructor === undefined || 
+                        Object.getPrototypeOf(data) === null;
 
-  // Se não for plano nem array (ex: instância de classe do Firebase, Elemento DOM, etc)
-  // tentamos converter para string ou retornamos undefined para evitar circularidade
-  if (!isArray && !isPlainObject) {
+  if (!isPlainObject) {
+    // Se não for um objeto plano (ex: Map, Set, instância de classe complexa),
+    // retornamos sua representação em string para segurança total.
     return String(data);
   }
 
-  // Registra o objeto como visitado
-  const result: any = isArray ? [] : {};
-  seen.set(data, result);
+  // 8. Processamento de propriedades de objeto plano
+  const result: any = {};
+  
+  // Usamos Object.keys para pegar apenas propriedades enumeráveis próprias
+  Object.keys(data).forEach(key => {
+    // Ignora propriedades internas do Firebase/SDKs e funções
+    if (key.startsWith('_') || key.startsWith('$')) return;
+    
+    const val = data[key];
+    if (typeof val === 'function') return;
 
-  if (isArray) {
-    data.forEach((item: any, i: number) => {
-      const cleaned = deepClean(item, seen);
-      if (cleaned !== undefined) result[i] = cleaned;
-    });
-  } else {
-    // Usamos Object.keys para pegar apenas propriedades enumeráveis "próprias"
-    Object.keys(data).forEach(key => {
-      const val = data[key];
-      // Ignora propriedades internas e funções
-      if (typeof val !== 'function' && !key.startsWith('_') && !key.startsWith('$')) {
-        const cleaned = deepClean(val, seen);
-        if (cleaned !== undefined) {
-          result[key] = cleaned;
-        }
-      }
-    });
-  }
+    const cleaned = deepClean(val, seen);
+    if (cleaned !== undefined) {
+      result[key] = cleaned;
+    }
+  });
+  
+  // Atualizamos o valor no WeakMap com o resultado final (opcional, mas bom para cache)
+  seen.set(data, result);
   
   return result;
 };

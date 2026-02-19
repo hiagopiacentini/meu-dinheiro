@@ -9,6 +9,7 @@ import SearchIcon from '../components/icons/SearchIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
 import ChevronDownIcon from '../components/icons/ChevronDownIcon';
 import ArrowUturnLeftIcon from '../components/icons/ArrowUturnLeftIcon';
+import ArchiveIcon from '../components/icons/ArchiveIcon';
 
 const DragHandleIcon = () => (
     <svg className="w-4 h-4 text-slate-500 opacity-30" fill="currentColor" viewBox="0 0 24 24">
@@ -204,6 +205,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
     const [modalConfig, setModalConfig] = useState<ModalConfig>({ isOpen: false });
     const [activeTab, setActiveTab] = useState<TransactionType>(TransactionType.EXPENSE);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showArchived, setShowArchived] = useState(false);
     const [expandedItems, setExpandedItems] = useState<{[key: string]: boolean}>({});
     
     const [draggedItem, setDraggedItem] = useState<DragItem | null>(null);
@@ -287,6 +289,37 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
         }
     };
 
+    const handleArchiveToggle = async (type: ModalType, data: any) => {
+        const actionText = data.isArchived ? 'Desarquivar' : 'Arquivar';
+        const confirmMsg = data.isArchived 
+            ? `Deseja desarquivar "${data.name}"?` 
+            : `Ao arquivar "${data.name}", ele não aparecerá mais nos formulários de novos lançamentos. Continuar?`;
+            
+        if (window.confirm(confirmMsg)) {
+            const newArchivedState = !data.isArchived;
+            let updated = [...categories];
+            
+            if (type === 'category') {
+                updated = updated.map(cat => cat.id === data.id ? { ...cat, isArchived: newArchivedState } : cat);
+            } else if (type === 'subcategory') {
+                updated = updated.map(cat => ({
+                    ...cat, 
+                    subcategories: cat.subcategories.map(sub => sub.id === data.id ? { ...sub, isArchived: newArchivedState } : sub)
+                }));
+            } else if (type === 'item') {
+                updated = updated.map(cat => ({
+                    ...cat, 
+                    subcategories: cat.subcategories.map(sub => ({
+                        ...sub,
+                        items: sub.items.map(item => item.id === data.id ? { ...item, isArchived: newArchivedState } : item)
+                    }))
+                }));
+            }
+            
+            await setCategories(updated);
+        }
+    };
+
     const handleDragStart = (e: React.DragEvent, item: DragItem) => {
         e.stopPropagation();
         setDraggedItem(item);
@@ -330,12 +363,22 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
 
     const filteredCategories = useMemo(() => {
         const lower = searchTerm.toLowerCase();
-        if (!searchTerm) return categories.filter(c => c.type === activeTab);
-        return categories.filter(c => c.type === activeTab).filter(cat => {
+        let base = categories.filter(c => c.type === activeTab);
+        
+        if (!showArchived) {
+            base = base.filter(c => !c.isArchived);
+        }
+
+        if (!searchTerm) return base;
+        
+        return base.filter(cat => {
             if (cat.name.toLowerCase().includes(lower)) return true;
-            return cat.subcategories.some(sub => sub.name.toLowerCase().includes(lower) || sub.items.some(i => i.name.toLowerCase().includes(lower)));
+            return cat.subcategories.some(sub => 
+                sub.name.toLowerCase().includes(lower) || 
+                sub.items.some(i => i.name.toLowerCase().includes(lower))
+            );
         });
-    }, [categories, activeTab, searchTerm]);
+    }, [categories, activeTab, searchTerm, showArchived]);
 
     const stats = useMemo(() => {
         const cats = categories.filter(c => c.type === activeTab);
@@ -345,11 +388,14 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
         return { catCount: cats.length, subCount, itemCount, fixedCount };
     }, [categories, activeTab]);
 
-    const ActionButtons: React.FC<{onAdd?: () => void, onEdit: () => void, onDelete: () => void}> = ({onAdd, onEdit, onDelete}) => (
+    const ActionButtons: React.FC<{onAdd?: () => void, onEdit: () => void, onDelete: () => void, onArchive: () => void, isArchived?: boolean}> = ({onAdd, onEdit, onDelete, onArchive, isArchived}) => (
          <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-all duration-200">
-            {onAdd && <button type="button" onClick={(e) => { e.stopPropagation(); onAdd(); }} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors"><PlusIcon className="w-4 h-4"/></button>}
-            <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"><PencilIcon className="w-4 h-4"/></button>
-            <button type="button" onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors"><TrashIcon className="w-4 h-4"/></button>
+            {onAdd && !isArchived && <button type="button" onClick={(e) => { e.stopPropagation(); onAdd(); }} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 transition-colors" title="Adicionar"><PlusIcon className="w-4 h-4"/></button>}
+            <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors" title="Editar"><PencilIcon className="w-4 h-4"/></button>
+            <button type="button" onClick={(e) => { e.stopPropagation(); onArchive(); }} className={`p-1.5 rounded-lg transition-colors ${isArchived ? 'bg-amber-100 text-amber-600' : 'hover:bg-amber-50 text-amber-500'}`} title={isArchived ? "Desarquivar" : "Arquivar"}>
+                <ArchiveIcon className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition-colors" title="Excluir Permanentemente"><TrashIcon className="w-4 h-4"/></button>
         </div>
     );
     
@@ -376,19 +422,29 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
 
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <div className="flex flex-col md:flex-row justify-between md:items-center gap-6 mb-8">
-                    <div className="inline-flex p-1 bg-slate-100 rounded-xl">
-                        <button 
-                            onClick={() => setActiveTab(TransactionType.EXPENSE)} 
-                            className={`px-6 py-2 text-sm font-medium rounded-lg transition-all tracking-normal ${activeTab === TransactionType.EXPENSE ? 'bg-white text-red-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Despesas
-                        </button>
-                        <button 
-                            onClick={() => setActiveTab(TransactionType.INCOME)} 
-                            className={`px-6 py-2 text-sm font-medium rounded-lg transition-all tracking-normal ${activeTab === TransactionType.INCOME ? 'bg-white text-green-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Receitas
-                        </button>
+                    <div className="flex items-center gap-4">
+                        <div className="inline-flex p-1 bg-slate-100 rounded-xl">
+                            <button 
+                                onClick={() => setActiveTab(TransactionType.EXPENSE)} 
+                                className={`px-6 py-2 text-sm font-medium rounded-lg transition-all tracking-normal ${activeTab === TransactionType.EXPENSE ? 'bg-white text-red-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Despesas
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab(TransactionType.INCOME)} 
+                                className={`px-6 py-2 text-sm font-medium rounded-lg transition-all tracking-normal ${activeTab === TransactionType.INCOME ? 'bg-white text-green-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Receitas
+                            </button>
+                        </div>
+                        <label className="flex items-center cursor-pointer select-none">
+                            <div className="relative">
+                                <input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} className="sr-only" />
+                                <div className={`block w-10 h-6 rounded-full transition-colors ${showArchived ? 'bg-blue-600' : 'bg-slate-300'}`}></div>
+                                <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${showArchived ? 'translate-x-4' : ''}`}></div>
+                            </div>
+                            <div className="ml-3 text-sm text-slate-500 font-medium">Mostrar Arquivados</div>
+                        </label>
                     </div>
                     <div className="relative flex-1 md:max-w-xs">
                         <SearchIcon className="w-5 h-5 text-slate-500 absolute top-1/2 left-3 -translate-y-1/2 pointer-events-none" />
@@ -397,7 +453,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                             value={searchTerm} 
                             onChange={e => setSearchTerm(e.target.value)} 
                             className="input-style pl-10 border-slate-200 focus:border-blue-400 focus:ring-blue-500/20 tracking-normal"
-                            placeholder=""
+                            placeholder="Buscar..."
                         />
                     </div>
                 </div>
@@ -417,7 +473,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                 className={`transition-all ${draggedItem?.id === category.id ? 'opacity-30' : ''}`}
                             >
                                 <div 
-                                    className={`group flex items-center justify-between p-3 pl-1 rounded-xl hover:bg-slate-50 border-2 border-transparent transition-all cursor-pointer ${expandedItems[category.id] ? 'bg-slate-50/50' : ''} ${dragOverId === category.id ? 'border-blue-500 bg-blue-50/50' : ''}`} 
+                                    className={`group flex items-center justify-between p-3 pl-1 rounded-xl hover:bg-slate-50 border-2 border-transparent transition-all cursor-pointer ${expandedItems[category.id] ? 'bg-slate-50/50' : ''} ${dragOverId === category.id ? 'border-blue-500 bg-blue-50/50' : ''} ${category.isArchived ? 'opacity-60 bg-slate-50/30' : ''}`} 
                                     onClick={(e) => toggleExpand(e, category.id)}
                                 >
                                     <div className="flex items-center space-x-4">
@@ -431,20 +487,27 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                         </div>
                                         <div className="flex items-center space-x-3">
                                             <div className="w-4 h-10 rounded-full" style={{ backgroundColor: category.color || '#cbd5e1' }}></div>
-                                            <span className="text-lg font-bold text-slate-800 select-none tracking-normal">{category.name}</span>
-                                            <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full tracking-normal">{category.subcategories.length} subs</span>
+                                            <span className={`text-lg font-bold text-slate-800 select-none tracking-normal ${category.isArchived ? 'italic text-slate-400' : ''}`}>
+                                                {category.name}
+                                                {category.isArchived && <span className="ml-2 text-[10px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded uppercase font-bold tracking-widest">Arquivado</span>}
+                                            </span>
+                                            {!category.isArchived && <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full tracking-normal">{category.subcategories.length} subs</span>}
                                         </div>
                                     </div>
                                     <ActionButtons 
                                         onAdd={() => openModal('subcategory', 'add', { parentId: category.id })}
                                         onEdit={() => openModal('category', 'edit', category)}
                                         onDelete={() => handleDelete('category', category)}
+                                        onArchive={() => handleArchiveToggle('category', category)}
+                                        isArchived={category.isArchived}
                                      />
                                 </div>
 
                                 {expandedItems[category.id] && (
                                     <div className="ml-10 mt-1 border-l-2 border-slate-100 pl-4 space-y-1 py-1">
-                                        {category.subcategories.map(subcategory => (
+                                        {category.subcategories
+                                            .filter(s => showArchived || !s.isArchived)
+                                            .map(subcategory => (
                                             <div 
                                                 key={subcategory.id}
                                                 draggable={!searchTerm}
@@ -455,7 +518,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                                 className={`transition-all ${draggedItem?.id === subcategory.id ? 'opacity-30' : ''}`}
                                             >
                                                 <div 
-                                                    className={`group flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 cursor-pointer border-2 border-transparent transition-all ${dragOverId === subcategory.id ? 'border-blue-500 bg-blue-50' : ''}`} 
+                                                    className={`group flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 cursor-pointer border-2 border-transparent transition-all ${dragOverId === subcategory.id ? 'border-blue-500 bg-blue-50' : ''} ${subcategory.isArchived ? 'opacity-60 italic' : ''}`} 
                                                     onClick={(e) => toggleExpand(e, subcategory.id)}
                                                 >
                                                     <div className="flex items-center space-x-3">
@@ -465,18 +528,25 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                                         <div className={`transition-transform duration-200 ${expandedItems[subcategory.id] ? 'rotate-0' : '-rotate-90'}`}>
                                                             {subcategory.items.length > 0 ? <ChevronDownIcon className="w-3.5 h-3.5 text-slate-500" /> : <div className="w-3.5" />}
                                                         </div>
-                                                        <span className="text-sm font-medium text-slate-700 select-none tracking-normal">{subcategory.name}</span>
+                                                        <span className={`text-sm font-medium select-none tracking-normal ${subcategory.isArchived ? 'text-slate-400' : 'text-slate-700'}`}>
+                                                            {subcategory.name}
+                                                            {subcategory.isArchived && <span className="ml-2 text-[8px] border border-slate-200 text-slate-400 px-1.5 py-0.5 rounded uppercase font-bold tracking-tighter">Arquivado</span>}
+                                                        </span>
                                                     </div>
                                                     <ActionButtons 
                                                         onAdd={() => openModal('item', 'add', { parentId: subcategory.id, categoryId: category.id })}
                                                         onEdit={() => openModal('subcategory', 'edit', subcategory)}
                                                         onDelete={() => handleDelete('subcategory', subcategory)}
+                                                        onArchive={() => handleArchiveToggle('subcategory', subcategory)}
+                                                        isArchived={subcategory.isArchived}
                                                     />
                                                 </div>
 
                                                 {expandedItems[subcategory.id] && (
                                                     <div className="ml-8 mt-1 border-l-2 border-slate-50 pl-4 space-y-1 pb-2">
-                                                        {subcategory.items.map(item => (
+                                                        {subcategory.items
+                                                            .filter(i => showArchived || !i.isArchived)
+                                                            .map(item => (
                                                             <div 
                                                                 key={item.id} 
                                                                 draggable={!searchTerm}
@@ -484,14 +554,17 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                                                 onDragOver={(e) => handleDragOver(e, item.id)}
                                                                 onDragEnd={handleDragEnd}
                                                                 onDrop={(e) => handleDrop(e, item.id, 'item', subcategory.id)}
-                                                                className={`group flex items-center justify-between p-2 rounded-lg hover:bg-white hover:shadow-sm border-2 border-transparent transition-all ${dragOverId === item.id ? 'border-blue-500 bg-blue-50' : ''} ${draggedItem?.id === item.id ? 'opacity-30' : ''}`}
+                                                                className={`group flex items-center justify-between p-2 rounded-lg hover:bg-white hover:shadow-sm border-2 border-transparent transition-all ${dragOverId === item.id ? 'border-blue-500 bg-blue-50' : ''} ${draggedItem?.id === item.id ? 'opacity-30' : ''} ${item.isArchived ? 'opacity-60 italic bg-slate-50/50' : ''}`}
                                                             >
                                                                 <div className="flex items-center space-x-3">
                                                                     <div className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-slate-100">
                                                                         <DragHandleIcon />
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="text-sm text-slate-600 select-none tracking-normal font-normal">{item.name}</span>
+                                                                        <span className={`text-sm select-none tracking-normal font-normal ${item.isArchived ? 'text-slate-400' : 'text-slate-600'}`}>
+                                                                            {item.name}
+                                                                            {item.isArchived && <span className="ml-2 text-[8px] bg-slate-100 text-slate-400 px-1 py-0.5 rounded uppercase font-bold">Arq.</span>}
+                                                                        </span>
                                                                         {item.isFixed && <span className="bg-orange-50 text-orange-600 text-[9px] px-1.5 py-0.5 rounded-full font-bold border border-orange-100 tracking-normal">Fixo</span>}
                                                                         {!item.includeInBalance && <span className="bg-slate-100 text-slate-500 text-[9px] px-1.5 py-0.5 rounded-full font-bold tracking-normal">Extra-balanço</span>}
                                                                     </div>
@@ -499,6 +572,8 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
                                                                 <ActionButtons 
                                                                     onEdit={() => openModal('item', 'edit', item)}
                                                                     onDelete={() => handleDelete('item', item)}
+                                                                    onArchive={() => handleArchiveToggle('item', item)}
+                                                                    isArchived={item.isArchived}
                                                                 />
                                                             </div>
                                                         ))}

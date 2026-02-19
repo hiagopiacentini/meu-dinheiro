@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useTransactions, useAccounts, useCategories, useLoans } from '../hooks/useFirestore';
 import { Transaction, Account, Category, TransactionType, Loan, CategoryItem } from '../types';
@@ -333,39 +332,58 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
 
     const categoryOptions = useMemo(() => {
         const options: { id: string, name: string, subName: string, catName: string }[] = [];
-        categories.filter(c => c.type === type).forEach(cat => {
+        categories.forEach(cat => {
+            const isCatArchived = !!cat.isArchived;
             cat.subcategories.forEach(sub => {
+                const isSubArchived = isCatArchived || !!sub.isArchived;
                 sub.items.forEach(item => {
-                    options.push({ id: item.id, name: item.name, subName: sub.name, catName: cat.name });
+                    const isItemArchived = isSubArchived || !!item.isArchived;
+                    
+                    // Mostra item se: 
+                    // 1. Não está arquivado
+                    // 2. OU se é o item atualmente selecionado em uma edição (para não quebrar o formulário)
+                    if (cat.type === type && (!isItemArchived || item.id === itemId)) {
+                        options.push({ id: item.id, name: item.name, subName: sub.name, catName: cat.name });
+                    }
                 });
             });
         });
         return options.sort((a,b) => a.catName.localeCompare(b.catName) || a.subName.localeCompare(b.subName) || a.name.localeCompare(b.name));
-    }, [categories, type]);
+    }, [categories, type, itemId]);
 
     const expenseCategoryOptions = useMemo(() => {
          const options: { id: string, name: string, subName: string, catName: string }[] = [];
          categories.filter(c => c.type === TransactionType.EXPENSE).forEach(cat => {
+            const isCatArchived = !!cat.isArchived;
             cat.subcategories.forEach(sub => {
+                const isSubArchived = isCatArchived || !!sub.isArchived;
                 sub.items.forEach(item => {
-                     options.push({ id: item.id, name: item.name, subName: sub.name, catName: cat.name });
+                     const isItemArchived = isSubArchived || !!item.isArchived;
+                     if (!isItemArchived || item.id === deductionItemId || item.id === changeItemId) {
+                        options.push({ id: item.id, name: item.name, subName: sub.name, catName: cat.name });
+                     }
                 });
             });
          });
          return options.sort((a,b) => a.catName.localeCompare(b.catName) || a.subName.localeCompare(b.subName) || a.name.localeCompare(b.name));
-    }, [categories]);
+    }, [categories, deductionItemId, changeItemId]);
 
     const incomeCategoryOptions = useMemo(() => {
         const options: { id: string, name: string, subName: string, catName: string }[] = [];
         categories.filter(c => c.type === TransactionType.INCOME).forEach(cat => {
+           const isCatArchived = !!cat.isArchived;
            cat.subcategories.forEach(sub => {
+               const isSubArchived = isCatArchived || !!sub.isArchived;
                sub.items.forEach(item => {
-                    options.push({ id: item.id, name: item.name, subName: sub.name, catName: cat.name });
+                    const isItemArchived = isSubArchived || !!item.isArchived;
+                    if (!isItemArchived || item.id === rebateItemId) {
+                        options.push({ id: item.id, name: item.name, subName: sub.name, catName: cat.name });
+                    }
                });
            });
         });
         return options.sort((a,b) => a.catName.localeCompare(b.catName) || a.subName.localeCompare(b.subName) || a.name.localeCompare(b.name));
-   }, [categories]);
+   }, [categories, rebateItemId]);
 
     const isTransfer = useMemo(() => {
         if (!itemId) return false;
@@ -573,6 +591,38 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                  { description: `Desconto/Consumo: ${description}`, amount: deductVal, date, type: TransactionType.EXPENSE, accountId, itemId: deductionItemId, cardId: cardId || null, linkedGroupId: finalLinkedGroupId }
              ];
              success = await addTransactions(newTxs);
+        } else if (type === TransactionType.EXPENSE && isRebate && isSplit) {
+             // NOVO: LÓGICA DE SPLIT + REBATE
+             const groupToClean = editingLinkedGroupId || (editingTransaction?.linkedGroupId);
+             if (groupToClean) {
+                 await deleteTransactions(transactions.filter(t => t.linkedGroupId === groupToClean).map(t => t.id));
+             } else if (editingTransaction) {
+                 await deleteTransaction(editingTransaction.id);
+             }
+
+             const finalLinkedGroupId = editingLinkedGroupId || crypto.randomUUID();
+             const rebateVal = parseFloat(rebateAmount);
+
+             const newTxs: Omit<Transaction, 'id'>[] = splitItems.map(item => ({
+                 ...commonData,
+                 amount: parseFloat(item.amount),
+                 itemId: item.itemId,
+                 description: `${description} - ${categoryMap.get(item.itemId)?.item || 'Item'}`,
+                 linkedGroupId: finalLinkedGroupId
+             }));
+
+             newTxs.push({
+                 description: `Abatimento/Crédito: ${description}`,
+                 amount: rebateVal,
+                 date,
+                 type: TransactionType.INCOME,
+                 accountId,
+                 itemId: rebateItemId,
+                 cardId: cardId || null,
+                 linkedGroupId: finalLinkedGroupId
+             });
+
+             success = await addTransactions(newTxs);
         } else if (type === TransactionType.EXPENSE && isRebate) {
              const groupToClean = editingLinkedGroupId || (editingTransaction?.linkedGroupId);
              if (groupToClean) {
@@ -660,31 +710,45 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         
         if (transaction.linkedGroupId) {
             const linkedGroup = transactions.filter(t => t.linkedGroupId === transaction.linkedGroupId);
-            if (linkedGroup.length === 2) {
+            if (linkedGroup.length >= 2) {
                 setEditingLinkedGroupId(transaction.linkedGroupId);
                 setIsEditingSingleParcel(false);
                 
                 const incomePart = linkedGroup.find(t => t.type === TransactionType.INCOME);
-                const expensePart = linkedGroup.find(t => t.type === TransactionType.EXPENSE);
+                const expenseParts = linkedGroup.filter(t => t.type === TransactionType.EXPENSE);
 
-                if (incomePart && expensePart) {
-                    if (incomePart.linkedGroupId && incomePart.amount >= expensePart.amount && !expensePart.description.includes('Abatimento')) {
+                if (incomePart && expenseParts.length > 0) {
+                    // Detecção de Rebate
+                    if (expenseParts.length > 1) {
+                        // Foi um Split + Rebate
+                        setType(TransactionType.EXPENSE);
+                        setIsRebate(true);
+                        setIsSplit(true);
+                        setDescription(expenseParts[0].description.split(' - ')[0]);
+                        setAmount(String(expenseParts.reduce((acc, curr) => acc + curr.amount, 0)));
+                        setSplitItems(expenseParts.map((t, i) => ({ id: i, itemId: t.itemId || '', amount: String(t.amount) })));
+                        setRebateAmount(String(incomePart.amount));
+                        setRebateItemId(incomePart.itemId || '');
+                    }
+                    else if (incomePart.linkedGroupId && incomePart.amount >= expenseParts[0].amount && !expenseParts[0].description.includes('Abatimento')) {
+                        // Deduction (Income side)
                         setType(TransactionType.INCOME);
                         setIsDeduction(true);
                         setIsRebate(false);
                         setDescription(incomePart.description);
                         setAmount(String(incomePart.amount));
                         setItemId(incomePart.itemId || '');
-                        setDeductionAmount(String(expensePart.amount));
-                        setDeductionItemId(expensePart.itemId || '');
+                        setDeductionAmount(String(expenseParts[0].amount));
+                        setDeductionItemId(expenseParts[0].itemId || '');
                     } 
                     else {
+                        // Simple Rebate
                         setType(TransactionType.EXPENSE);
                         setIsRebate(true);
                         setIsDeduction(false);
-                        setDescription(expensePart.description);
-                        setAmount(String(expensePart.amount));
-                        setItemId(incomePart.itemId || '');
+                        setDescription(expenseParts[0].description);
+                        setAmount(String(expenseParts[0].amount));
+                        setItemId(expenseParts[0].itemId || '');
                         setRebateAmount(String(incomePart.amount));
                         setRebateItemId(incomePart.itemId || '');
                     }
@@ -731,7 +795,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         const t = transactions.find(tx => tx.id === id);
         if (t) {
             if (t.linkedGroupId) {
-                if (window.confirm('Este lançamento possui um desconto/abatimento vinculado. Deseja excluir ambos?')) {
+                if (window.confirm('Este lançamento possui um desconto/abatimento vinculado. Deseja excluir todo o grupo?')) {
                     deleteTransactions(transactions.filter(tx => tx.linkedGroupId === t.linkedGroupId).map(tx => tx.id));
                 }
             }
@@ -774,7 +838,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-sm font-medium text-slate-600 mb-1 block">{(isDeduction || isRebate || (type === TransactionType.INCOME && isChange)) ? 'Valor do Produto' : isInstallment ? 'Valor da Parcela' : isSplit ? 'Valor Total' : 'Valor'}</label>
+                                    <label className="text-sm font-medium text-slate-600 mb-1 block">{(isDeduction || isRebate || (type === TransactionType.INCOME && isChange)) ? 'Valor Bruto' : isInstallment ? 'Valor da Parcela' : isSplit ? 'Valor Bruto Total' : 'Valor'}</label>
                                     <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required={!isSplit} step="0.01" min="0" className="input-style" placeholder="R$ 0,00" />
                                 </div>
                                 <div>
@@ -789,16 +853,14 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                             <CustomCheckbox id="installment-check" checked={isInstallment} onChange={e => setIsInstallment(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId || isEditingSingleParcel || !!editingLinkedGroupId}/>
                                             <label htmlFor="installment-check" className={`ml-2 block text-sm cursor-pointer ${(isEditingSingleParcel || !!editingLinkedGroupId) ? 'text-slate-400' : 'text-slate-800'}`}>Parcelar</label>
                                         </div>
-                                        {!isSplit && (
-                                            <div className="flex items-center">
-                                                <CustomCheckbox id="rebate-check" checked={isRebate} onChange={e => setIsRebate(e.target.checked)} disabled={!!editingInstallmentGroup || !!editingSplitGroupId || isEditingSingleParcel}/>
-                                                <label htmlFor="rebate-check" className={`ml-2 block text-sm cursor-pointer ${isEditingSingleParcel ? 'text-slate-400' : 'text-slate-800'}`}>Houve abatimento</label>
-                                            </div>
-                                        )}
+                                        <div className="flex items-center">
+                                            <CustomCheckbox id="rebate-check" checked={isRebate} onChange={e => setIsRebate(e.target.checked)} disabled={!!editingInstallmentGroup || isEditingSingleParcel}/>
+                                            <label htmlFor="rebate-check" className={`ml-2 block text-sm cursor-pointer ${isEditingSingleParcel ? 'text-slate-400' : 'text-slate-800'}`}>Houve abatimento</label>
+                                        </div>
                                     </>
                                 )}
                                 <div className="flex items-center">
-                                    <CustomCheckbox id="split-check" checked={isSplit} onChange={e => { setIsSplit(e.target.checked); if(e.target.checked) { setIsChange(false); setIsDeduction(false); setIsRebate(false); } }} disabled={!!editingInstallmentGroup || isChange || isDeduction || isRebate || isEditingSingleParcel || !!editingLinkedGroupId}/>
+                                    <CustomCheckbox id="split-check" checked={isSplit} onChange={e => { setIsSplit(e.target.checked); if(e.target.checked) { setIsChange(false); setIsDeduction(false); } }} disabled={!!editingInstallmentGroup || isChange || isDeduction || isEditingSingleParcel}/>
                                     <label htmlFor="split-check" className={`ml-2 block text-sm cursor-pointer ${(isEditingSingleParcel || !!editingLinkedGroupId) ? 'text-slate-400' : 'text-slate-800'}`}>Dividir</label>
                                 </div>
                                 {type === TransactionType.INCOME && !isSplit && (

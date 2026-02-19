@@ -368,6 +368,12 @@ const AccountModal: React.FC<{
     );
 };
 
+interface MultiPaymentSource {
+    id: string;
+    accountId: string;
+    amount: string;
+}
+
 const PayInvoiceModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
@@ -376,18 +382,26 @@ const PayInvoiceModal: React.FC<{
     accounts: Account[];
     categories: Category[];
     currentBalance: number;
-    onPay: (sourceAccountId: string, amount: number, date: string, itemId: string) => Promise<void>;
-}> = ({ isOpen, onClose, targetAccount, targetCardId, accounts, categories, currentBalance, onPay }) => {
-    const [sourceAccountId, setSourceAccountId] = useState('');
-    const [amount, setAmount] = useState(currentBalance < 0 ? String(Math.abs(currentBalance)) : '');
+    accountCashBalances: Map<string, number>;
+    onPay: (payments: { sourceAccountId: string, amount: number }[], date: string, itemId: string) => Promise<void>;
+}> = ({ isOpen, onClose, targetAccount, targetCardId, accounts, categories, currentBalance, accountCashBalances, onPay }) => {
+    const [payments, setPayments] = useState<MultiPaymentSource[]>([]);
+    const [totalTarget, setTotalTarget] = useState(currentBalance < 0 ? Math.abs(currentBalance) : 0);
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [itemId, setItemId] = useState('');
 
     useEffect(() => {
         if (isOpen) {
-            setAmount(currentBalance < 0 ? String(Math.abs(currentBalance).toFixed(2)) : '');
+            const absBalance = currentBalance < 0 ? Math.abs(currentBalance) : 0;
+            setTotalTarget(absBalance);
+            // Inicia com uma linha de pagamento sugerindo o total
+            setPayments([{ id: crypto.randomUUID(), accountId: '', amount: String(absBalance.toFixed(2)) }]);
         }
     }, [isOpen, currentBalance]);
+
+    const currentSum = useMemo(() => payments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0), [payments]);
+    const difference = totalTarget - currentSum;
+    const isSumMatched = Math.abs(difference) < 0.01;
 
     const expenseCategoryOptions = useMemo(() => {
          const options: { id: string, name: string, subName: string, catName: string }[] = [];
@@ -403,98 +417,153 @@ const PayInvoiceModal: React.FC<{
 
     if (!isOpen) return null;
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!sourceAccountId || !amount || !date || !itemId) {
-            alert('Preencha todos os campos.');
-            return;
-        }
-        await onPay(sourceAccountId, parseFloat(amount), date, itemId);
+    const addSource = () => {
+        const remaining = Math.max(0, difference);
+        setPayments([...payments, { id: crypto.randomUUID(), accountId: '', amount: remaining > 0 ? remaining.toFixed(2) : '' }]);
     };
 
-    const activeSourceAccounts = accounts.filter(a => a.isActive);
+    const removeSource = (id: string) => {
+        if (payments.length > 1) {
+            setPayments(payments.filter(p => p.id !== id));
+        }
+    };
+
+    const updatePayment = (id: string, field: keyof MultiPaymentSource, value: string) => {
+        setPayments(payments.map(p => p.id === id ? { ...p, [field]: value } : p));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const validPayments = payments.map(p => ({
+            sourceAccountId: p.accountId,
+            amount: parseFloat(p.amount)
+        })).filter(p => p.sourceAccountId && p.amount > 0);
+
+        if (validPayments.length === 0 || !date || !itemId) {
+            alert('Preencha as contas de origem, valores e categoria.');
+            return;
+        }
+        
+        if (!isSumMatched && !window.confirm(`O valor total dos pagamentos (${formatCurrency(currentSum)}) é diferente do valor pretendido (${formatCurrency(totalTarget)}). Deseja continuar assim mesmo?`)) {
+            return;
+        }
+
+        await onPay(validPayments, date, itemId);
+    };
+
+    const activeAccounts = accounts.filter(a => a.isActive);
     const cardsList = Array.isArray(targetAccount.cards) ? targetAccount.cards : [];
     const cardName = targetCardId ? cardsList.find(c => c.id === targetCardId)?.name : null;
     const titleContext = cardName ? ` - ${cardName}` : '';
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl font-bold mb-4 text-slate-800">Pagar Fatura / Zerar Saldo</h2>
-                <p className="text-sm text-slate-600 mb-4">
-                    Pagamento para: <span className="font-semibold">{targetAccount.name}{titleContext}</span><br/>
-                    Isso criará uma <b>transferência</b> para zerar o saldo negativo.
-                </p>
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800 tracking-tight">Pagar com múltiplas contas</h2>
+                        <p className="text-sm text-slate-500 font-normal">Quitação de fatura para <span className="font-bold text-slate-700">{targetAccount.name}{titleContext}</span></p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600"><XIcon className="w-6 h-6"/></button>
+                </div>
                 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        {activeSourceAccounts.some(a => a.id === targetAccount.id) && (
-                            <div 
-                                onClick={() => setSourceAccountId(targetAccount.id)}
-                                className="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors" 
-                            >
-                                <div className="flex items-center">
-                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center mr-2 flex-shrink-0 ${sourceAccountId === targetAccount.id ? 'border-blue-600 bg-blue-600' : 'border-slate-400 bg-white'}`}>
-                                        {sourceAccountId === targetAccount.id && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-semibold text-blue-800">Pagar com saldo da própria conta</p>
-                                        <p className="text-xs text-blue-600">Use os rendimentos/depósitos desta conta para abater a fatura.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Valor Total da Quitação</label>
+                            <input 
+                                type="number" 
+                                value={totalTarget} 
+                                onChange={e => setTotalTarget(parseFloat(e.target.value) || 0)} 
+                                step="0.01" 
+                                min="0" 
+                                className="input-style font-bold text-lg" 
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Data do Pagamento</label>
+                            <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="input-style font-medium" />
+                        </div>
+                    </div>
 
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Conta de Origem do Pagamento</label>
-                        <select 
-                            value={sourceAccountId} 
-                            onChange={e => setSourceAccountId(e.target.value)} 
-                            required 
-                            className="input-style"
+                    <div className="space-y-3">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 px-1">Distribuição entre contas</label>
+                        {payments.map((payment, index) => (
+                            <div key={payment.id} className="flex items-center gap-2 animate-in slide-in-from-left-2 duration-200">
+                                <div className="flex-1">
+                                    <select 
+                                        value={payment.accountId} 
+                                        onChange={e => updatePayment(payment.id, 'accountId', e.target.value)} 
+                                        required 
+                                        className="input-style py-2"
+                                    >
+                                        <option value="" disabled>Selecionar conta de origem...</option>
+                                        {activeAccounts.map(acc => (
+                                            <option key={acc.id} value={acc.id}>
+                                                {acc.name} (Saldo: {formatCurrency(accountCashBalances.get(acc.id) || 0)})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="w-32">
+                                    <input 
+                                        type="number" 
+                                        value={payment.amount} 
+                                        onChange={e => updatePayment(payment.id, 'amount', e.target.value)} 
+                                        step="0.01" 
+                                        min="0.01" 
+                                        required 
+                                        className="input-style py-2 text-right font-bold" 
+                                        placeholder="0,00"
+                                    />
+                                </div>
+                                <button 
+                                    type="button" 
+                                    onClick={() => removeSource(payment.id)}
+                                    disabled={payments.length === 1}
+                                    className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all disabled:opacity-30"
+                                >
+                                    <TrashIcon className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ))}
+                        
+                        <button 
+                            type="button" 
+                            onClick={addSource}
+                            className="flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 px-1 py-2 transition-colors"
                         >
-                            <option value="" disabled>Selecione a conta de origem...</option>
-                            {activeSourceAccounts.map(acc => (
-                                <option key={acc.id} value={acc.id}>{acc.name}</option>
-                            ))}
-                        </select>
+                            <PlusIcon className="w-4 h-4" />
+                            Adicionar outra conta
+                        </button>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Valor do Pagamento</label>
-                        <input 
-                            type="number" 
-                            value={amount} 
-                            onChange={e => setAmount(e.target.value)} 
-                            step="0.01" 
-                            min="0" 
-                            required 
-                            className="input-style" 
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Categoria (Despesa)</label>
-                        <select value={itemId} onChange={e => setItemId(e.target.value)} required className="input-style">
-                            <option value="" disabled>Selecione uma categoria...</option>
+
+                    <div className="pt-2">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 px-1">Categoria do Lançamento</label>
+                        <select value={itemId} onChange={e => setItemId(e.target.value)} required className="input-style font-medium">
+                            <option value="" disabled>Selecione a categoria de despesa...</option>
                             {expenseCategoryOptions.map(opt => <option key={opt.id} value={opt.id}>{`${opt.catName} > ${opt.subName} > ${opt.name}`}</option>)}
                         </select>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Data do Pagamento</label>
-                        <input 
-                            type="date" 
-                            value={date} 
-                            onChange={e => setDate(e.target.value)} 
-                            required 
-                            className="input-style" 
-                        />
-                    </div>
-                    
-                    <div className="flex justify-end space-x-3 pt-4">
-                        <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
-                        <button type="submit" className="btn-primary bg-green-600 hover:bg-green-700 border-none">
-                            Confirmar Pagamento
-                        </button>
+
+                    <div className={`p-4 rounded-xl border flex justify-between items-center transition-all ${isSumMatched ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
+                        <div>
+                            <p className="text-xs font-medium uppercase tracking-tight opacity-70">Total distribuído</p>
+                            <p className="text-xl font-black tracking-normal">{formatCurrency(currentSum)}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-xs font-medium uppercase tracking-tight opacity-70">Diferença</p>
+                            <p className="text-xl font-bold tracking-normal">{isSumMatched ? 'OK' : formatCurrency(difference)}</p>
+                        </div>
                     </div>
                 </form>
+                
+                <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 rounded-b-2xl">
+                    <button type="button" onClick={onClose} className="btn-secondary px-6">Cancelar</button>
+                    <button type="submit" onClick={handleSubmit} className="btn-primary bg-blue-600 hover:bg-blue-700 border-none px-8 shadow-lg shadow-blue-100">
+                        Confirmar Pagamentos
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -627,7 +696,6 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
 
         transactions.forEach(t => {
             // REGRA DE OURO: Se a transação for do item "Rendimentos", ela NÃO ENTRA no cálculo do saldo bancário de caixa.
-            // Isso fará com que o saldo do Recarga Pay reflita os 20,83.
             if (t.itemId && yieldItemIds.includes(t.itemId)) return;
 
             const updateAcc = (id: string, val: number) => accCashBalances.set(id, (accCashBalances.get(id) || 0) + val);
@@ -668,7 +736,6 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
                 .reduce((sum, c) => sum + c.currentGrossBalance, 0);
         }
 
-        // Visão Geral agora mostra o saldo EXCLUINDO os "Rendimentos" (CDBs), apenas movimentação líquida.
         return accountCashBalances.get(selectedAccountId) || 0;
     }, [accountCashBalances, cdbs, cardBalances, selectedAccountId, selectedCardId, filterType]);
 
@@ -697,9 +764,7 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
                 return isYieldItem || name.includes('cdb') || name.includes('aporte') || name.includes('resgate');
             });
         } else {
-            // Visão Geral (Histórico de caixa líquido)
             accountTransactions = accountTransactions.filter(t => {
-                // REGRA: Na Visão Geral OCULTAMOS os "Rendimentos" e as compras de cartão
                 if (t.itemId && yieldItemIds.includes(t.itemId)) return false;
                 if (t.cardId && t.type !== TransactionType.TRANSFER) return false;
 
@@ -946,38 +1011,51 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
                 accounts={accounts}
             />
 
-            {selectedAccount && <PayInvoiceModal isOpen={isPayModalOpen} onClose={() => setIsPayModalOpen(false)} targetAccount={selectedAccount} targetCardId={selectedCardId} accounts={accounts} categories={categories} currentBalance={selectedCardId ? currentViewBalance : currentViewBalance} onPay={async (s, a, d, i) => { 
-                const selectedAccCards = Array.isArray(selectedAccount.cards) ? selectedAccount.cards : [];
-                const cardName = selectedCardId ? selectedAccCards.find(c => c.id === selectedCardId)?.name : null;
-                const targetName = cardName ? `${selectedAccount.name} (${cardName})` : selectedAccount.name;
-                const sourceAccName = accountMapRaw.get(s) || 'Conta';
+            {selectedAccount && (
+              <PayInvoiceModal 
+                isOpen={isPayModalOpen} 
+                onClose={() => setIsPayModalOpen(false)} 
+                targetAccount={selectedAccount} 
+                targetCardId={selectedCardId} 
+                accounts={accounts} 
+                categories={categories} 
+                currentBalance={currentViewBalance}
+                accountCashBalances={accountCashBalances} // Passando o mapa de saldos calculados
+                onPay={async (validPayments, d, i) => { 
+                    const selectedAccCards = Array.isArray(selectedAccount.cards) ? selectedAccount.cards : [];
+                    const cardName = selectedCardId ? selectedAccCards.find(c => c.id === selectedCardId)?.name : null;
+                    const targetName = cardName ? `${selectedAccount.name} (${cardName})` : selectedAccount.name;
 
-                // Criamos um PAR de transações para que a saída apareça no extrato da conta bancária
-                // e a entrada apareça no extrato do cartão.
-                const txs: Omit<Transaction, 'id'>[] = [
-                    {
-                        description: `Pagamento Fatura: ${targetName}`,
-                        amount: a,
-                        date: d,
-                        type: TransactionType.EXPENSE,
-                        accountId: s,
-                        cardId: null, // Saída direta do saldo da conta
-                        itemId: i
-                    },
-                    {
-                        description: `Recebimento Fatura (${sourceAccName})`,
-                        amount: a,
-                        date: d,
-                        type: TransactionType.INCOME,
-                        accountId: selectedAccount.id,
-                        cardId: selectedCardId || null, // Entrada de saldo no cartão
-                        itemId: i
-                    }
-                ];
-                
-                const success = await addTransactions(txs);
-                if (success) setIsPayModalOpen(false);
-            }} />}
+                    const allTxs: Omit<Transaction, 'id'>[] = [];
+                    
+                    validPayments.forEach(p => {
+                        const sourceAccName = accountMapRaw.get(p.sourceAccountId) || 'Conta';
+                        // Para cada fonte, criamos o par: Saída da conta -> Entrada no cartão
+                        allTxs.push({
+                            description: `Pagamento Fatura: ${targetName}`,
+                            amount: p.amount,
+                            date: d,
+                            type: TransactionType.EXPENSE,
+                            accountId: p.sourceAccountId,
+                            cardId: null,
+                            itemId: i
+                        });
+                        allTxs.push({
+                            description: `Recebimento Fatura (${sourceAccName})`,
+                            amount: p.amount,
+                            date: d,
+                            type: TransactionType.INCOME,
+                            accountId: selectedAccount.id,
+                            cardId: selectedCardId || null,
+                            itemId: i
+                        });
+                    });
+                    
+                    const success = await addTransactions(allTxs);
+                    if (success) setIsPayModalOpen(false);
+                }} 
+              />
+            )}
         </div>
     );
 };

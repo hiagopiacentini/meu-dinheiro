@@ -26,6 +26,7 @@ export interface CategoryItem {
   categoryId: string;
   includeInBalance: boolean;
   isFixed?: boolean; 
+  isArchived?: boolean;
 }
 
 export interface Subcategory {
@@ -33,6 +34,7 @@ export interface Subcategory {
   name: string;
   items: CategoryItem[];
   categoryId: string;
+  isArchived?: boolean;
 }
 
 export interface Category {
@@ -41,6 +43,7 @@ export interface Category {
   type: TransactionType;
   subcategories: Subcategory[];
   color?: string;
+  isArchived?: boolean;
 }
 
 export interface Transaction {

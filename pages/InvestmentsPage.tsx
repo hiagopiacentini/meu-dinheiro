@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useCDBs, useTransactions, useAccounts, useCategories } from '../hooks/useFirestore';
 import { CDBContract, Transaction, TransactionType, YieldEntry } from '../types';
@@ -268,7 +267,7 @@ const YieldHistoryModal: React.FC<{
 
     if (!isOpen) return null;
 
-    const history = [...(Array.isArray(cdb.yieldHistory) ? cdb.yieldHistory : [])].sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime());
+    const history = [...(Array.isArray(cdb.yieldHistory) ? cdb.yieldHistory : [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     const startEditing = (entry: YieldEntry) => {
         setEditingId(entry.id);
@@ -676,21 +675,37 @@ const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 
         } else {
             diff = value - updateBalanceCdb.currentGrossBalance;
             newGrossBalance = value;
-            if (Math.abs(diff) < 0.01) return;
-            const existingDates = new Set(finalHistory.map(h => h.date));
-            const allWorkDays = getWorkDaysInRange(updateBalanceCdb.applicationDate, txDate);
-            const newYieldingDays = allWorkDays.filter(day => 
-                !existingDates.has(day) && 
-                day !== updateBalanceCdb.applicationDate
-            );
             
-            if (newYieldingDays.length > 0) {
-                const dailyYield = diff / newYieldingDays.length;
-                for (const day of newYieldingDays) {
-                    finalHistory.push({ id: crypto.randomUUID(), date: day, amount: dailyYield });
-                }
-            } else {
+            if (Math.abs(diff) < 0.01) return;
+
+            // NOVO: Descobrir a data do último lançamento registrado para iniciar o intervalo a partir dele
+            let lastYieldDate = updateBalanceCdb.applicationDate;
+            if (finalHistory.length > 0) {
+                const sorted = [...finalHistory].sort((a, b) => a.date.localeCompare(b.date));
+                lastYieldDate = sorted[sorted.length - 1].date;
+            }
+
+            // Se a data selecionada for anterior ou igual ao último registro, aplica a diferença apenas no dia selecionado
+            if (txDate <= lastYieldDate) {
                 finalHistory.push({ id: crypto.randomUUID(), date: txDate, amount: diff });
+            } else {
+                // Define o início do intervalo como o dia seguinte ao último lançamento
+                const startDate = new Date(lastYieldDate);
+                startDate.setUTCDate(startDate.getUTCDate() + 1);
+                const startStr = startDate.toISOString().split('T')[0];
+                
+                // Pega apenas os dias úteis desse novo intervalo reduzido
+                const newYieldingDays = getWorkDaysInRange(startStr, txDate);
+                
+                if (newYieldingDays.length > 0) {
+                    const dailyYield = diff / newYieldingDays.length;
+                    for (const day of newYieldingDays) {
+                        finalHistory.push({ id: crypto.randomUUID(), date: day, amount: dailyYield });
+                    }
+                } else {
+                    // Se não houver dias úteis no intervalo (ex: fim de semana), joga o valor na data de referência
+                    finalHistory.push({ id: crypto.randomUUID(), date: txDate, amount: diff });
+                }
             }
         }
 
