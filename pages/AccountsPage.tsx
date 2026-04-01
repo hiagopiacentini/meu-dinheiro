@@ -849,7 +849,7 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
 
     return (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-            <div className="xl:col-span-4 space-y-3">
+            <div className="xl:col-span-4 flex xl:flex-col overflow-x-auto xl:overflow-x-visible gap-3 pb-4 xl:pb-0 scrollbar-hide">
                 {accounts.map((acc, index) => {
                     const isSelected = acc.id === selectedAccountId;
                     const isDragOver = dragOverItemIndex === index;
@@ -864,7 +864,7 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={(e) => handleAccountDrop(e, index)}
                             onClick={() => setSelectedAccountId(acc.id)} 
-                            className={`w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-grab active:cursor-grabbing ${draggedItemIndex === index ? 'opacity-50' : ''} ${isDragOver ? 'border-blue-500 bg-blue-50' : ''} ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}
+                            className={`flex-shrink-0 w-[280px] xl:w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-grab active:cursor-grabbing ${draggedItemIndex === index ? 'opacity-50' : ''} ${isDragOver ? 'border-blue-500 bg-blue-50' : ''} ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}
                          >
                             <div className="flex items-center justify-between pointer-events-none gap-4">
                                 <div className="flex items-center space-x-4 min-w-0">
@@ -959,7 +959,7 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
                         </div>
                     </div>
                     
-                    <div className="overflow-x-auto">
+                    <div className="hidden md:block overflow-x-auto">
                          <table className="w-full text-sm">
                             <thead className="bg-gray-50 text-slate-500 uppercase text-xs">
                                 <tr>
@@ -994,6 +994,35 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
                                 )}
                             </tbody>
                         </table>
+                    </div>
+
+                    <div className="md:hidden divide-y divide-slate-100">
+                        {paginatedTransactions.length === 0 ? (
+                            <div className="text-center p-8 text-slate-500">Nenhuma transação nesta visão.</div>
+                        ) : (
+                            paginatedTransactions.map(t => {
+                                const categoryName = t.itemId ? categoryMap.get(t.itemId) : 'N/A';
+                                const displayProps = getTransactionDisplayProps(t, selectedAccountId);
+                                return (
+                                    <div key={t.id} className="p-4 space-y-2">
+                                        <div className="flex justify-between items-start">
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-bold text-slate-800 truncate">{t.description}</p>
+                                                <p className="text-xs text-slate-500">{formatDate(t.date)}</p>
+                                            </div>
+                                            <p className={`text-sm font-bold whitespace-nowrap ${displayProps.color}`}>
+                                                <PrivateValue>{displayProps.sign}{formatCurrency(t.amount)}</PrivateValue>
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${categoryColors[categoryName || ''] || defaultCategoryColor}`}>
+                                                {categoryName}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )
+                            })
+                        )}
                     </div>
                 </div>
             </div>

@@ -831,7 +831,7 @@ const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <KpiCardInvest title="Patrimônio em CDB" value={totalEquity} />
                 <KpiCardInvest title="Total investido" value={totalInvested} colorClass="text-blue-600" />
                 <KpiCardInvest title="Lucro no período" value={filteredTotalProfit} colorClass={filteredTotalProfit >= 0 ? 'text-green-600' : 'text-red-600'} />
@@ -844,7 +844,8 @@ const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 
                 </button>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* Desktop Table View */}
+            <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-gray-50 text-slate-500">
@@ -895,6 +896,59 @@ const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4">
+                {filteredCDBs.length === 0 ? (
+                    <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
+                        Nenhum investimento encontrado.
+                    </div>
+                ) : (
+                    filteredCDBs.filter(c => c.isActive).map(cdb => {
+                        const profit = cdb.profitInPeriod;
+                        return (
+                            <div key={cdb.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 tracking-normal">{cdb.name}</h3>
+                                        <p className="text-xs text-slate-500 font-normal tracking-normal">{cdb.bank} • {cdb.rateDescription}</p>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <button onClick={() => handleOpenEdit(cdb)} className="p-2 text-slate-400 hover:text-blue-500 rounded-full transition-colors"><PencilIcon className="w-4 h-4"/></button>
+                                        <button onClick={() => handleDelete(cdb.id)} className="p-2 text-slate-400 hover:text-red-500 rounded-full transition-colors"><TrashIcon className="w-4 h-4"/></button>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 py-3 border-y border-slate-100">
+                                    <div>
+                                        <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Aplicação</p>
+                                        <p className="text-xs text-slate-600 font-medium">{formatDate(cdb.applicationDate)}</p>
+                                        {cdb.maturityDate && <p className="text-[10px] text-slate-400 mt-1">Vence: {formatDate(cdb.maturityDate)}</p>}
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Valor Aplicado</p>
+                                        <p className="text-sm text-slate-700 font-semibold"><PrivateValue>{formatCurrency(cdb.principalAmount)}</PrivateValue></p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Saldo Bruto</p>
+                                        <p className="text-sm text-slate-800 font-bold"><PrivateValue>{formatCurrency(cdb.currentGrossBalance)}</PrivateValue></p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Lucro no Período</p>
+                                        <p className={`text-sm font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}><PrivateValue>{formatCurrency(profit)}</PrivateValue></p>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    <button onClick={() => setUpdateBalanceCdb(cdb)} className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 tracking-normal"><UpArrowIcon className="w-3 h-3"/> Atualizar</button>
+                                    <button onClick={() => setHistoryCdb(cdb)} className="flex-1 px-3 py-2 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-lg text-xs font-semibold flex items-center justify-center tracking-normal">Histórico</button>
+                                    <button onClick={() => setRedemptionCdb(cdb)} className="w-full px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-xs font-semibold flex items-center justify-center tracking-normal">Resgatar</button>
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
             </div>
 
             <DateRangePickerModal

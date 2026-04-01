@@ -462,6 +462,195 @@ const ReportsPage: React.FC = () => {
         };
     }, [reportTransactions, reportYields, categoryMap, itemBalanceMap, yieldItemInfo]);
 
+    const daysInPeriod = useMemo(() => {
+        const diffTime = Math.abs(dateBoundaries.end.getTime() - dateBoundaries.start.getTime());
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+    }, [dateBoundaries]);
+
+    const dailyAverage = useMemo(() => {
+        return dreData.totalExpense / daysInPeriod;
+    }, [dreData.totalExpense, daysInPeriod]);
+
+    const previousPeriodData = useMemo(() => {
+        const { start, end } = dateBoundaries;
+        
+        // Calcular período equivalente no mês anterior
+        const prevStart = new Date(start);
+        prevStart.setUTCMonth(prevStart.getUTCMonth() - 1);
+        
+        const prevEnd = new Date(end);
+        prevEnd.setUTCMonth(prevEnd.getUTCMonth() - 1);
+
+        const prevTxs = transactions.filter(t => {
+            const tDate = getUTCDate(t.date);
+            return tDate >= prevStart && tDate <= prevEnd;
+        });
+
+        let prevTotalExpense = 0;
+        let prevTotalIncome = 0;
+        const categoryTotals = new Map<string, number>();
+        const itemTotals = new Map<string, number>();
+
+        prevTxs.forEach(t => {
+            if (t.itemId && itemBalanceMap.get(t.itemId) === false) return;
+            if (yieldItemInfo && t.itemId === yieldItemInfo.id) return;
+            
+            if (t.type === TransactionType.INCOME) {
+                prevTotalIncome += t.amount;
+            } else if (t.type === TransactionType.EXPENSE) {
+                prevTotalExpense += t.amount;
+                
+                const catInfo = categoryMap.get(t.itemId || '');
+                if (catInfo) {
+                    categoryTotals.set(catInfo.name, (categoryTotals.get(catInfo.name) || 0) + t.amount);
+                    itemTotals.set(catInfo.itemName, (itemTotals.get(catInfo.itemName) || 0) + t.amount);
+                }
+            }
+        });
+
+        // Rendimentos do período anterior
+        cdbs.forEach(cdb => {
+            (cdb.yieldHistory || []).forEach(entry => {
+                const eDate = getUTCDate(entry.date);
+                if (eDate >= prevStart && eDate <= prevEnd) prevTotalIncome += entry.amount;
+            });
+        });
+
+        return { totalExpense: prevTotalExpense, totalIncome: prevTotalIncome, categoryTotals, itemTotals };
+    }, [transactions, cdbs, dateBoundaries, itemBalanceMap, yieldItemInfo, categoryMap]);
+
+    const insights = useMemo(() => {
+        const list: { type: 'info' | 'success' | 'warning', text: string }[] = [];
+        
+        // 1. Análise Geral de Despesas
+        if (previousPeriodData.totalExpense > 0) {
+            const diff = ((dreData.totalExpense - previousPeriodData.totalExpense) / previousPeriodData.totalExpense) * 100;
+            if (diff < 0) {
+                list.push({ 
+                    type: 'success', 
+                    text: `Suas despesas totais estão ${Math.abs(diff).toFixed(1)}% menores que no mesmo período do mês passado. Excelente progresso!` 
+                });
+            } else if (diff > 5) {
+                list.push({ 
+                    type: 'warning', 
+                    text: `Suas despesas totais aumentaram ${diff.toFixed(1)}% em relação ao mês passado. Vale revisar os maiores gastos.` 
+                });
+            }
+        }
+
+        // 2. Análise por Categoria (DRE)
+        dreData.expenses.forEach(cat => {
+            const prevVal = previousPeriodData.categoryTotals.get(cat.name) || 0;
+            if (prevVal > 0) {
+                const diff = ((cat.value - prevVal) / prevVal) * 100;
+                if (diff > 15 && cat.value > 100) { // Aumento relevante acima de 15% e valor > 100
+                    list.push({ 
+                        type: 'warning', 
+                        text: `Aumento expressivo em "${cat.name}": Seus gastos nesta categoria subiram ${diff.toFixed(1)}% (${formatCurrency(cat.value - prevVal)} a mais).` 
+                    });
+                } else if (diff < -15 && prevVal > 100) {
+                    list.push({ 
+                        type: 'success', 
+                        text: `Ótima redução em "${cat.name}": Você gastou ${Math.abs(diff).toFixed(1)}% menos que no mês passado nesta categoria.` 
+                    });
+                }
+            }
+        });
+
+        // 3. Análise de Itens Específicos (Subcategorias/Itens)
+        const currentItemTotals = new Map<string, number>();
+        reportTransactions.forEach(t => {
+            if (t.type === TransactionType.EXPENSE && t.itemId) {
+                const catInfo = categoryMap.get(t.itemId);
+                if (catInfo) {
+                    currentItemTotals.set(catInfo.itemName, (currentItemTotals.get(catInfo.itemName) || 0) + t.amount);
+                }
+            }
+        });
+
+        currentItemTotals.forEach((val, itemName) => {
+            const prevVal = previousPeriodData.itemTotals.get(itemName) || 0;
+            if (prevVal > 0) {
+                const diff = ((val - prevVal) / prevVal) * 100;
+                if (diff > 25 && val > 50) {
+                    list.push({ 
+                        type: 'info', 
+                        text: `O item "${itemName}" teve um aumento de ${diff.toFixed(1)}% no período. Verifique se foi um gasto pontual.` 
+                    });
+                }
+            }
+        });
+
+        // 4. Análise de Parcelas Finalizando
+        const endingInstallments = reportTransactions.filter(t => 
+            t.type === TransactionType.EXPENSE && 
+            t.totalInstallments && 
+            t.currentInstallment === t.totalInstallments
+        );
+
+        if (endingInstallments.length > 0) {
+            const totalSaved = endingInstallments.reduce((acc, t) => acc + t.amount, 0);
+            const names = endingInstallments.map(t => `"${t.description}"`).join(', ');
+            list.push({ 
+                type: 'success', 
+                text: `Boas notícias! ${endingInstallments.length} parcelas finalizam este mês: ${names}. Isso liberará ${formatCurrency(totalSaved)} no seu orçamento do mês que vem.` 
+            });
+        }
+
+        // 5. Análise de Margem e Teto
+        if (dreData.margin > 30) {
+            list.push({ type: 'success', text: `Sua margem de economia está excelente (${dreData.margin.toFixed(1)}%). Você está retendo uma boa parte da sua renda!` });
+        } else if (dreData.margin < 10 && dreData.totalIncome > 0) {
+            list.push({ type: 'warning', text: `Sua margem de economia está em ${dreData.margin.toFixed(1)}%. Considere reduzir gastos não essenciais para aumentar sua reserva.` });
+        }
+
+        const year = dateBoundaries.start.getUTCFullYear();
+        const month = dateBoundaries.start.getUTCMonth();
+        const annualGoal = goals[String(year)] || 0;
+        const forecast = forecasts[String(year)]?.[String(month)] || 0;
+        const monthlyCeiling = Math.max(0, forecast - (annualGoal / 12));
+        
+        if (monthlyCeiling > 0 && dreData.totalExpense > monthlyCeiling) {
+            list.push({ type: 'warning', text: `Atenção: Você ultrapassou o teto de gastos planejado para este mês em ${formatCurrency(dreData.totalExpense - monthlyCeiling)}.` });
+        }
+
+        // 6. Análise de Custos Fixos vs Variáveis
+        let fixedTotal = 0;
+        let variableTotal = 0;
+        reportTransactions.forEach(t => {
+            if (t.type === TransactionType.EXPENSE && t.itemId) {
+                const catInfo = categoryMap.get(t.itemId);
+                if (catInfo?.isFixed) fixedTotal += t.amount;
+                else variableTotal += t.amount;
+            }
+        });
+
+        if (dreData.totalExpense > 0) {
+            const variablePerc = (variableTotal / dreData.totalExpense) * 100;
+            if (variablePerc > 60) {
+                list.push({ 
+                    type: 'info', 
+                    text: `Seus gastos variáveis representam ${variablePerc.toFixed(0)}% das suas despesas. Este é o melhor lugar para buscar cortes se precisar economizar.` 
+                });
+            }
+        }
+
+        // 7. Detecção de Gastos Sem Categoria (se houver um item "Outros" ou similar muito alto)
+        const othersTotal = currentItemTotals.get('Outros') || currentItemTotals.get('Diversos') || 0;
+        if (othersTotal > dreData.totalExpense * 0.15) {
+            list.push({ 
+                type: 'warning', 
+                text: `Você tem muitos gastos (${formatCurrency(othersTotal)}) em categorias genéricas. Tente detalhar mais para ter um controle melhor.` 
+            });
+        }
+
+        // Ordenar: Amarelo (warning), Azul (info), Verde (success)
+        return list.sort((a, b) => {
+            const order = { 'warning': 1, 'info': 2, 'success': 3 };
+            return order[a.type] - order[b.type];
+        });
+    }, [dreData, previousPeriodData, dateBoundaries, goals, forecasts, reportTransactions, categoryMap]);
+
     const openBreakdown = (title: string, txs: any[]) => {
         setBreakdownModal({ open: true, title, txs });
     };
@@ -629,12 +818,47 @@ const ReportsPage: React.FC = () => {
 
             <DateRangePickerModal isOpen={isPickerOpen} onClose={() => setIsPickerOpen(false)} value={customDateRange} onChange={handleDateChange} />
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
                 <KpiCard title="Resultado" value={dreData.netResult} colorClass={dreData.netResult >= 0 ? 'text-emerald-500' : 'text-rose-500'} subtext="Líquido final" />
                 <KpiCard title="Margem" value={`${dreData.margin.toFixed(1)}%`} isCurrency={false} colorClass="text-blue-600" subtext="Eficiência do período" />
                 <KpiCard title="Receitas totais" value={dreData.totalIncome} subtext="Entradas e rendimentos" />
                 <KpiCard title="Despesas totais" value={dreData.totalExpense} subtext="Saídas operacionais" />
+                <KpiCard title="Gasto Médio Diário" value={dailyAverage} subtext={`Média em ${daysInPeriod} dias`} colorClass="text-slate-800" />
             </div>
+
+            {insights.length > 0 && (
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-xs font-bold text-slate-500 flex items-center gap-2 tracking-wider uppercase">
+                            <div className="w-1 h-3 rounded-full bg-indigo-500"></div>
+                            Insights e Performance
+                        </h3>
+                        <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-full">
+                            {insights.length} {insights.length === 1 ? 'análise' : 'análises'}
+                        </span>
+                    </div>
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x">
+                        {insights.map((insight, idx) => (
+                            <div key={idx} className={`flex-shrink-0 w-[280px] md:w-[320px] p-3 rounded-lg border flex items-start gap-2 snap-start transition-all hover:shadow-sm ${
+                                insight.type === 'success' ? 'bg-emerald-50/50 border-emerald-100 text-emerald-900' : 
+                                insight.type === 'warning' ? 'bg-amber-50/50 border-amber-100 text-amber-900' : 
+                                'bg-blue-50/50 border-blue-100 text-blue-900'
+                            }`}>
+                                <div className="mt-0.5 flex-shrink-0">
+                                    {insight.type === 'success' ? (
+                                        <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[8px]">✓</div>
+                                    ) : insight.type === 'warning' ? (
+                                        <div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-white text-[8px]">!</div>
+                                    ) : (
+                                        <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[8px]">i</div>
+                                    )}
+                                </div>
+                                <p className="text-[11px] font-medium leading-tight line-clamp-3">{insight.text}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className={`bg-white p-6 rounded-xl border border-slate-200 shadow-sm ${isPrivacyMode ? 'blur-md' : ''}`}>
@@ -752,8 +976,8 @@ const ReportsPage: React.FC = () => {
                         <p className="text-sm text-slate-300 font-semibold tracking-normal">Análise estruturada do período</p>
                     </div>
                 </div>
-                <div className="p-0 overflow-x-auto">
-                    <table className="w-full text-sm">
+                <div className="p-0 overflow-x-auto -mx-6 px-6 md:mx-0 md:px-0">
+                    <table className="w-full text-sm min-w-[600px] md:min-w-0">
                         <thead className="bg-slate-50/50 text-slate-500">
                             <tr className="text-[11px] font-bold uppercase tracking-normal">
                                 <th className="py-4 px-6 text-left">Descrição da conta</th>

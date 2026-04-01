@@ -78,6 +78,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const handleDemoLogin = () => {
     if (window.confirm("Atenção: Entrar no modo Demonstração irá substituir os dados atuais do navegador pelos dados de exemplo. Deseja continuar?")) {
       try {
+        localStorage.setItem('isDemoMode', 'true');
         localStorage.setItem('accounts', safeStringify(sampleAccounts));
         localStorage.setItem('transactions', safeStringify(sampleTransactions));
         localStorage.setItem('categories', safeStringify(sampleCategories));

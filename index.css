@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-slate-700 antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+/* Custom Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-slate-100 rounded;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
+}
+
+.input-style {
+  @apply bg-white border border-slate-300 text-slate-800 rounded-lg px-3 py-2.5 transition-all w-full text-sm;
+}
+.input-style:focus {
+  @apply outline-none ring-2 ring-blue-500/40 border-blue-500;
+}
+select.input-style {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3e%3cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd' /%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25em 1.25em;
+  padding-right: 2.5rem;
+}
+.btn-primary {
+  @apply inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 text-white rounded-lg font-semibold text-sm transition-colors border-none cursor-pointer hover:bg-blue-700;
+}
+.btn-secondary {
+  @apply inline-flex items-center justify-center px-4 py-2.5 bg-white text-slate-700 rounded-lg font-semibold text-sm transition-all border border-slate-300 cursor-pointer hover:bg-gray-50;
+}

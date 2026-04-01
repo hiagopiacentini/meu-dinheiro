@@ -286,8 +286,8 @@ const GoalsPage: React.FC = () => {
                     <p className="text-sm text-slate-500 font-medium">Defina quanto espera ganhar para calcular seu teto de gastos diário.</p>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                <div className="overflow-x-auto -mx-6 px-6">
+                    <table className="w-full text-sm min-w-[600px]">
                         <thead className="bg-slate-50 text-slate-500">
                             <tr className="text-[11px] font-bold tracking-normal border-b border-slate-100">
                                 <th className="py-3 px-4 text-left font-medium">Mês</th>
@@ -524,7 +524,7 @@ const GoalsPage: React.FC = () => {
 
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <h3 className="font-bold text-lg text-slate-800 mb-6 tracking-tight">Desempenho realizado</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {monthlyPerformance.map((month, idx) => {
                         const monthProgress = monthlyGoal > 0 ? (month.realized / monthlyGoal) * 100 : 0;
                         const isGoalMet = month.realized >= monthlyGoal && monthlyGoal > 0;

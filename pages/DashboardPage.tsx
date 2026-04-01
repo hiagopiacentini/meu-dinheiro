@@ -689,7 +689,7 @@ const DashboardPage: React.FC = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           <StatCard 
             title="Resultado" 
             amount={periodSavings} 
@@ -735,26 +735,28 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-       <div className={`grid grid-cols-1 lg:grid-cols-5 gap-6 ${isPrivacyMode ? 'filter blur-sm select-none' : ''}`}>
-          <div className="lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+       <div className={`grid grid-cols-1 xl:grid-cols-5 gap-6 ${isPrivacyMode ? 'filter blur-sm select-none' : ''}`}>
+          <div className="xl:col-span-3 bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-sm">
               <h3 className="font-bold text-lg mb-4 text-slate-800 tracking-normal">Receitas vs. Despesas</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={monthlyChartData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" fontWeight="400"/>
-                  <YAxis fontSize={12} tickLine={false} axisLine={false} stroke="#64748b" fontWeight="400" tickFormatter={(value) => `R$${(value as number)/1000}k`} />
-                  <Tooltip 
-                    cursor={{fill: 'rgba(241, 245, 249, 0.5)'}}
-                    formatter={(value) => formatCurrency(value as number)} 
-                    contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }} 
-                    labelStyle={{ color: '#1e293b' }}/>
-                  <Legend wrapperStyle={{fontSize: "13px", color: '#64748b', fontWeight: 'normal'}}/>
-                  <Bar dataKey="Receitas" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={10} />
-                  <Bar dataKey="Despesas" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={10} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} stroke="#64748b" fontWeight="400" dy={10}/>
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} stroke="#64748b" fontWeight="400" tickFormatter={(value) => `R$${(value as number)/1000}k`} />
+                    <Tooltip 
+                      cursor={{fill: 'rgba(241, 245, 249, 0.5)'}}
+                      formatter={(value) => formatCurrency(value as number)} 
+                      contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.5rem', fontSize: '12px' }} 
+                      labelStyle={{ color: '#1e293b', fontWeight: 'bold' }}/>
+                    <Legend wrapperStyle={{fontSize: "12px", color: '#64748b', fontWeight: 'normal', paddingTop: '10px'}}/>
+                    <Bar dataKey="Receitas" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={window.innerWidth < 768 ? 8 : 12} />
+                    <Bar dataKey="Despesas" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={window.innerWidth < 768 ? 8 : 12} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
           </div>
-          <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="xl:col-span-2 bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-sm">
              <CategoryChart transactions={filteredTransactions} categories={categories} />
           </div>
       </div>

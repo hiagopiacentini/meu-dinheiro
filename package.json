@@ -6,14 +6,17 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "recharts": "^3.4.1",
-    "react-dom": "^19.2.0",
-    "react": "^19.2.0",
+    "@google/genai": "^1.38.0",
+    "@tailwindcss/vite": "^4.2.1",
     "firebase": "latest",
-    "@google/genai": "^1.38.0"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recharts": "^3.4.1",
+    "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

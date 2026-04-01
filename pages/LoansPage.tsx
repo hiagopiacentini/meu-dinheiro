@@ -356,7 +356,7 @@ const LoansPage: React.FC = () => {
                 {loans.length === 0 ? (
                     <p className="text-center text-slate-500 py-8">Nenhum empréstimo registrado.</p>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {sortedLoans.map(loan => {
                             const isPaid = loan.status === 'paid';
                             const remainingAmount = calculateRemainingAmount(loan);

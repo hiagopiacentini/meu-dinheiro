@@ -204,10 +204,14 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [isDeduction, setIsDeduction] = useState(false);
     const [deductionAmount, setDeductionAmount] = useState('');
     const [deductionItemId, setDeductionItemId] = useState('');
+    const [deductionAccountId, setDeductionAccountId] = useState('');
+    const [deductionCardId, setDeductionCardId] = useState('');
     
     const [isRebate, setIsRebate] = useState(false);
     const [rebateAmount, setRebateAmount] = useState('');
     const [rebateItemId, setRebateItemId] = useState('');
+    const [rebateAccountId, setRebateAccountId] = useState('');
+    const [rebateCardId, setRebateCardId] = useState('');
 
     const [peerAccountId, setPeerAccountId] = useState('');
 
@@ -268,9 +272,13 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setIsDeduction(false);
         setDeductionAmount('');
         setDeductionItemId('');
+        setDeductionAccountId('');
+        setDeductionCardId('');
         setIsRebate(false);
         setRebateAmount('');
         setRebateItemId('');
+        setRebateAccountId('');
+        setRebateCardId('');
         setPeerAccountId('');
     }, [activeAccounts, lastUsedDetails, accountFilter]);
 
@@ -588,7 +596,16 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              const deductVal = parseFloat(deductionAmount);
              const newTxs = [
                  { ...transactionData, amount: grossAmount, type: TransactionType.INCOME, cardId: cardId || null, linkedGroupId: finalLinkedGroupId },
-                 { description: `Desconto/Consumo: ${description}`, amount: deductVal, date, type: TransactionType.EXPENSE, accountId, itemId: deductionItemId, cardId: cardId || null, linkedGroupId: finalLinkedGroupId }
+                 { 
+                     description: `Desconto/Consumo: ${description}`, 
+                     amount: deductVal, 
+                     date, 
+                     type: TransactionType.EXPENSE, 
+                     accountId: deductionAccountId || accountId, 
+                     itemId: deductionItemId, 
+                     cardId: deductionCardId || (deductionAccountId ? null : cardId), 
+                     linkedGroupId: finalLinkedGroupId 
+                 }
              ];
              success = await addTransactions(newTxs);
         } else if (type === TransactionType.EXPENSE && isRebate && isSplit) {
@@ -616,9 +633,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                  amount: rebateVal,
                  date,
                  type: TransactionType.INCOME,
-                 accountId,
+                 accountId: rebateAccountId || accountId,
                  itemId: rebateItemId,
-                 cardId: cardId || null,
+                 cardId: rebateCardId || (rebateAccountId ? null : cardId),
                  linkedGroupId: finalLinkedGroupId
              });
 
@@ -636,7 +653,16 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              const rebateVal = parseFloat(rebateAmount);
              const newTxs = [
                  { ...transactionData, amount: grossExpense, type: TransactionType.EXPENSE, cardId: cardId || null, linkedGroupId: finalLinkedGroupId },
-                 { description: `Abatimento/Crédito: ${description}`, amount: rebateVal, date, type: TransactionType.INCOME, accountId, itemId: rebateItemId, cardId: cardId || null, linkedGroupId: finalLinkedGroupId }
+                 { 
+                     description: `Abatimento/Crédito: ${description}`, 
+                     amount: rebateVal, 
+                     date, 
+                     type: TransactionType.INCOME, 
+                     accountId: rebateAccountId || accountId, 
+                     itemId: rebateItemId, 
+                     cardId: rebateCardId || (rebateAccountId ? null : cardId), 
+                     linkedGroupId: finalLinkedGroupId 
+                 }
              ];
              success = await addTransactions(newTxs);
         } else if (editingInstallmentGroup) {
@@ -729,6 +755,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         setSplitItems(expenseParts.map((t, i) => ({ id: i, itemId: t.itemId || '', amount: String(t.amount) })));
                         setRebateAmount(String(incomePart.amount));
                         setRebateItemId(incomePart.itemId || '');
+                        setRebateAccountId(incomePart.accountId);
+                        setRebateCardId(incomePart.cardId || '');
                     }
                     else if (incomePart.linkedGroupId && incomePart.amount >= expenseParts[0].amount && !expenseParts[0].description.includes('Abatimento')) {
                         // Deduction (Income side)
@@ -740,6 +768,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         setItemId(incomePart.itemId || '');
                         setDeductionAmount(String(expenseParts[0].amount));
                         setDeductionItemId(expenseParts[0].itemId || '');
+                        setDeductionAccountId(expenseParts[0].accountId);
+                        setDeductionCardId(expenseParts[0].cardId || '');
                     } 
                     else {
                         // Simple Rebate
@@ -751,6 +781,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         setItemId(expenseParts[0].itemId || '');
                         setRebateAmount(String(incomePart.amount));
                         setRebateItemId(incomePart.itemId || '');
+                        setRebateAccountId(incomePart.accountId);
+                        setRebateCardId(incomePart.cardId || '');
                     }
                 }
                 setEditChoiceModal({ isOpen: false, transaction: null });
@@ -820,7 +852,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-5 xl:col-span-4">
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm sticky top-6">
+                <div className="bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-sm sticky top-6">
                     <form onSubmit={handleSubmit}>
                         <h2 className="text-xl font-bold text-slate-800 mb-4">
                             {isEditing ? (isEditingSingleParcel ? 'Editar Parcela' : 'Editar Transação') : 'Nova Transação'}
@@ -949,6 +981,27 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                             {expenseCategoryOptions.map(opt => <option key={opt.id} value={opt.id}>{`${opt.catName} > ${opt.subName} > ${opt.name}`}</option>)}
                                         </select>
                                     </div>
+                                    <div>
+                                        <label className="text-sm font-medium text-amber-700 mb-1 block">Conta do Desconto</label>
+                                        <select 
+                                            value={deductionCardId ? `${deductionAccountId}|${deductionCardId}` : deductionAccountId} 
+                                            onChange={e => { 
+                                                const val = e.target.value; 
+                                                if (val.includes('|')) { 
+                                                    const [accId, cId] = val.split('|'); 
+                                                    setDeductionAccountId(accId); 
+                                                    setDeductionCardId(cId); 
+                                                } else { 
+                                                    setDeductionAccountId(val); 
+                                                    setDeductionCardId(''); 
+                                                } 
+                                            }} 
+                                            className="input-style border-amber-300 focus:ring-amber-500"
+                                        >
+                                            <option value="">Mesma conta da transação principal</option>
+                                            {accountOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                        </select>
+                                    </div>
                                     <div className="pt-2 border-t border-amber-200 flex justify-between items-center">
                                         <span className="text-sm font-medium text-amber-900">Líquido a receber:</span>
                                         <span className="text-lg font-bold text-amber-900">
@@ -970,6 +1023,27 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                         <select value={rebateItemId} onChange={e => setRebateItemId(e.target.value)} required className="input-style border-emerald-300 focus:ring-emerald-500">
                                             <option value="" disabled>Selecione uma categoria...</option>
                                             {incomeCategoryOptions.map(opt => <option key={opt.id} value={opt.id}>{`${opt.catName} > ${opt.subName} > ${opt.name}`}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-medium text-emerald-700 mb-1 block">Conta do Abatimento</label>
+                                        <select 
+                                            value={rebateCardId ? `${rebateAccountId}|${rebateCardId}` : rebateAccountId} 
+                                            onChange={e => { 
+                                                const val = e.target.value; 
+                                                if (val.includes('|')) { 
+                                                    const [accId, cId] = val.split('|'); 
+                                                    setRebateAccountId(accId); 
+                                                    setRebateCardId(cId); 
+                                                } else { 
+                                                    setRebateAccountId(val); 
+                                                    setRebateCardId(''); 
+                                                } 
+                                            }} 
+                                            className="input-style border-emerald-300 focus:ring-emerald-500"
+                                        >
+                                            <option value="">Mesma conta da transação principal</option>
+                                            {accountOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                                         </select>
                                     </div>
                                     <div className="pt-2 border-t border-emerald-200 flex justify-between items-center">
@@ -1071,23 +1145,24 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                     onChoice={(mode) => editChoiceModal.transaction && processEdit(editChoiceModal.transaction, mode)}
                 />
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                        <p className="text-sm text-slate-500 font-medium">Receitas no Período</p>
-                        <p className="text-2xl font-bold text-green-600"><PrivateValue>{formatCurrency(periodIncome)}</PrivateValue></p>
+                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Receitas no Período</p>
+                        <p className="text-xl md:text-2xl font-bold text-green-600"><PrivateValue>{formatCurrency(periodIncome)}</PrivateValue></p>
                     </div>
                     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                        <p className="text-sm text-slate-500 font-medium">Despesas no Período</p>
-                        <p className="text-2xl font-bold text-red-600"><PrivateValue>{formatCurrency(periodExpenses)}</PrivateValue></p>
+                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Despesas no Período</p>
+                        <p className="text-xl md:text-2xl font-bold text-red-600"><PrivateValue>{formatCurrency(periodExpenses)}</PrivateValue></p>
                     </div>
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                        <p className="text-sm text-slate-500 font-medium">Saldo</p>
-                        <p className={`text-2xl font-bold ${periodIncome - periodExpenses >= 0 ? 'text-slate-800' : 'text-red-600'}`}><PrivateValue>{formatCurrency(periodIncome - periodExpenses)}</PrivateValue></p>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm sm:col-span-2 md:col-span-1">
+                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Saldo</p>
+                        <p className={`text-xl md:text-2xl font-bold ${periodIncome - periodExpenses >= 0 ? 'text-slate-800' : 'text-red-600'}`}><PrivateValue>{formatCurrency(periodIncome - periodExpenses)}</PrivateValue></p>
                     </div>
                 </div>
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto w-full">
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto w-full">
                         <table className="min-w-full text-sm">
                             <thead className="bg-gray-50 text-slate-500 uppercase text-xs">
                                 <tr>
@@ -1148,6 +1223,62 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                                 )}
                             </tbody>
                         </table>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden divide-y divide-slate-100">
+                        {paginatedTransactions.length === 0 ? (
+                            <div className="text-center p-8 text-slate-500">Nenhum lançamento encontrado.</div>
+                        ) : (
+                            paginatedTransactions.map(t => {
+                                const categoryInfo = t.itemId ? categoryMap.get(t.itemId) : null;
+                                const accountName = accountMap.get(t.accountId);
+                                const cardName = t.cardId ? cardMap.get(t.cardId) : null;
+                                const displayAccount = cardName ? `${accountName} -> ${cardName}` : accountName;
+                                let displayProps = { color: 'text-slate-800', sign: '' };
+                                if (t.type === TransactionType.INCOME) displayProps = { color: 'text-green-600', sign: '+ ' };
+                                else if (t.type === TransactionType.EXPENSE) displayProps = { color: 'text-red-600', sign: '- ' };
+                                else if (t.type === TransactionType.TRANSFER) {
+                                    if (accountFilter !== 'Todos') {
+                                        const viewingId = accountFilter.includes('|') ? accountFilter.split('|')[0] : accountFilter;
+                                        if (accountFilter.includes('|')) {
+                                            const viewingCardId = accountFilter.split('|')[1];
+                                            if (t.cardId === viewingCardId && t.destinationAccountId === viewingId) displayProps = { color: 'text-green-600', sign: '+ ' };
+                                            else displayProps = { color: 'text-red-600', sign: '- ' };
+                                        } else {
+                                            if (t.accountId === viewingId) displayProps = { color: 'text-red-600', sign: '- ' };
+                                            else if (t.destinationAccountId === viewingId) displayProps = { color: 'text-green-600', sign: '+ ' };
+                                        }
+                                    } else displayProps = { color: 'text-slate-500', sign: '' };
+                                }
+                                return (
+                                    <div key={t.id} className="p-4 active:bg-slate-50 transition-colors">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <p className="font-bold text-slate-800 text-base leading-tight mb-1">{t.description}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-slate-500">{formatDate(t.date)}</span>
+                                                    <span className="text-xs text-slate-300">•</span>
+                                                    <span className="text-xs text-slate-500 truncate max-w-[120px]">{displayAccount}</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className={`font-bold text-lg ${displayProps.color}`}>
+                                                    <PrivateValue>{displayProps.sign}{formatCurrency(t.amount)}</PrivateValue>
+                                                </p>
+                                                <span className={`inline-block px-2 py-0.5 text-[10px] capitalize font-bold rounded-md mt-1 ${categoryInfo ? (categoryColors[categoryInfo.cat] || defaultCategoryColor) : defaultCategoryColor}`}>
+                                                    {categoryInfo?.item || 'N/A'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-slate-50">
+                                            <button onClick={() => handleEdit(t)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold transition-colors"><PencilIcon className="w-3.5 h-3.5"/> Editar</button>
+                                            <button onClick={() => handleDelete(t.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-bold transition-colors"><TrashIcon className="w-3.5 h-3.5"/> Excluir</button>
+                                        </div>
+                                    </div>
+                                )
+                            })
+                        )}
                     </div>
                      {totalPages > 1 && (
                         <div className="p-4 border-t border-slate-200 flex justify-between items-center">

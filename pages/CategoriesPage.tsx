@@ -401,7 +401,7 @@ const CategoriesPage: React.FC<{ addCategoryTrigger: number }> = ({ addCategoryT
     
     return (
         <div className="space-y-6 pb-12">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                     <p className="text-xs font-medium text-slate-500 tracking-normal">Categorias</p>
                     <p className="text-xl font-bold text-slate-700 tracking-normal">{stats.catCount}</p>
