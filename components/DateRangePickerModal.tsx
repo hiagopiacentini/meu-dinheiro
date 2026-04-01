@@ -107,7 +107,7 @@ const DateRangePickerModal: React.FC<DateRangePickerModalProps> = ({ isOpen, onC
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/5 backdrop-blur-[1px] z-50 flex justify-center items-center" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm m-4" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-lg font-bold text-slate-800">Selecione o Período</h2>

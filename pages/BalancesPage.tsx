@@ -119,7 +119,7 @@ const BalancesPage: React.FC = () => {
                             <p className="text-sm font-medium text-slate-500 tracking-normal">Patrimônio líquido</p>
                             <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><BalancesIcon className="w-5 h-5"/></div>
                         </div>
-                        <p className={`text-3xl font-bold tracking-normal ${totalNetWorth >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
+                        <p className={`text-2xl font-bold tracking-normal ${totalNetWorth >= 0 ? 'text-slate-800' : 'text-rose-600'} whitespace-nowrap`}>
                             <PrivateValue>{formatCurrency(totalNetWorth)}</PrivateValue>
                         </p>
                     </div>
@@ -131,7 +131,7 @@ const BalancesPage: React.FC = () => {
                             <p className="text-sm font-medium text-slate-500 tracking-normal">Disponível em conta</p>
                             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><MoneyIcon className="w-5 h-5"/></div>
                         </div>
-                        <p className="text-3xl font-bold text-emerald-600 tracking-normal">
+                        <p className="text-2xl font-bold text-emerald-600 tracking-normal whitespace-nowrap">
                             <PrivateValue>{formatCurrency(totalCash)}</PrivateValue>
                         </p>
                     </div>
@@ -143,7 +143,7 @@ const BalancesPage: React.FC = () => {
                             <p className="text-sm font-medium text-slate-500 tracking-normal">Investido (CDB)</p>
                             <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><BalancesIcon className="w-5 h-5 transform rotate-180"/></div>
                         </div>
-                        <p className="text-3xl font-bold text-purple-600 tracking-normal">
+                        <p className="text-2xl font-bold text-purple-600 tracking-normal whitespace-nowrap">
                             <PrivateValue>{formatCurrency(totalInvested)}</PrivateValue>
                         </p>
                     </div>
@@ -155,7 +155,7 @@ const BalancesPage: React.FC = () => {
                             <p className="text-sm font-medium text-slate-500 tracking-normal">Comprometido</p>
                             <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><CreditCardIcon className="w-5 h-5"/></div>
                         </div>
-                        <p className="text-3xl font-bold text-rose-600 tracking-normal">
+                        <p className="text-2xl font-bold text-rose-600 tracking-normal whitespace-nowrap">
                             <PrivateValue>{formatCurrency(totalDebt)}</PrivateValue>
                         </p>
                     </div>

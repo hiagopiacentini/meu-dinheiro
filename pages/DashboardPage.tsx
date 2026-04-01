@@ -34,7 +34,7 @@ const StatCard: React.FC<{title: string, amount: number, percentage?: number, is
             {title}
             {info && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-normal">{info}</span>}
         </h3>
-        <p className="text-3xl font-bold text-slate-800 mb-2 tracking-tight">
+        <p className="text-2xl font-bold text-slate-800 mb-2 tracking-tight whitespace-nowrap">
             <PrivateValue>{formatCurrency(amount)}</PrivateValue>
         </p>
         {percentage !== undefined && isPositive !== undefined && (

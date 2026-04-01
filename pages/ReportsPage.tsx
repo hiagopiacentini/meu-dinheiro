@@ -34,7 +34,7 @@ const KpiCard: React.FC<{ title: string, value: string | number, subtext?: strin
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-1 hover:shadow-md transition-all">
         <h3 className="text-sm font-semibold text-slate-700 tracking-normal">{title}</h3>
         <div>
-            <p className={`text-3xl font-bold tracking-normal ${colorClass}`}>
+            <p className={`text-2xl font-bold tracking-normal ${colorClass} whitespace-nowrap`}>
                 <PrivateValue>{typeof value === 'number' || isCurrency ? formatCurrency(Number(value)) : value}</PrivateValue>
             </p>
             {subtext && <p className="text-[11px] text-slate-600 font-medium tracking-normal mt-1">{subtext}</p>}

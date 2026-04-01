@@ -364,7 +364,7 @@ const YieldHistoryModal: React.FC<{
 const KpiCardInvest: React.FC<{ title: string, value: string | number, colorClass?: string, isCurrency?: boolean }> = ({ title, value, colorClass = "text-slate-800", isCurrency = true }) => (
     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-1 transition-shadow hover:shadow-md">
         <h3 className="text-sm font-medium text-slate-500 tracking-normal">{title}</h3>
-        <p className={`text-2xl md:text-3xl font-bold tracking-tight ${colorClass}`}>
+        <p className={`text-xl md:text-2xl font-bold tracking-tight ${colorClass} whitespace-nowrap`}>
             <PrivateValue>{typeof value === 'number' || isCurrency ? formatCurrency(Number(value)) : value}</PrivateValue>
         </p>
     </div>

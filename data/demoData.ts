@@ -65,7 +65,11 @@ const currentYear = now.getFullYear();
 const currentMonth = now.getMonth();
 
 const getDateFor = (monthOffset: number, day: number) => {
-    return new Date(currentYear, currentMonth - monthOffset, day).toISOString().split('T')[0];
+    const d = new Date(currentYear, currentMonth - monthOffset, day);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${dayStr}`;
 };
 
 export const sampleTransactions: Transaction[] = [
@@ -101,7 +105,13 @@ export const sampleTransactions: Transaction[] = [
         id: `t-demo-inst-${i + 3}`,
         description: `Celular Novo (${i + 3}/12)`,
         amount: 416.58,
-        date: new Date(currentYear, currentMonth + i + 1, 28).toISOString().split('T')[0],
+        date: (() => {
+            const d = new Date(currentYear, currentMonth + i + 1, 28);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const dayStr = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${dayStr}`;
+        })(),
         type: TransactionType.EXPENSE as TransactionType,
         accountId: 'nubank-demo',
         itemId: 'i20',

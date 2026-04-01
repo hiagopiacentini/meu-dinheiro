@@ -8,9 +8,15 @@ import XIcon from '../components/icons/XIcon';
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const formatDate = (dateString: string) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-    return new Date(date.getTime() + userTimezoneOffset).toLocaleDateString('pt-BR');
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
+};
+const getTodayLocalDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 };
 
 
@@ -22,7 +28,7 @@ const PartialSettlementModal: React.FC<{
     remainingAmount: number;
 }> = ({ isOpen, onClose, onSave, loan, remainingAmount }) => {
     const [amount, setAmount] = useState('');
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(getTodayLocalDate());
 
     if (!isOpen) return null;
 
@@ -35,7 +41,7 @@ const PartialSettlementModal: React.FC<{
         }
         await onSave(settleAmount, date);
         setAmount('');
-        setDate(new Date().toISOString().split('T')[0]);
+        setDate(getTodayLocalDate());
     };
 
     return (
@@ -91,7 +97,7 @@ const SettleLoanModal: React.FC<{
     loan: Loan;
     remainingAmount: number;
 }> = ({ isOpen, onClose, onSettle, loan, remainingAmount }) => {
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(getTodayLocalDate());
 
     if (!isOpen) return null;
 
@@ -177,7 +183,7 @@ const LoansPage: React.FC = () => {
 
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(getTodayLocalDate());
     const [lenderAccountId, setLenderAccountId] = useState('');
     const [borrowerAccountId, setBorrowerAccountId] = useState('');
 
@@ -227,7 +233,7 @@ const LoansPage: React.FC = () => {
         if (loanId) {
             setDescription('');
             setAmount('');
-            setDate(new Date().toISOString().split('T')[0]);
+            setDate(getTodayLocalDate());
             setLenderAccountId('');
             setBorrowerAccountId('');
         }

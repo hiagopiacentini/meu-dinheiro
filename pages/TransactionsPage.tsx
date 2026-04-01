@@ -8,6 +8,8 @@ import DateRangePickerModal from '../components/DateRangePickerModal';
 import ImportTransactionsModal from '../components/ImportTransactionsModal';
 import PlusIcon from '../components/icons/PlusIcon';
 import UploadIcon from '../components/icons/UploadIcon';
+import DownloadIcon from '../components/icons/DownloadIcon';
+import SparklesIcon from '../components/icons/SparklesIcon';
 import XIcon from '../components/icons/XIcon';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
@@ -15,6 +17,17 @@ import ChevronDownIcon from '../components/icons/ChevronDownIcon';
 import PrivateValue from '../components/PrivateValue';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+const getTodayLocalDate = () => {
+    return toISODateString(new Date());
+};
+
+const toISODateString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
 
 const getNowGmtMinus4 = () => {
     const now = new Date();
@@ -25,11 +38,12 @@ const getNowGmtMinus4 = () => {
 
 const getUTCDate = (dateString: string) => {
     const date = new Date(dateString);
-    return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 };
 
 const formatDate = (dateString: string) => {
-    return getUTCDate(dateString).toLocaleDateString('pt-BR');
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
 };
 
 const categoryColors: { [key: string]: string } = {
@@ -186,7 +200,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [type, setType] = useState<TransactionType>(lastUsedDetails.type);
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(getTodayLocalDate());
     const [accountId, setAccountId] = useState(lastUsedDetails.accountId);
     const [cardId, setCardId] = useState(lastUsedDetails.cardId || '');
     const [itemId, setItemId] = useState('');
@@ -199,7 +213,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const [amountPaid, setAmountPaid] = useState('');
     const [changeAccountId, setChangeAccountId] = useState('');
     const [changeItemId, setChangeItemId] = useState('');
-    const [changeDate, setChangeDate] = useState(new Date().toISOString().split('T')[0]);
+    const [changeDate, setChangeDate] = useState(getTodayLocalDate());
     
     const [isDeduction, setIsDeduction] = useState(false);
     const [deductionAmount, setDeductionAmount] = useState('');
@@ -244,7 +258,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
         setType(lastUsedDetails.type);
         setDescription('');
         setAmount('');
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayLocalDate();
         setDate(today);
         setChangeDate(today);
         if (accountFilter !== 'Todos') {
@@ -419,6 +433,43 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     
     const handleCustomDateChange = (range: { start: Date | null, end: Date | null }) => setCustomDateRange(range);
     
+    const handleExportCSV = () => {
+        const headers = ['Data', 'Descrição', 'Conta', 'Cartão', 'Item', 'Valor', 'Tipo', 'Parcela'];
+        const rows = filteredTransactions.map(t => {
+            const categoryInfo = t.itemId ? categoryMap.get(t.itemId) : null;
+            const accountName = accountMap.get(t.accountId) || '';
+            const cardName = t.cardId ? cardMap.get(t.cardId) : '';
+            const itemName = categoryInfo ? `${categoryInfo.category} > ${categoryInfo.item}` : '';
+            const installment = t.totalInstallments ? `${t.currentInstallment}/${t.totalInstallments}` : '';
+            
+            return [
+                formatDate(t.date),
+                t.description,
+                accountName,
+                cardName,
+                itemName,
+                t.amount.toString().replace('.', ','),
+                t.type,
+                installment
+            ];
+        });
+
+        const csvContent = [
+            headers.join(';'),
+            ...rows.map(row => row.map(cell => `"${cell}"`).join(';'))
+        ].join('\n');
+
+        const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `lancamentos_${toISODateString(new Date())}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const handleDescriptionBlur = () => {
         if (!description.trim() || isSplit) return;
         const lastTransactionWithDescription = [...transactions].reverse().find(t => t.description.toLowerCase() === description.toLowerCase());
@@ -508,6 +559,16 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
     const totalAmountValue = parseFloat(amount) || 0;
     const splitDiff = Math.abs(totalAmountValue - splitSum);
     const isSplitValid = isSplit ? splitDiff < 0.01 : true;
+
+    const safeAddMonths = (date: Date, months: number) => {
+        const d = new Date(date);
+        const day = d.getUTCDate();
+        d.setUTCMonth(d.getUTCMonth() + months);
+        if (d.getUTCDate() !== day) {
+            d.setUTCDate(0); // Ajusta para o último dia do mês anterior se houver rollover (ex: 31 Jan -> 3 Mar vira 28/29 Fev)
+        }
+        return d;
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -672,8 +733,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              const originalDate = getUTCDate(date);
              const newTransactions = [];
              for (let i = 0; i < totalInstallments; i++) {
-                 const installmentDate = new Date(originalDate); installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
-                 newTransactions.push({ ...commonData, amount: parseFloat(amount), itemId, date: installmentDate.toISOString().split('T')[0], description: `${description} (${i + 1}/${totalInstallments})`, installmentGroupId: groupId, currentInstallment: i + 1, totalInstallments });
+                 const installmentDate = safeAddMonths(originalDate, i);
+                 newTransactions.push({ ...commonData, amount: parseFloat(amount), itemId, date: toISODateString(installmentDate), description: `${description} (${i + 1}/${totalInstallments})`, installmentGroupId: groupId, currentInstallment: i + 1, totalInstallments });
              }
              success = await addTransactions(newTransactions);
         } else if (isInstallment && isSplit) {
@@ -682,9 +743,9 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              const originalDate = getUTCDate(date);
              const allNewTransactions: any[] = [];
              for (let i = 0; i < totalInstallments; i++) {
-                 const installmentDate = new Date(originalDate); installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
+                 const installmentDate = safeAddMonths(originalDate, i);
                  splitItems.forEach(item => {
-                     allNewTransactions.push({ ...commonData, amount: parseFloat(item.amount), itemId: item.itemId, date: installmentDate.toISOString().split('T')[0], description: `${description} (${i+1}/${totalInstallments}) - ${categoryMap.get(item.itemId)?.item}`, installmentGroupId, currentInstallment: i + 1, totalInstallments });
+                     allNewTransactions.push({ ...commonData, amount: parseFloat(item.amount), itemId: item.itemId, date: toISODateString(installmentDate), description: `${description} (${i+1}/${totalInstallments}) - ${categoryMap.get(item.itemId)?.item}`, installmentGroupId, currentInstallment: i + 1, totalInstallments });
                  });
              }
              success = await addTransactions(allNewTransactions);
@@ -700,8 +761,8 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              const originalDate = getUTCDate(date);
              const newTransactions = [];
              for(let i = 0; i < totalInstallments; i++) {
-                 const installmentDate = new Date(originalDate); installmentDate.setUTCMonth(originalDate.getUTCMonth() + i);
-                 newTransactions.push({ ...commonData, amount: parseFloat(amount), itemId, date: installmentDate.toISOString().split('T')[0], description: `${description} (${i + 1}/${totalInstallments})`, installmentGroupId, currentInstallment: i + 1, totalInstallments });
+                 const installmentDate = safeAddMonths(originalDate, i);
+                 newTransactions.push({ ...commonData, amount: parseFloat(amount), itemId, date: toISODateString(installmentDate), description: `${description} (${i + 1}/${totalInstallments})`, installmentGroupId, currentInstallment: i + 1, totalInstallments });
              }
              success = await addTransactions(newTransactions);
         } else {
@@ -1118,6 +1179,14 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         <UploadIcon className="w-4 h-4 text-blue-600" />
                         <span className="font-bold text-blue-600">Importar Extrato</span>
                     </button>
+                    <button 
+                        onClick={handleExportCSV}
+                        className="btn-secondary flex items-center gap-2 whitespace-nowrap h-10 px-4"
+                        title="Exportar transações filtradas para CSV (Excel)"
+                    >
+                        <DownloadIcon className="w-4 h-4 text-emerald-600" />
+                        <span className="font-bold text-emerald-600">Exportar CSV</span>
+                    </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
@@ -1159,6 +1228,21 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
                         <p className={`text-xl md:text-2xl font-bold ${periodIncome - periodExpenses >= 0 ? 'text-slate-800' : 'text-red-600'}`}><PrivateValue>{formatCurrency(periodIncome - periodExpenses)}</PrivateValue></p>
                     </div>
                 </div>
+
+                {filteredTransactions.some(t => Math.abs(t.amount - 3.21) < 0.01) && (
+                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-500">
+                        <div className="bg-blue-100 p-1.5 rounded-lg">
+                            <SparklesIcon className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-blue-800 tracking-tight">Investigação de Diferença (3,21)</p>
+                            <p className="text-xs text-blue-600 mt-0.5 leading-relaxed">
+                                Encontramos lançamentos de 3,21 no período. Se este valor for um <b>abatimento</b> ou <b>reembolso</b>, ele é contado como "Receita" no sistema, enquanto sua soma manual pode estar subtraindo-o das "Despesas". 
+                                <br/>O <b>Saldo</b> acima reflete o valor líquido (Despesas - Receitas).
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     {/* Desktop Table View */}

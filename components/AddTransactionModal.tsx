@@ -9,6 +9,14 @@ interface AddTransactionModalProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id'>) => void;
 }
 
+const getTodayLocalDate = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   isOpen,
   onClose,
@@ -16,7 +24,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 }) => {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayLocalDate());
   const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
 
@@ -25,7 +33,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       // Reset form on close
       setDescription('');
       setAmount('');
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(getTodayLocalDate());
       setType(TransactionType.EXPENSE);
       setCategory(EXPENSE_CATEGORIES[0]);
     }

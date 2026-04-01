@@ -20,10 +20,20 @@ import PrivateValue from '../components/PrivateValue';
 
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+const formatDate = (dateString: string) => {
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
+};
+const getTodayLocalDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
 const getUTCDate = (dateString: string) => {
     const date = new Date(dateString);
-    return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 };
 
 const InvoiceHistoryModal: React.FC<{
@@ -387,7 +397,7 @@ const PayInvoiceModal: React.FC<{
 }> = ({ isOpen, onClose, targetAccount, targetCardId, accounts, categories, currentBalance, accountCashBalances, onPay }) => {
     const [payments, setPayments] = useState<MultiPaymentSource[]>([]);
     const [totalTarget, setTotalTarget] = useState(currentBalance < 0 ? Math.abs(currentBalance) : 0);
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(getTodayLocalDate());
     const [itemId, setItemId] = useState('');
 
     useEffect(() => {
@@ -638,11 +648,26 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
     
-    const categoryMap = useMemo(() => {
-        const map = new Map<string, string>();
-        categories.forEach(cat => cat.subcategories.forEach(sub => sub.items.forEach(item => map.set(item.id, item.name))));
+    const itemInfoMap = useMemo(() => {
+        const map = new Map<string, { itemName: string, includeInBalance: boolean }>();
+        categories.forEach(cat => {
+            cat.subcategories.forEach(sub => {
+                sub.items.forEach(item => {
+                    map.set(item.id, { 
+                        itemName: item.name, 
+                        includeInBalance: item.includeInBalance 
+                    });
+                });
+            });
+        });
         return map;
     }, [categories]);
+
+    const categoryMap = useMemo(() => {
+        const map = new Map<string, string>();
+        itemInfoMap.forEach((info, id) => map.set(id, info.itemName));
+        return map;
+    }, [itemInfoMap]);
 
     // Identificação dos IDs dos itens categorizados como "Rendimentos" para exclusão matemática do caixa
     const yieldItemIds = useMemo(() => {
@@ -697,6 +722,10 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
         transactions.forEach(t => {
             // REGRA DE OURO: Se a transação for do item "Rendimentos", ela NÃO ENTRA no cálculo do saldo bancário de caixa.
             if (t.itemId && yieldItemIds.includes(t.itemId)) return;
+
+            // NOVA REGRA: Respeitar o flag "includeInBalance" das categorias
+            const itemInfo = t.itemId ? itemInfoMap.get(t.itemId) : null;
+            if (itemInfo && itemInfo.includeInBalance === false) return;
 
             const updateAcc = (id: string, val: number) => accCashBalances.set(id, (accCashBalances.get(id) || 0) + val);
             const updateCard = (id: string, val: number) => crdBalances.set(id, (crdBalances.get(id) || 0) + val);
