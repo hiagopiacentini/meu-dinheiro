@@ -723,19 +723,13 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
             // REGRA DE OURO: Se a transação for do item "Rendimentos", ela NÃO ENTRA no cálculo do saldo bancário de caixa.
             if (t.itemId && yieldItemIds.includes(t.itemId)) return;
 
-            // NOVA REGRA: Respeitar o flag "includeInBalance" das categorias
-            const itemInfo = t.itemId ? itemInfoMap.get(t.itemId) : null;
-            if (itemInfo && itemInfo.includeInBalance === false) return;
-
             const updateAcc = (id: string, val: number) => accCashBalances.set(id, (accCashBalances.get(id) || 0) + val);
             const updateCard = (id: string, val: number) => crdBalances.set(id, (crdBalances.get(id) || 0) + val);
 
             if (t.cardId) {
-                if (t.type === TransactionType.EXPENSE) {
-                    updateCard(t.cardId, -t.amount);
-                } else if (t.type === TransactionType.INCOME) {
-                    updateCard(t.cardId, t.amount);
-                } else if (t.type === TransactionType.TRANSFER && t.destinationAccountId) {
+                if (t.type === TransactionType.EXPENSE) updateCard(t.cardId, -t.amount);
+                else if (t.type === TransactionType.INCOME) updateCard(t.cardId, t.amount);
+                else if (t.type === TransactionType.TRANSFER && t.destinationAccountId) {
                     updateCard(t.cardId, t.amount);
                     updateAcc(t.accountId, -t.amount);
                 }
