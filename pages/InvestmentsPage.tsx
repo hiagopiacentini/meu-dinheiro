@@ -486,9 +486,18 @@ const InvestmentsPage: React.FC<{ onNavigateToAccount?: (accId: string, filter: 
             return { ...cdb, profitInPeriod };
         });
 
+        const sortedProcessed = [...processed].sort((a, b) => {
+            const dateA = a.applicationDate || '';
+            const dateB = b.applicationDate || '';
+            if (dateA !== dateB) {
+                return dateA.localeCompare(dateB);
+            }
+            return (a.name || '').localeCompare(b.name || '');
+        });
+
         return { 
             filteredTotalProfit: totalProfitInPeriod,
-            filteredCDBs: processed
+            filteredCDBs: sortedProcessed
         };
     }, [cdbs, dateRange]);
 

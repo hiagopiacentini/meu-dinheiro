@@ -29,6 +29,13 @@ const toISODateString = (date: Date) => {
     return `${year}-${month}-${day}`;
 };
 
+const toUTCISODateString = (date: Date) => {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const getNowGmtMinus4 = () => {
     const now = new Date();
     const offset = -4 * 60 * 60 * 1000;
@@ -37,6 +44,11 @@ const getNowGmtMinus4 = () => {
 }
 
 const getUTCDate = (dateString: string) => {
+    if (!dateString) return new Date();
+    const parts = dateString.split('-').map(Number);
+    if (parts.length === 3 && !parts.some(isNaN)) {
+        return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    }
     const date = new Date(dateString);
     return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 };
@@ -734,7 +746,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              const newTransactions = [];
              for (let i = 0; i < totalInstallments; i++) {
                  const installmentDate = safeAddMonths(originalDate, i);
-                 newTransactions.push({ ...commonData, amount: parseFloat(amount), itemId, date: toISODateString(installmentDate), description: `${description} (${i + 1}/${totalInstallments})`, installmentGroupId: groupId, currentInstallment: i + 1, totalInstallments });
+                 newTransactions.push({ ...commonData, amount: parseFloat(amount), itemId, date: toUTCISODateString(installmentDate), description: `${description} (${i + 1}/${totalInstallments})`, installmentGroupId: groupId, currentInstallment: i + 1, totalInstallments });
              }
              success = await addTransactions(newTransactions);
         } else if (isInstallment && isSplit) {
@@ -745,7 +757,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              for (let i = 0; i < totalInstallments; i++) {
                  const installmentDate = safeAddMonths(originalDate, i);
                  splitItems.forEach(item => {
-                     allNewTransactions.push({ ...commonData, amount: parseFloat(item.amount), itemId: item.itemId, date: toISODateString(installmentDate), description: `${description} (${i+1}/${totalInstallments}) - ${categoryMap.get(item.itemId)?.item}`, installmentGroupId, currentInstallment: i + 1, totalInstallments });
+                     allNewTransactions.push({ ...commonData, amount: parseFloat(item.amount), itemId: item.itemId, date: toUTCISODateString(installmentDate), description: `${description} (${i+1}/${totalInstallments}) - ${categoryMap.get(item.itemId)?.item}`, installmentGroupId, currentInstallment: i + 1, totalInstallments });
                  });
              }
              success = await addTransactions(allNewTransactions);
@@ -762,7 +774,7 @@ const TransactionsPage: React.FC<{ addTransactionTrigger: number }> = ({ addTran
              const newTransactions = [];
              for(let i = 0; i < totalInstallments; i++) {
                  const installmentDate = safeAddMonths(originalDate, i);
-                 newTransactions.push({ ...commonData, amount: parseFloat(amount), itemId, date: toISODateString(installmentDate), description: `${description} (${i + 1}/${totalInstallments})`, installmentGroupId, currentInstallment: i + 1, totalInstallments });
+                 newTransactions.push({ ...commonData, amount: parseFloat(amount), itemId, date: toUTCISODateString(installmentDate), description: `${description} (${i + 1}/${totalInstallments})`, installmentGroupId, currentInstallment: i + 1, totalInstallments });
              }
              success = await addTransactions(newTransactions);
         } else {
