@@ -180,8 +180,80 @@ const GoalsPage: React.FC = () => {
         await updateForecasts(newForecasts);
     };
 
+    const monthInstallmentsByItem = useMemo(() => {
+        const map = new Map<string, number>();
+
+        transactions.forEach(t => {
+            if (t.type !== TransactionType.EXPENSE) return;
+            if (!t.itemId) return;
+            const isInstallment = !!t.installmentGroupId || (Boolean(t.totalInstallments) && Number(t.totalInstallments) > 1);
+            if (!isInstallment) return;
+
+            // Verificar se a transação está no ano e mês selecionados
+            if (!t.date) return;
+            const cleanDate = t.date.split('T')[0].split(' ')[0];
+            const parts = cleanDate.split('-');
+            let isInMonth = false;
+            if (parts.length >= 2) {
+                const y = parseInt(parts[0], 10);
+                const m = parseInt(parts[1], 10) - 1; // 0-indexed
+                if (!isNaN(y) && !isNaN(m)) {
+                    isInMonth = y === selectedYear && m === selectedMonth;
+                }
+            } else {
+                const d = new Date(t.date);
+                if (!isNaN(d.getTime())) {
+                    isInMonth = d.getUTCFullYear() === selectedYear && d.getUTCMonth() === selectedMonth;
+                }
+            }
+
+            if (isInMonth) {
+                const amt = Math.abs(Number(t.amount) || 0);
+                map.set(t.itemId, (map.get(t.itemId) || 0) + amt);
+            }
+        });
+
+        return map;
+    }, [transactions, selectedYear, selectedMonth]);
+
+    const totalMonthInstallments = useMemo(() => {
+        let total = 0;
+        monthInstallmentsByItem.forEach(amt => {
+            total += amt;
+        });
+        return total;
+    }, [monthInstallmentsByItem]);
+
+    const getItemBudgetValue = (itemId: string, isExpense: boolean) => {
+        const yearKey = String(selectedYear);
+        const monthKey = String(selectedMonth);
+        const savedVal = itemBudgets[yearKey]?.[monthKey]?.[itemId];
+        const installment = isExpense ? (monthInstallmentsByItem.get(itemId) || 0) : 0;
+
+        if (savedVal !== undefined && (savedVal > 0 || installment === 0)) {
+            return {
+                value: savedVal,
+                isPreFilled: false,
+                displayString: savedVal === 0 ? '' : String(savedVal)
+            };
+        }
+
+        if (installment > 0) {
+            return {
+                value: installment,
+                isPreFilled: true,
+                displayString: String(installment)
+            };
+        }
+
+        return {
+            value: 0,
+            isPreFilled: false,
+            displayString: ''
+        };
+    };
+
     const handleItemBudgetChange = async (itemId: string, value: string) => {
-        const numValue = parseFloat(value.replace(',', '.')) || 0;
         const newItemBudgets = { ...itemBudgets };
         const yearKey = String(selectedYear);
         const monthKey = String(selectedMonth);
@@ -189,22 +261,29 @@ const GoalsPage: React.FC = () => {
         if (!newItemBudgets[yearKey]) newItemBudgets[yearKey] = {};
         if (!newItemBudgets[yearKey][monthKey]) newItemBudgets[yearKey][monthKey] = {};
         
-        newItemBudgets[yearKey][monthKey][itemId] = numValue;
+        const trimmed = value.trim();
+        if (trimmed === '') {
+            delete newItemBudgets[yearKey][monthKey][itemId];
+        } else {
+            const numValue = parseFloat(trimmed.replace(',', '.')) || 0;
+            if (numValue <= 0) {
+                delete newItemBudgets[yearKey][monthKey][itemId];
+            } else {
+                newItemBudgets[yearKey][monthKey][itemId] = numValue;
+            }
+        }
         await updateItemBudgets(newItemBudgets);
     };
 
     const itemPlanningTotals = useMemo(() => {
-        const yearKey = String(selectedYear);
-        const monthKey = String(selectedMonth);
-        const currentBudgets = itemBudgets[yearKey]?.[monthKey] || {};
-        
         let totalIncome = 0;
         let totalExpense = 0;
 
         categories.forEach(cat => {
             cat.subcategories.forEach(sub => {
                 sub.items.forEach(item => {
-                    const val = currentBudgets[item.id] || 0;
+                    const isExpense = cat.type === TransactionType.EXPENSE;
+                    const val = getItemBudgetValue(item.id, isExpense).value;
                     if (cat.type === TransactionType.INCOME) totalIncome += val;
                     else if (cat.type === TransactionType.EXPENSE) totalExpense += val;
                 });
@@ -212,7 +291,7 @@ const GoalsPage: React.FC = () => {
         });
 
         return { totalIncome, totalExpense, plannedSurplus: totalIncome - totalExpense };
-    }, [categories, itemBudgets, selectedYear, selectedMonth]);
+    }, [categories, itemBudgets, selectedYear, selectedMonth, monthInstallmentsByItem]);
 
     const annualGoal = goals[selectedYear] || 0;
     const monthlyGoal = annualGoal / 12;
@@ -360,11 +439,10 @@ const GoalsPage: React.FC = () => {
                                 Previsão de entradas
                             </h4>
                             {categorizedData.incomes.map(cat => {
-                                const budgets = itemBudgets[String(selectedYear)]?.[String(selectedMonth)] || {};
                                 const subcategories = cat.subcategories.filter(s => !s.isArchived);
                                 if (subcategories.length === 0) return null;
                                 
-                                const catTotal = subcategories.reduce((acc, sub) => acc + sub.items.filter(i => !i.isArchived).reduce((a, i) => a + (budgets[i.id] || 0), 0), 0);
+                                const catTotal = subcategories.reduce((acc, sub) => acc + sub.items.filter(i => !i.isArchived).reduce((a, i) => a + getItemBudgetValue(i.id, false).value, 0), 0);
 
                                 return (
                                     <AccordionItem key={cat.id} title={cat.name} amount={catTotal} amountColor="text-emerald-600">
@@ -372,25 +450,28 @@ const GoalsPage: React.FC = () => {
                                             const items = sub.items.filter(i => !i.isArchived);
                                             if (items.length === 0) return null;
                                             
-                                            const subTotal = items.reduce((acc, i) => acc + (budgets[i.id] || 0), 0);
+                                            const subTotal = items.reduce((acc, i) => acc + getItemBudgetValue(i.id, false).value, 0);
                                             return (
                                                 <AccordionItem key={sub.id} title={sub.name} amount={subTotal} amountColor="text-emerald-500/80" level={2}>
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 pt-1">
-                                                        {items.map(item => (
-                                                            <div key={item.id} className="flex flex-col">
-                                                                <label className="text-[11px] font-medium text-slate-500 mb-1.5 ml-0.5 tracking-normal">{item.name}</label>
-                                                                <div className="relative">
-                                                                    <input 
-                                                                        type="number"
-                                                                        value={budgets[item.id] || ''}
-                                                                        onChange={(e) => handleItemBudgetChange(item.id, e.target.value)}
-                                                                        className="input-style text-right py-2 pr-3 text-sm font-bold border-slate-200 hover:border-slate-300 focus:border-emerald-500 transition-all"
-                                                                        placeholder="0,00"
-                                                                        step="0.01"
-                                                                    />
+                                                        {items.map(item => {
+                                                            const budgetInfo = getItemBudgetValue(item.id, false);
+                                                            return (
+                                                                <div key={item.id} className="flex flex-col">
+                                                                    <label className="text-[11px] font-medium text-slate-500 mb-1.5 ml-0.5 tracking-normal">{item.name}</label>
+                                                                    <div className="relative">
+                                                                        <input 
+                                                                            type="number"
+                                                                            value={budgetInfo.displayString}
+                                                                            onChange={(e) => handleItemBudgetChange(item.id, e.target.value)}
+                                                                            className="input-style text-right py-2 pr-3 text-sm font-bold border-slate-200 hover:border-slate-300 focus:border-emerald-500 transition-all"
+                                                                            placeholder="0,00"
+                                                                            step="0.01"
+                                                                        />
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        ))}
+                                                            );
+                                                        })}
                                                     </div>
                                                 </AccordionItem>
                                             );
@@ -401,16 +482,23 @@ const GoalsPage: React.FC = () => {
                         </div>
 
                         <div>
-                            <h4 className="text-xs font-bold text-rose-600 uppercase mb-4 px-1 flex items-center gap-2 tracking-normal">
-                                <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
-                                Limites de despesas
-                            </h4>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 px-1">
+                                <h4 className="text-xs font-bold text-rose-600 uppercase flex items-center gap-2 tracking-normal">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
+                                    Limites de despesas
+                                </h4>
+                                {totalMonthInstallments > 0 && (
+                                    <span className="self-start sm:self-auto bg-rose-50 text-rose-700 border border-rose-100 text-[11px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                                        Parcelas no mês: <span className="font-extrabold">{formatCurrency(totalMonthInstallments)}</span> pré-preenchidas
+                                    </span>
+                                )}
+                            </div>
                             {categorizedData.expenses.map(cat => {
-                                const budgets = itemBudgets[String(selectedYear)]?.[String(selectedMonth)] || {};
                                 const subcategories = cat.subcategories.filter(s => !s.isArchived);
                                 if (subcategories.length === 0) return null;
                                 
-                                const catTotal = subcategories.reduce((acc, sub) => acc + sub.items.filter(i => !i.isArchived).reduce((a, i) => a + (budgets[i.id] || 0), 0), 0);
+                                const catTotal = subcategories.reduce((acc, sub) => acc + sub.items.filter(i => !i.isArchived).reduce((a, i) => a + getItemBudgetValue(i.id, true).value, 0), 0);
 
                                 return (
                                     <AccordionItem key={cat.id} title={cat.name} amount={catTotal} amountColor="text-rose-600">
@@ -418,25 +506,42 @@ const GoalsPage: React.FC = () => {
                                             const items = sub.items.filter(i => !i.isArchived);
                                             if (items.length === 0) return null;
                                             
-                                            const subTotal = items.reduce((acc, i) => acc + (budgets[i.id] || 0), 0);
+                                            const subTotal = items.reduce((acc, i) => acc + getItemBudgetValue(i.id, true).value, 0);
                                             return (
                                                 <AccordionItem key={sub.id} title={sub.name} amount={subTotal} amountColor="text-rose-500/80" level={2}>
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 pt-1">
-                                                        {items.map(item => (
-                                                            <div key={item.id} className="flex flex-col">
-                                                                <label className="text-[11px] font-medium text-slate-500 mb-1.5 ml-0.5 tracking-normal">{item.name}</label>
-                                                                <div className="relative">
-                                                                    <input 
-                                                                        type="number"
-                                                                        value={budgets[item.id] || ''}
-                                                                        onChange={(e) => handleItemBudgetChange(item.id, e.target.value)}
-                                                                        className="input-style text-right py-2 pr-3 text-sm font-bold border-slate-200 hover:border-slate-300 focus:border-rose-500 transition-all"
-                                                                        placeholder="0,00"
-                                                                        step="0.01"
-                                                                    />
+                                                        {items.map(item => {
+                                                            const budgetInfo = getItemBudgetValue(item.id, true);
+                                                            const installmentAmount = monthInstallmentsByItem.get(item.id) || 0;
+                                                            return (
+                                                                <div key={item.id} className="flex flex-col">
+                                                                    <div className="flex items-center justify-between mb-1.5 ml-0.5 min-h-[18px]">
+                                                                        <label className="text-[11px] font-medium text-slate-500 tracking-normal truncate mr-1" title={item.name}>
+                                                                            {item.name}
+                                                                        </label>
+                                                                        {installmentAmount > 0 && (
+                                                                            <span 
+                                                                                className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded flex items-center gap-1 flex-shrink-0"
+                                                                                title={`Despesas parceladas programadas para este mês: ${formatCurrency(installmentAmount)}`}
+                                                                            >
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                                                                {formatCurrency(installmentAmount)} parcelado
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="relative">
+                                                                        <input 
+                                                                            type="number"
+                                                                            value={budgetInfo.displayString}
+                                                                            onChange={(e) => handleItemBudgetChange(item.id, e.target.value)}
+                                                                            className={`input-style text-right py-2 pr-3 text-sm font-bold border-slate-200 hover:border-slate-300 focus:border-rose-500 transition-all ${budgetInfo.isPreFilled ? 'text-rose-600 bg-rose-50/20' : 'text-slate-800'}`}
+                                                                            placeholder="0,00"
+                                                                            step="0.01"
+                                                                        />
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        ))}
+                                                            );
+                                                        })}
                                                     </div>
                                                 </AccordionItem>
                                             );
