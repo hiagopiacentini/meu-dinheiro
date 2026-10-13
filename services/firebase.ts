@@ -1,20 +1,16 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import firebaseConfig from "../firebase-applet-config.json";
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyBI6alUXlit_-IoRC_ecHotDBV1AzsvTt4",
-  authDomain: "fir-sobra-mais.firebaseapp.com",
-  projectId: "fir-sobra-mais",
-  storageBucket: "fir-sobra-mais.firebasestorage.app",
-  messagingSenderId: "891121178454",
-  appId: "1:891121178454:web:f4c548efac402f2838e8f7"
-};
-
-// Initialize Firebase
+// Initialize Firebase with config from provisioned environment
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Initialize Firestore with standard settings to bypass corrupted local cache
-export const db = getFirestore(app);
+// Initialize Firestore using provisioned database ID
+export const db = firebaseConfig.firestoreDatabaseId 
+  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+  : getFirestore(app);
+
+// Fallback handle to default database in case user data was seeded there
+export const defaultDb = getFirestore(app);

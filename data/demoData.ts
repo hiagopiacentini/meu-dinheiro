@@ -1,5 +1,5 @@
 
-import { Account, Transaction, Category, Loan, AnnualGoals, TransactionType } from '../types';
+import { Account, Transaction, Category, Loan, AnnualGoals, TransactionType, CDBContract } from '../types';
 
 export const sampleAccounts: Account[] = [
     { id: 'nubank-demo', name: 'Nubank - NuConta', initialBalance: 5200.75, bank: 'Nubank', isActive: true },
@@ -127,3 +127,40 @@ export const sampleGoals: AnnualGoals = {
     [currentYear]: 30000,
     [currentYear - 1]: 25000,
 };
+
+export const sampleCDBs: CDBContract[] = [
+    {
+        id: 'cdb-demo-1',
+        name: 'CDB Banco Inter 100% CDI',
+        bank: 'Inter',
+        applicationDate: '2024-06-15',
+        principalAmount: 10000,
+        currentGrossBalance: 11150.40,
+        rateDescription: '100% CDI Liquidez Diária',
+        maturityDate: '2027-06-15',
+        linkedAccountId: 'inter-demo',
+        isActive: true,
+        yieldHistory: [
+            { id: 'ye-1', date: '2024-06-15', amount: 0 },
+            { id: 'ye-2', date: '2024-12-31', amount: 550.20 },
+            { id: 'ye-3', date: '2025-06-30', amount: 600.20 },
+        ]
+    },
+    {
+        id: 'cdb-demo-2',
+        name: 'CDB Itaú Pré-fixado 12.5%',
+        bank: 'Itaú',
+        applicationDate: '2024-09-10',
+        principalAmount: 15000,
+        currentGrossBalance: 16420.80,
+        rateDescription: '12.5% a.a.',
+        maturityDate: '2027-09-10',
+        linkedAccountId: 'itau-demo',
+        isActive: true,
+        yieldHistory: [
+            { id: 'ye-4', date: '2024-09-10', amount: 0 },
+            { id: 'ye-5', date: '2025-03-31', amount: 850.00 },
+            { id: 'ye-6', date: '2025-09-30', amount: 570.80 },
+        ]
+    }
+];

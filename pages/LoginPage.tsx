@@ -11,6 +11,7 @@ import {
 } from 'firebase/auth';
 import { deepClean } from '../hooks/useFirestore';
 import GoogleIcon from '../components/icons/GoogleIcon';
+import firebaseConfig from '../firebase-applet-config.json';
 
 /**
  * Serializa um objeto para JSON de forma segura, removendo referências circulares
@@ -37,6 +38,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [domainError, setDomainError] = useState(false);
+  const [copiedHost, setCopiedHost] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
 
@@ -99,7 +101,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      cleanupDemoData();
       onLogin();
     } catch (err: any) {
       console.error("Google Login Error:", err);
@@ -109,7 +110,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
       if (errorCode === 'auth/unauthorized-domain' || errorMessage.includes('unauthorized-domain')) {
         setDomainError(true);
-        setError(`Domínio não autorizado. Adicione "${window.location.hostname}" no Console do Firebase.`);
       } else if (errorCode === 'auth/popup-closed-by-user') {
         // Ignorar
       } else {
@@ -120,9 +120,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     }
   };
 
-  const copyHostname = () => {
-    navigator.clipboard.writeText(window.location.hostname);
-    alert('Domínio copiado! Agora cole-o no Console do Firebase.');
+  const copyHostname = (textToCopy: string) => {
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedHost(true);
+    setTimeout(() => setCopiedHost(false), 3000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -151,11 +152,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         await updateProfile(userCredential.user, {
             displayName: trimmedName
         });
-        cleanupDemoData();
         onLogin();
       } else {
         await signInWithEmailAndPassword(auth, trimmedEmail, password);
-        cleanupDemoData();
         onLogin();
       }
     } catch (err: any) {
@@ -190,11 +189,81 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <button 
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-700 font-semibold hover:bg-slate-50 transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 mb-6"
+            className="w-full flex items-center justify-center gap-3 bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-700 font-semibold hover:bg-slate-50 transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 mb-3"
           >
             <GoogleIcon className="w-5 h-5" />
             <span>Continuar com Google</span>
           </button>
+
+          {domainError && (
+            <div className="mb-6 bg-amber-50 border border-amber-200 p-4 rounded-xl space-y-3 text-left">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded text-[10px] font-bold uppercase tracking-wider">Ajuste de Domínio</span>
+                  <p className="text-amber-900 text-xs font-bold">Domínio não autorizado no Firebase</p>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => setDomainError(false)} 
+                  className="text-amber-500 hover:text-amber-800 text-xs font-bold"
+                  title="Fechar aviso"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <p className="text-amber-800 text-xs leading-relaxed">
+                O Google bloqueou o pop-up porque o endereço deste app ainda não foi adicionado aos domínios autorizados do seu projeto Firebase (<b>{firebaseConfig.projectId}</b>).
+              </p>
+
+              <div className="space-y-1.5 text-[11px] text-amber-900 bg-amber-100/60 p-2.5 rounded-lg">
+                <p className="font-semibold">Passo a passo rápido:</p>
+                <p>1. Clique em <b>Abrir Configurações do Firebase</b> abaixo.</p>
+                <p>2. Na aba <b>Configurações &gt; Domínios autorizados</b>, clique em <b>Adicionar domínio</b>.</p>
+                <p>3. Cole <code className="bg-white/80 px-1 py-0.5 rounded font-mono font-bold text-amber-950">run.app</code> (recomendado para cobrir todos os previews) ou o endereço exato abaixo.</p>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-1">
+                <div className="flex items-center gap-2">
+                  <input 
+                    readOnly 
+                    value={window.location.hostname} 
+                    className="bg-white border border-amber-300 px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-700 flex-1 truncate select-all focus:outline-none"
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => copyHostname(window.location.hostname)} 
+                    className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors whitespace-nowrap"
+                  >
+                    {copiedHost ? '✓ Copiado!' : 'Copiar Domínio'}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button 
+                    type="button" 
+                    onClick={() => copyHostname('run.app')} 
+                    className="flex-1 bg-white border border-amber-300 hover:bg-amber-50 text-amber-900 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors truncate text-center"
+                    title="Copiar 'run.app' para autorizar todos os subdomínios"
+                  >
+                    Copiar coringa <b>run.app</b>
+                  </button>
+                  <a 
+                    href={`https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/settings`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex-1 bg-amber-700 hover:bg-amber-800 text-white px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-center transition-colors"
+                  >
+                    Abrir no Firebase ↗
+                  </a>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-amber-700/80 italic pt-1">
+                Dica: Você também pode entrar instantaneamente criando uma conta por E-mail e Senha abaixo ou usando o Modo Demonstração.
+              </p>
+            </div>
+          )}
 
           <div className="relative flex items-center mb-6">
             <div className="flex-grow border-t border-slate-200"></div>
@@ -250,28 +319,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               />
             </div>
 
-            {domainError && (
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-3">
-                <div className="flex items-start gap-2">
-                  <div className="p-1 bg-amber-200 rounded text-amber-700 font-bold text-[10px]">FIX</div>
-                  <p className="text-amber-800 text-xs font-bold">Configuração Necessária</p>
-                </div>
-                <p className="text-amber-700 text-[11px] leading-relaxed">
-                  O Google não autorizou o login porque este domínio não está na lista de permissões do Firebase.
-                </p>
-                <div className="space-y-2 text-[11px] text-amber-900 font-medium">
-                  <p>1. Vá em <b>Autenticação {" > "} Configurações</b></p>
-                  <p>2. Clique em <b>Domínios Autorizados</b></p>
-                  <p>3. Adicione o domínio abaixo:</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <code className="bg-white border border-amber-200 px-2 py-1 rounded text-xs font-mono flex-1 truncate">{window.location.hostname}</code>
-                  <button type="button" onClick={copyHostname} className="bg-amber-600 text-white px-3 py-1 rounded text-[10px] font-bold hover:bg-amber-700 transition-colors uppercase">Copiar</button>
-                </div>
-              </div>
-            )}
-
-            {error && !domainError && (
+            {error && (
               <div className="bg-red-50 border border-red-100 p-4 rounded-lg">
                 <p className="text-red-600 text-xs font-medium whitespace-pre-wrap leading-relaxed">
                   {error}

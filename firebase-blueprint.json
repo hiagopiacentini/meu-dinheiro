@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "Account": {
+      "title": "Account",
+      "description": "Financial account (checking, investment, credit card, etc.)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "initialBalance": { "type": "number" },
+        "color": { "type": "string" },
+        "order": { "type": "number" }
+      },
+      "required": ["name", "type"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Income or expense record",
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "type": { "type": "string" },
+        "accountId": { "type": "string" },
+        "categoryId": { "type": "string" }
+      },
+      "required": ["description", "amount", "date", "type", "accountId"]
+    },
+    "Loan": {
+      "title": "Loan",
+      "description": "Borrowed or lent financial amount",
+      "type": "object",
+      "properties": {
+        "person": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "type": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["person", "totalAmount", "type", "date"]
+    },
+    "CDBContract": {
+      "title": "CDB Contract",
+      "description": "Fixed income CDB investment record",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "initialAmount": { "type": "number" },
+        "startDate": { "type": "string" },
+        "taxRate": { "type": "number" }
+      },
+      "required": ["title", "initialAmount", "startDate"]
+    },
+    "UserSettings": {
+      "title": "User Settings",
+      "description": "General settings, categories, goals, and forecasts for the user",
+      "type": "object",
+      "properties": {
+        "list": { "type": "array" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}/accounts/{accountId}": {
+      "schema": "Account",
+      "description": "Financial accounts owned by the user"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Financial transactions recorded by the user"
+    },
+    "/users/{userId}/loans/{loanId}": {
+      "schema": "Loan",
+      "description": "Loans tracked by the user"
+    },
+    "/users/{userId}/cdb_contracts/{cdbId}": {
+      "schema": "CDBContract",
+      "description": "CDB contracts tracked by the user"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": "UserSettings",
+      "description": "Settings documents such as categories, goals, item_budgets, forecasts"
+    }
+  }
+}

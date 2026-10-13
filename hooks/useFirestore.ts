@@ -14,7 +14,8 @@ import {
 import { auth, db } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract, ManualSavings, MonthlyForecasts, ItemBudgets, ReportNotes, ReportNote } from '../types';
-import { sampleCategories } from '../data/demoData';
+import { sampleCategories, sampleAccounts, sampleTransactions, sampleLoans, sampleGoals, sampleCDBs } from '../data/demoData';
+import { checkAndAutoMigrate } from '../services/dataMigration';
 
 /**
  * Limpa recursivamente um objeto para garantir que seja serializável em JSON.
@@ -121,11 +122,30 @@ export const useAccounts = () => {
 
   useEffect(() => {
     if (!userId) {
+      const isDemo = localStorage.getItem('isDemoMode') === 'true';
+      if (isDemo) {
+        try {
+          const stored = localStorage.getItem('accounts');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setAccounts(parsed);
+              return;
+            }
+          }
+        } catch (e) {}
+        setAccounts(sampleAccounts);
+        return;
+      }
       setAccounts([]);
       return;
     }
+
     const q = query(collection(db, `users/${userId}/accounts`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (snapshot.empty) {
+        checkAndAutoMigrate(userId);
+      }
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...sanitizeFirestoreData(doc.data()) } as Account));
       data.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       setAccounts(data);
@@ -137,7 +157,16 @@ export const useAccounts = () => {
 
   const addAccount = async (account: Omit<Account, 'id'>) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return null;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const newAcc = { ...account, id: `acc-demo-${Date.now()}` } as Account;
+        const updated = [...accounts, newAcc];
+        setAccounts(updated);
+        localStorage.setItem('accounts', JSON.stringify(updated));
+        return newAcc.id;
+      }
+      return null;
+    }
     try {
         const cleanedData = deepClean(account);
         const newOrder = accounts.length > 0 ? (Math.max(...accounts.map(a => a.order || 0)) + 1) : 0;
@@ -151,7 +180,15 @@ export const useAccounts = () => {
 
   const updateAccount = async (account: Account) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return false;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const updated = accounts.map(a => a.id === account.id ? account : a);
+        setAccounts(updated);
+        localStorage.setItem('accounts', JSON.stringify(updated));
+        return true;
+      }
+      return false;
+    }
     try {
         const { id, ...data } = account;
         const cleanedData = deepClean(data);
@@ -165,7 +202,16 @@ export const useAccounts = () => {
 
   const reorderAccounts = async (updatedOrderAccounts: { id: string, order: number }[]) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return false;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const map = new Map(updatedOrderAccounts.map(o => [o.id, o.order]));
+        const updated = [...accounts].map(a => ({ ...a, order: map.get(a.id) ?? a.order })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        setAccounts(updated);
+        localStorage.setItem('accounts', JSON.stringify(updated));
+        return true;
+      }
+      return false;
+    }
     try {
         const batch = writeBatch(db);
         updatedOrderAccounts.forEach((acc) => {
@@ -182,7 +228,15 @@ export const useAccounts = () => {
 
   const deleteAccount = async (id: string) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return false;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const updated = accounts.filter(a => a.id !== id);
+        setAccounts(updated);
+        localStorage.setItem('accounts', JSON.stringify(updated));
+        return true;
+      }
+      return false;
+    }
     try {
         await deleteDoc(doc(db, `users/${currentUid}/accounts`, id));
         return true;
@@ -208,6 +262,21 @@ export const useTransactions = () => {
 
   useEffect(() => {
     if (!userId) {
+      const isDemo = localStorage.getItem('isDemoMode') === 'true';
+      if (isDemo) {
+        try {
+          const stored = localStorage.getItem('transactions');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setTransactions(parsed);
+              return;
+            }
+          }
+        } catch (e) {}
+        setTransactions(sampleTransactions);
+        return;
+      }
       setTransactions([]);
       return;
     }
@@ -223,7 +292,16 @@ export const useTransactions = () => {
 
   const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return null;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const newT = { ...transaction, id: `t-demo-${Date.now()}`, createdAt: new Date().toISOString() } as Transaction;
+        const updated = [...transactions, newT];
+        setTransactions(updated);
+        localStorage.setItem('transactions', JSON.stringify(updated));
+        return newT.id;
+      }
+      return null;
+    }
     try {
         const cleanedData = deepClean({ ...transaction, createdAt: new Date().toISOString() });
         const docRef = await addDoc(collection(db, `users/${currentUid}/transactions`), cleanedData);
@@ -236,7 +314,21 @@ export const useTransactions = () => {
   
   const addTransactions = async (newTransactions: Omit<Transaction, 'id'>[]) => {
       const currentUid = auth.currentUser?.uid;
-      if (!currentUid) return false;
+      if (!currentUid) {
+        if (localStorage.getItem('isDemoMode') === 'true') {
+          const timestamp = new Date().toISOString();
+          const items: Transaction[] = newTransactions.map((t, idx) => ({
+            ...t,
+            id: `t-demo-${Date.now()}-${idx}`,
+            createdAt: timestamp
+          } as Transaction));
+          const updated = [...transactions, ...items];
+          setTransactions(updated);
+          localStorage.setItem('transactions', JSON.stringify(updated));
+          return true;
+        }
+        return false;
+      }
       try {
           const timestamp = new Date().toISOString();
           const batchPromises = newTransactions.map(t => {
@@ -253,7 +345,15 @@ export const useTransactions = () => {
 
   const updateTransaction = async (transaction: Transaction) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return false;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const updated = transactions.map(t => t.id === transaction.id ? transaction : t);
+        setTransactions(updated);
+        localStorage.setItem('transactions', JSON.stringify(updated));
+        return true;
+      }
+      return false;
+    }
     try {
         const { id, ...data } = transaction;
         const cleanedData = deepClean(data);
@@ -267,7 +367,15 @@ export const useTransactions = () => {
 
   const deleteTransaction = async (id: string) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return false;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const updated = transactions.filter(t => t.id !== id);
+        setTransactions(updated);
+        localStorage.setItem('transactions', JSON.stringify(updated));
+        return true;
+      }
+      return false;
+    }
     try {
         await deleteDoc(doc(db, `users/${currentUid}/transactions`, id));
         return true;
@@ -279,7 +387,16 @@ export const useTransactions = () => {
   
   const deleteTransactions = async (ids: string[]) => {
       const currentUid = auth.currentUser?.uid;
-      if (!currentUid) return false;
+      if (!currentUid) {
+        if (localStorage.getItem('isDemoMode') === 'true') {
+          const idSet = new Set(ids);
+          const updated = transactions.filter(t => !idSet.has(t.id));
+          setTransactions(updated);
+          localStorage.setItem('transactions', JSON.stringify(updated));
+          return true;
+        }
+        return false;
+      }
       try {
           const batchPromises = ids.map(id => deleteDoc(doc(db, `users/${currentUid}/transactions`, id)));
           await Promise.all(batchPromises);
@@ -352,6 +469,21 @@ export const useLoans = () => {
 
   useEffect(() => {
     if (!userId) {
+      const isDemo = localStorage.getItem('isDemoMode') === 'true';
+      if (isDemo) {
+        try {
+          const stored = localStorage.getItem('loans');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+              setLoans(parsed);
+              return;
+            }
+          }
+        } catch (e) {}
+        setLoans(sampleLoans);
+        return;
+      }
       setLoans([]);
       return;
     }
@@ -367,7 +499,16 @@ export const useLoans = () => {
 
   const addLoan = async (loan: Omit<Loan, 'id'>) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return null;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const newLoan = { ...loan, id: `loan-demo-${Date.now()}` } as Loan;
+        const updated = [...loans, newLoan];
+        setLoans(updated);
+        localStorage.setItem('loans', JSON.stringify(updated));
+        return newLoan.id;
+      }
+      return null;
+    }
     try {
         const cleanedData = deepClean(loan);
         const docRef = await addDoc(collection(db, `users/${currentUid}/loans`), cleanedData);
@@ -380,7 +521,15 @@ export const useLoans = () => {
 
   const updateLoan = async (loan: Loan) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return false;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const updated = loans.map(l => l.id === loan.id ? loan : l);
+        setLoans(updated);
+        localStorage.setItem('loans', JSON.stringify(updated));
+        return true;
+      }
+      return false;
+    }
     try {
         const { id, ...data } = loan;
         const cleanedData = deepClean(data);
@@ -394,7 +543,15 @@ export const useLoans = () => {
 
   const deleteLoan = async (id: string) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return false;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const updated = loans.filter(l => l.id !== id);
+        setLoans(updated);
+        localStorage.setItem('loans', JSON.stringify(updated));
+        return true;
+      }
+      return false;
+    }
     try {
         await deleteDoc(doc(db, `users/${currentUid}/loans`, id));
         return true;
@@ -408,7 +565,7 @@ export const useLoans = () => {
 };
 
 export const useGoals = () => {
-  const [goals, setGoalsState] = useState<AnnualGoals>({});
+  const [goals, setGoalsState] = useState<AnnualGoals>(sampleGoals);
   const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid || null);
 
   useEffect(() => {
@@ -419,7 +576,20 @@ export const useGoals = () => {
   }, []);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      const isDemo = localStorage.getItem('isDemoMode') === 'true';
+      if (isDemo) {
+        try {
+          const stored = localStorage.getItem('goals');
+          if (stored) {
+            setGoalsState(JSON.parse(stored));
+            return;
+          }
+        } catch (e) {}
+        setGoalsState(sampleGoals);
+      }
+      return;
+    }
     const docRef = doc(db, `users/${userId}/settings/goals`);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -631,6 +801,21 @@ export const useCDBs = () => {
 
   useEffect(() => {
     if (!userId) {
+      const isDemo = localStorage.getItem('isDemoMode') === 'true';
+      if (isDemo) {
+        try {
+          const stored = localStorage.getItem('cdbs');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setCdbs(parsed);
+              return;
+            }
+          }
+        } catch (e) {}
+        setCdbs(sampleCDBs);
+        return;
+      }
       setCdbs([]);
       return;
     }
@@ -646,7 +831,16 @@ export const useCDBs = () => {
 
   const addCDB = async (cdb: Omit<CDBContract, 'id'>) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return null;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const newCdb = { ...cdb, id: `cdb-demo-${Date.now()}` } as CDBContract;
+        const updated = [...cdbs, newCdb];
+        setCdbs(updated);
+        localStorage.setItem('cdbs', JSON.stringify(updated));
+        return newCdb.id;
+      }
+      return null;
+    }
     try {
         const cleanedData = deepClean(cdb);
         const docRef = await addDoc(collection(db, `users/${currentUid}/cdb_contracts`), cleanedData);
@@ -659,7 +853,15 @@ export const useCDBs = () => {
 
   const updateCDB = async (cdb: CDBContract) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return false;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const updated = cdbs.map(c => c.id === cdb.id ? cdb : c);
+        setCdbs(updated);
+        localStorage.setItem('cdbs', JSON.stringify(updated));
+        return true;
+      }
+      return false;
+    }
     try {
         const { id, ...data } = cdb;
         const cleanedData = deepClean(data);
@@ -673,7 +875,15 @@ export const useCDBs = () => {
 
   const deleteCDB = async (id: string) => {
     const currentUid = auth.currentUser?.uid;
-    if (!currentUid) return false;
+    if (!currentUid) {
+      if (localStorage.getItem('isDemoMode') === 'true') {
+        const updated = cdbs.filter(c => c.id !== id);
+        setCdbs(updated);
+        localStorage.setItem('cdbs', JSON.stringify(updated));
+        return true;
+      }
+      return false;
+    }
     try {
         await deleteDoc(doc(db, `users/${currentUid}/cdb_contracts`, id));
         return true;
