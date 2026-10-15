@@ -9,8 +9,6 @@ import UpArrowIcon from '../components/icons/UpArrowIcon';
 import DownArrowIcon from '../components/icons/DownArrowIcon';
 import PrivateValue from '../components/PrivateValue';
 import { usePrivacy } from '../contexts/PrivacyContext';
-import { seedUserData } from '../services/dataMigration';
-import { auth } from '../services/firebase';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const formatDate = (dateString: string) => {
@@ -120,31 +118,6 @@ const DashboardPage: React.FC = () => {
 
   const [activeFilter, setActiveFilter] = useState('Mês Atual');
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const [isSeeding, setIsSeeding] = useState(false);
-  const [seedSuccess, setSeedSuccess] = useState(false);
-  
-  const handleLoadSampleData = async () => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) {
-      localStorage.setItem('isDemoMode', 'true');
-      window.location.reload();
-      return;
-    }
-    setIsSeeding(true);
-    try {
-      const ok = await seedUserData(uid);
-      if (ok) {
-        setSeedSuccess(true);
-        setTimeout(() => setSeedSuccess(false), 5000);
-      } else {
-        alert('Não foi possível carregar os dados de exemplo.');
-      }
-    } catch (err) {
-      console.error("Erro ao carregar dados de exemplo:", err);
-    } finally {
-      setIsSeeding(false);
-    }
-  };
 
   const today = getNowGmtMinus4();
   const [dateRange, setDateRange] = useState<{start: Date | null, end: Date | null}>({ 
@@ -708,53 +681,6 @@ const DashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6 relative">
-      {seedSuccess && (
-        <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 px-4 py-3 rounded-xl flex items-center justify-between text-sm shadow-sm animate-fade-in">
-          <div className="flex items-center gap-2">
-            <span>✅</span>
-            <span className="font-semibold">Dados de exemplo carregados com sucesso! Suas contas, lançamentos e investimentos foram sincronizados.</span>
-          </div>
-          <button onClick={() => setSeedSuccess(false)} className="text-emerald-600 hover:text-emerald-900 font-bold ml-2">✕</button>
-        </div>
-      )}
-
-      {accounts.length === 0 && (
-        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-slate-50 border border-blue-200 rounded-2xl p-6 shadow-sm">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">🎉</span>
-                <h2 className="text-lg md:text-xl font-bold text-slate-800">
-                  {auth.currentUser ? `Bem-vindo, ${auth.currentUser.displayName || auth.currentUser.email}!` : 'Bem-vindo ao Controle Financeiro!'}
-                </h2>
-              </div>
-              <p className="text-sm text-slate-600 max-w-2xl leading-relaxed">
-                Você acabou de conectar sua conta Google com sucesso! Como esta é uma nova conta, sua base de dados no banco está em branco. Você pode carregar instantaneamente os dados de demonstração (contas Nubank, Itaú, Inter, Caixa, compras parceladas, CDBs e metas) para explorar o sistema ou começar do zero.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto shrink-0">
-              <button
-                onClick={handleLoadSampleData}
-                disabled={isSeeding}
-                className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold px-5 py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm shadow-sm transition-all"
-              >
-                {isSeeding ? (
-                  <>
-                    <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                    <span>Carregando dados...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>⚡</span>
-                    <span>Carregar Dados de Exemplo</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="flex space-x-2 overflow-x-auto pb-1 scrollbar-hide">
         {['Mês Atual', 'Mês Passado', 'Este Ano', 'Personalizado'].map(f => (
             <button key={f} onClick={() => handleFilterClick(f)} className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeFilter === f ? 'bg-blue-600 text-white font-bold shadow-sm' : 'bg-white text-slate-600 hover:bg-gray-100 border border-slate-200'}`}>

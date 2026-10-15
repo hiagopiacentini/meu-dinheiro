@@ -15,7 +15,6 @@ import { auth, db } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Account, Transaction, Category, Loan, AnnualGoals, CDBContract, ManualSavings, MonthlyForecasts, ItemBudgets, ReportNotes, ReportNote } from '../types';
 import { sampleCategories, sampleAccounts, sampleTransactions, sampleLoans, sampleGoals, sampleCDBs } from '../data/demoData';
-import { checkAndAutoMigrate } from '../services/dataMigration';
 
 /**
  * Limpa recursivamente um objeto para garantir que seja serializável em JSON.
@@ -143,9 +142,6 @@ export const useAccounts = () => {
 
     const q = query(collection(db, `users/${userId}/accounts`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (snapshot.empty) {
-        checkAndAutoMigrate(userId);
-      }
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...sanitizeFirestoreData(doc.data()) } as Account));
       data.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       setAccounts(data);
@@ -156,7 +152,7 @@ export const useAccounts = () => {
   }, [userId]);
 
   const addAccount = async (account: Omit<Account, 'id'>) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const newAcc = { ...account, id: `acc-demo-${Date.now()}` } as Account;
@@ -179,7 +175,7 @@ export const useAccounts = () => {
   };
 
   const updateAccount = async (account: Account) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const updated = accounts.map(a => a.id === account.id ? account : a);
@@ -201,7 +197,7 @@ export const useAccounts = () => {
   };
 
   const reorderAccounts = async (updatedOrderAccounts: { id: string, order: number }[]) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const map = new Map(updatedOrderAccounts.map(o => [o.id, o.order]));
@@ -227,7 +223,7 @@ export const useAccounts = () => {
   };
 
   const deleteAccount = async (id: string) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const updated = accounts.filter(a => a.id !== id);
@@ -291,7 +287,7 @@ export const useTransactions = () => {
   }, [userId]);
 
   const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const newT = { ...transaction, id: `t-demo-${Date.now()}`, createdAt: new Date().toISOString() } as Transaction;
@@ -313,7 +309,7 @@ export const useTransactions = () => {
   };
   
   const addTransactions = async (newTransactions: Omit<Transaction, 'id'>[]) => {
-      const currentUid = auth.currentUser?.uid;
+      const currentUid = auth.currentUser?.uid || userId;
       if (!currentUid) {
         if (localStorage.getItem('isDemoMode') === 'true') {
           const timestamp = new Date().toISOString();
@@ -331,11 +327,17 @@ export const useTransactions = () => {
       }
       try {
           const timestamp = new Date().toISOString();
-          const batchPromises = newTransactions.map(t => {
-              const cleaned = deepClean({ ...t, createdAt: timestamp });
-              return addDoc(collection(db, `users/${currentUid}/transactions`), cleaned);
-          });
-          await Promise.all(batchPromises);
+          const chunkSize = 400;
+          for (let i = 0; i < newTransactions.length; i += chunkSize) {
+              const chunk = newTransactions.slice(i, i + chunkSize);
+              const batch = writeBatch(db);
+              chunk.forEach(t => {
+                  const cleaned = deepClean({ ...t, createdAt: timestamp });
+                  const newRef = doc(collection(db, `users/${currentUid}/transactions`));
+                  batch.set(newRef, cleaned);
+              });
+              await batch.commit();
+          }
           return true;
       } catch (error: any) {
           console.error("Erro ao adicionar múltiplas transações:", error.message);
@@ -344,7 +346,7 @@ export const useTransactions = () => {
   };
 
   const updateTransaction = async (transaction: Transaction) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const updated = transactions.map(t => t.id === transaction.id ? transaction : t);
@@ -366,7 +368,7 @@ export const useTransactions = () => {
   };
 
   const deleteTransaction = async (id: string) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const updated = transactions.filter(t => t.id !== id);
@@ -386,7 +388,7 @@ export const useTransactions = () => {
   };
   
   const deleteTransactions = async (ids: string[]) => {
-      const currentUid = auth.currentUser?.uid;
+      const currentUid = auth.currentUser?.uid || userId;
       if (!currentUid) {
         if (localStorage.getItem('isDemoMode') === 'true') {
           const idSet = new Set(ids);
@@ -398,14 +400,21 @@ export const useTransactions = () => {
         return false;
       }
       try {
-          const batchPromises = ids.map(id => deleteDoc(doc(db, `users/${currentUid}/transactions`, id)));
-          await Promise.all(batchPromises);
+          const chunkSize = 400;
+          for (let i = 0; i < ids.length; i += chunkSize) {
+              const chunk = ids.slice(i, i + chunkSize);
+              const batch = writeBatch(db);
+              chunk.forEach(id => {
+                  batch.delete(doc(db, `users/${currentUid}/transactions`, id));
+              });
+              await batch.commit();
+          }
           return true;
       } catch (error: any) {
           console.error("Erro ao excluir múltiplas transações:", error.message);
           return false;
       }
-  }
+  };
 
   return { transactions, addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions };
 };
@@ -441,7 +450,7 @@ export const useCategories = () => {
   }, [userId]);
 
   const setCategories = async (newCategories: Category[]) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) return false;
     try {
         const cleaned = deepClean(newCategories);
@@ -498,7 +507,7 @@ export const useLoans = () => {
   }, [userId]);
 
   const addLoan = async (loan: Omit<Loan, 'id'>) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const newLoan = { ...loan, id: `loan-demo-${Date.now()}` } as Loan;
@@ -520,7 +529,7 @@ export const useLoans = () => {
   };
 
   const updateLoan = async (loan: Loan) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const updated = loans.map(l => l.id === loan.id ? loan : l);
@@ -542,7 +551,7 @@ export const useLoans = () => {
   };
 
   const deleteLoan = async (id: string) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const updated = loans.filter(l => l.id !== id);
@@ -602,7 +611,7 @@ export const useGoals = () => {
   }, [userId]);
 
   const setGoals = async (newGoals: AnnualGoals) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) return false;
     try {
         const cleaned = deepClean(newGoals);
@@ -644,7 +653,7 @@ export const useManualSavings = () => {
   }, [userId]);
 
   const updateManualSavings = async (newManualSavings: ManualSavings) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) return false;
     try {
         const cleaned = deepClean(newManualSavings);
@@ -686,7 +695,7 @@ export const useForecasts = () => {
   }, [userId]);
 
   const updateForecasts = async (newForecasts: MonthlyForecasts) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) return false;
     try {
         const cleaned = deepClean(newForecasts);
@@ -728,7 +737,7 @@ export const useItemBudgets = () => {
   }, [userId]);
 
   const updateItemBudgets = async (newItemBudgets: ItemBudgets) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) return false;
     try {
         const cleaned = deepClean(newItemBudgets);
@@ -773,7 +782,7 @@ export const useReportNotes = () => {
   }, [userId]);
 
   const updateReportNotes = async (newNotes: ReportNote[]) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) return false;
     try {
         const cleaned = deepClean({ list: newNotes });
@@ -830,7 +839,7 @@ export const useCDBs = () => {
   }, [userId]);
 
   const addCDB = async (cdb: Omit<CDBContract, 'id'>) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const newCdb = { ...cdb, id: `cdb-demo-${Date.now()}` } as CDBContract;
@@ -852,7 +861,7 @@ export const useCDBs = () => {
   };
 
   const updateCDB = async (cdb: CDBContract) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const updated = cdbs.map(c => c.id === cdb.id ? cdb : c);
@@ -874,7 +883,7 @@ export const useCDBs = () => {
   };
 
   const deleteCDB = async (id: string) => {
-    const currentUid = auth.currentUser?.uid;
+    const currentUid = auth.currentUser?.uid || userId;
     if (!currentUid) {
       if (localStorage.getItem('isDemoMode') === 'true') {
         const updated = cdbs.filter(c => c.id !== id);

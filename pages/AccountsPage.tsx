@@ -623,9 +623,10 @@ interface AccountsPageProps {
     addAccountTrigger: number;
     initialParams?: { accountId: string, filterType: 'overview' | 'card' | 'investments' } | null;
     onParamsProcessed?: () => void;
+    onAddAccountHandled?: () => void;
 }
 
-const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialParams, onParamsProcessed }) => {
+const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialParams, onParamsProcessed, onAddAccountHandled }) => {
     const { accounts, addAccount, updateAccount, deleteAccount, reorderAccounts } = useAccounts();
     const { transactions, addTransactions } = useTransactions();
     const { categories } = useCategories();
@@ -687,11 +688,17 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
         }
     }, [initialParams, onParamsProcessed]);
 
+    const lastAddAccountTriggerRef = useRef(addAccountTrigger);
+
     useEffect(() => {
-        if (addAccountTrigger > 0) {
+        if (addAccountTrigger > 0 && addAccountTrigger !== lastAddAccountTriggerRef.current) {
+            lastAddAccountTriggerRef.current = addAccountTrigger;
             handleOpenModal();
+            if (onAddAccountHandled) {
+                onAddAccountHandled();
+            }
         }
-    }, [addAccountTrigger]);
+    }, [addAccountTrigger, onAddAccountHandled]);
     
     useEffect(() => {
         if (!selectedAccountId && accounts.length > 0) {
@@ -873,52 +880,68 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
     return (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
             <div className="xl:col-span-4 flex xl:flex-col overflow-x-auto xl:overflow-x-visible gap-3 pb-4 xl:pb-0 scrollbar-hide">
-                {accounts.map((acc, index) => {
-                    const isSelected = acc.id === selectedAccountId;
-                    const isDragOver = dragOverItemIndex === index;
-                    const cashBalance = accountCashBalances.get(acc.id) || 0;
-                    return (
-                        <div 
-                            key={acc.id} 
-                            draggable
-                            onDragStart={(e) => { setDraggedItemIndex(index); e.dataTransfer.effectAllowed = 'move'; }}
-                            onDragEnter={() => setDragOverItemIndex(index)}
-                            onDragEnd={() => { setDraggedItemIndex(null); setDragOverItemIndex(null); }}
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={(e) => handleAccountDrop(e, index)}
-                            onClick={() => setSelectedAccountId(acc.id)} 
-                            className={`flex-shrink-0 w-[280px] xl:w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-grab active:cursor-grabbing ${draggedItemIndex === index ? 'opacity-50' : ''} ${isDragOver ? 'border-blue-500 bg-blue-50' : ''} ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}
-                         >
-                            <div className="flex items-center justify-between pointer-events-none gap-4">
-                                <div className="flex items-center space-x-4 min-w-0">
-                                    <BankLogo account={acc} />
-                                    <div className="min-w-0">
-                                        <div className="flex items-center space-x-2">
-                                            <p className="font-bold text-slate-800 truncate" title={acc.name}>{acc.name}</p>
-                                            {acc.isCreditCard && <div title="Cartão de Crédito"><CreditCardIcon className="w-4 h-4 text-slate-400" /></div>}
+                {accounts.length === 0 ? (
+                    <div className="w-full text-center p-6 bg-white rounded-xl border border-dashed border-slate-300 space-y-2">
+                        <p className="font-semibold text-slate-700">Nenhuma conta cadastrada</p>
+                        <p className="text-xs text-slate-400">Clique em "+ Nova Conta" no topo para adicionar sua primeira conta.</p>
+                    </div>
+                ) : (
+                    accounts.map((acc, index) => {
+                        const isSelected = acc.id === selectedAccountId;
+                        const isDragOver = dragOverItemIndex === index;
+                        const cashBalance = accountCashBalances.get(acc.id) || 0;
+                        return (
+                            <div 
+                                key={acc.id} 
+                                draggable
+                                onDragStart={(e) => { setDraggedItemIndex(index); e.dataTransfer.effectAllowed = 'move'; }}
+                                onDragEnter={() => setDragOverItemIndex(index)}
+                                onDragEnd={() => { setDraggedItemIndex(null); setDragOverItemIndex(null); }}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => handleAccountDrop(e, index)}
+                                onClick={() => setSelectedAccountId(acc.id)} 
+                                className={`flex-shrink-0 w-[280px] xl:w-full text-left p-4 bg-white rounded-xl border-2 transition-all duration-200 cursor-grab active:cursor-grabbing ${draggedItemIndex === index ? 'opacity-50' : ''} ${isDragOver ? 'border-blue-500 bg-blue-50' : ''} ${isSelected ? 'border-blue-500 shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'} ${!acc.isActive ? 'opacity-60' : ''}`}
+                             >
+                                <div className="flex items-center justify-between pointer-events-none gap-4">
+                                    <div className="flex items-center space-x-4 min-w-0">
+                                        <BankLogo account={acc} />
+                                        <div className="min-w-0">
+                                            <div className="flex items-center space-x-2">
+                                                <p className="font-bold text-slate-800 truncate" title={acc.name}>{acc.name}</p>
+                                                {acc.isCreditCard && <div title="Cartão de Crédito"><CreditCardIcon className="w-4 h-4 text-slate-400" /></div>}
+                                            </div>
+                                            <p className="text-sm text-slate-500 truncate">Disponível em Caixa</p>
                                         </div>
-                                        <p className="text-sm text-slate-500 truncate">Disponível em Caixa</p>
+                                    </div>
+                                    <div className="flex items-center space-x-1 pointer-events-auto flex-shrink-0">
+                                        <p className="font-bold text-lg text-slate-800 whitespace-nowrap">
+                                            <PrivateValue>{formatCurrency(cashBalance)}</PrivateValue>
+                                        </p>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleOpenModal(acc); }} 
+                                            className="p-2 rounded-full text-slate-400 hover:text-blue-500 hover:bg-slate-100 transition-colors"
+                                          >
+                                              <PencilIcon className="w-4 h-4" />
+                                          </button>
                                     </div>
                                 </div>
-                                <div className="flex items-center space-x-1 pointer-events-auto flex-shrink-0">
-                                    <p className="font-bold text-lg text-slate-800 whitespace-nowrap">
-                                        <PrivateValue>{formatCurrency(cashBalance)}</PrivateValue>
-                                    </p>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); handleOpenModal(acc); }} 
-                                        className="p-2 rounded-full text-slate-400 hover:text-blue-500 hover:bg-slate-100 transition-colors"
-                                      >
-                                          <PencilIcon className="w-4 h-4" />
-                                      </button>
-                                </div>
                             </div>
-                        </div>
-                    )
-                })}
+                        )
+                    })
+                )}
             </div>
 
             <div className="xl:col-span-8 space-y-6">
-                {selectedAccount && (
+                {!selectedAccount && accounts.length === 0 ? (
+                    <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm text-center space-y-3">
+                        <h3 className="text-lg font-bold text-slate-800">Minhas Contas e Cartões</h3>
+                        <p className="text-sm text-slate-500 max-w-md mx-auto">
+                            Cadastre suas contas bancárias, cartões de crédito e carteiras digitais usando o botão no topo para acompanhar seu saldo e histórico.
+                        </p>
+                    </div>
+                ) : (
+                    <>
+                        {selectedAccount && (
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div className="flex items-center space-x-4">
@@ -1048,6 +1071,8 @@ const AccountsPage: React.FC<AccountsPageProps> = ({ addAccountTrigger, initialP
                         )}
                     </div>
                 </div>
+                    </>
+                )}
             </div>
 
             <AccountModal isOpen={isModalOpen} onClose={handleCloseModal} onSave={handleSaveAccount} onDelete={handleDeleteAccount} account={editingAccount} />

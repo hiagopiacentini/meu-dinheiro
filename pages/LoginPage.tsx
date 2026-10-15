@@ -135,12 +135,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     const trimmedEmail = email.trim();
     const trimmedName = name.trim();
 
-    if (!isSignUp && trimmedEmail === 'alebarros.vha@gmail.com' && password === 'nbt1515') {
-      handleDemoLogin();
-      setLoading(false);
-      return;
-    }
-
     try {
       if (isSignUp) {
         if (!trimmedName) {

@@ -14,7 +14,6 @@ import BalancesPage from './pages/BalancesPage';
 import { auth } from './services/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { PrivacyProvider, usePrivacy } from './contexts/PrivacyContext';
-import { seedUserData } from './services/dataMigration';
 
 import DashboardIcon from './components/icons/DashboardIcon';
 import AccountsIcon from './components/icons/AccountsIcon';
@@ -115,18 +114,6 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleSeedDataPrompt = async () => {
-    if (window.confirm("Deseja carregar a base de dados de demonstração (contas Nubank, Itaú, Inter, lançamentos, CDBs e metas) para sua conta?")) {
-      const uid = auth.currentUser?.uid;
-      if (uid) {
-        await seedUserData(uid);
-      } else {
-        localStorage.setItem('isDemoMode', 'true');
-        window.location.reload();
-      }
-    }
-  };
-
   const navigateToAccount = (accountId: string, filterType: 'overview' | 'card' | 'investments') => {
     setAccountsPageParams({ accountId, filterType });
     setActivePage('Contas');
@@ -141,6 +128,7 @@ const AppContent: React.FC = () => {
                   addAccountTrigger={addAccountTrigger} 
                   initialParams={accountsPageParams}
                   onParamsProcessed={() => setAccountsPageParams(null)}
+                  onAddAccountHandled={() => setAddAccountTrigger(0)}
                />;
       case 'Categorias':
         return <CategoriesPage addCategoryTrigger={addCategoryTrigger}/>;
@@ -260,14 +248,6 @@ const AppContent: React.FC = () => {
                           <span className="hidden sm:inline">Novo Lançamento</span>
                       </button>
                   )}
-                  <button
-                    onClick={handleSeedDataPrompt}
-                    className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 border border-slate-200 rounded-lg transition-colors cursor-pointer"
-                    title="Carregar base de dados de demonstração nesta conta"
-                  >
-                    <span>⚡</span>
-                    <span>Dados de Exemplo</span>
-                  </button>
                   <button onClick={handleLogout} className="btn-secondary text-xs md:text-sm px-3 py-2">
                     Sair
                   </button>
